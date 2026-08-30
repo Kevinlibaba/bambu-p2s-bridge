@@ -102,6 +102,21 @@ page {
 }
 
 /* #ifdef H5 */
+/*
+ * tabBar 在 DOM 里位于 uni-page-body 之外，拿不到 page 上的 font-family，
+ * 会回退到浏览器默认衬线体（英文下明显是 Times）。字体必须设在更外层，
+ * 让所有 uni-app chrome 都继承得到。
+ */
+html, body, uni-app {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text',
+    'Helvetica Neue', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+/* 标签文字与页面内文字保持同样收紧的字距 */
+.uni-tabbar__label {
+  letter-spacing: -0.01em;
+}
+
 /* CSS 变量定义在 page(uni-page-body) 上，不会向上级联到 html/body */
 html, body, uni-app, uni-page, uni-page-wrapper, uni-page-body {
   background-color: #000000;
