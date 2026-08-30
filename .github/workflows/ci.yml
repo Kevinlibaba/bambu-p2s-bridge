@@ -106,18 +106,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Scan tracked files
-        run: |
-          # 这个仓库的凭据只应存在于 .env（不入库）。任何看起来像真实
-          # 访问码 / token / 私网地址的东西都应拦下。
-          fail=0
-          check() {
-            hits=$(git ls-files -z | xargs -0 grep -Il -E "$1" 2>/dev/null || true)
-            if [ -n "$hits" ]; then echo "::error::命中 $2: $hits"; fail=1; fi
-          }
-          check 'BAMBU_ACCESS_CODE=[0-9a-zA-Z]{6,}'  '硬编码访问码'
-          check 'API_TOKEN=[0-9a-f]{16,}'            '硬编码 API token'
-          check '\.ts\.net' '真实 tailnet 域名'
-          check '192\.168\.[0-9]+\.[0-9]{1,3}:(8883|990|322)' '真实打印机地址'
-          [ $fail -eq 0 ] && echo "未发现凭据泄漏"
-          exit $fail
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python3 .github/scripts/check-secrets.py
