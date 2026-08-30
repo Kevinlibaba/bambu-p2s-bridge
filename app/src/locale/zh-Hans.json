@@ -106,7 +106,7 @@
     "up": "上级",
     "emptyDir": "空目录",
     "dir": "目录",
-    "note": "只读浏览。上传与远程开打尚未实现。",
+    "note": "导入的文件保存在打印机 SD 卡根目录。延时摄影与录像由打印机自己写入。",
     "unknownTime": "时间未知",
     "preview": "预览",
     "size": "大小",
@@ -161,5 +161,37 @@
     "stop": "停止",
     "lightOn": "开灯",
     "lightOff": "关灯"
+  },
+  "import": {
+    "action": "导入模型",
+    "sheetTitle": "导入模型",
+    "fromFile": "从文件选择",
+    "fromFileHint": "选择电脑上切好的 .gcode.3mf",
+    "fromLink": "从链接导入",
+    "fromLinkHint": "由桥接服务下载，不占用手机流量",
+    "linkTitle": "粘贴链接",
+    "linkPlaceholder": "https://…/model.gcode.3mf",
+    "nameTitle": "保存为",
+    "uploading": "上传中 {pct}%",
+    "fetching": "下载中",
+    "done": "已导入 {name}",
+    "onlyThreeMf": "只支持已切片的 .gcode.3mf 文件",
+    "note": "打印机只能打印已切片的 .gcode.3mf。原始 STL/STEP 需要先在电脑上切片。"
+  },
+  "del": {
+    "action": "删除",
+    "title": "删除文件",
+    "desc": "将从打印机 SD 卡上永久删除「{name}」。",
+    "done": "已删除"
+  },
+  "print": {
+    "action": "开始打印",
+    "title": "确认开始打印",
+    "desc": "即将打印「{name}」第 {plate} 盘。\n\n打印机会立即加热并开始运动。请确认耗材已装好、热床已清理、首层有人看管。",
+    "started": "已下发打印指令",
+    "plate": "打印盘",
+    "useAms": "使用 AMS",
+    "busy": "打印机正忙，无法开始新任务",
+    "risk": "远程开打属于无人值守操作，请自行评估风险。"
   }
 }

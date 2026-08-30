@@ -106,7 +106,7 @@
     "up": "Up",
     "emptyDir": "Empty",
     "dir": "Folder",
-    "note": "Read-only. Upload and remote print start are not implemented yet.",
+    "note": "Imported files land in the root of the printer's SD card. Timelapse and recordings are written by the printer itself.",
     "unknownTime": "unknown time",
     "preview": "Preview",
     "size": "Size",
@@ -161,5 +161,37 @@
     "stop": "Stop",
     "lightOn": "Light on",
     "lightOff": "Light off"
+  },
+  "import": {
+    "action": "Import model",
+    "sheetTitle": "Import model",
+    "fromFile": "Choose a file",
+    "fromFileHint": "Pick a sliced .gcode.3mf from this device",
+    "fromLink": "Import from link",
+    "fromLinkHint": "The bridge downloads it — no mobile data used",
+    "linkTitle": "Paste a link",
+    "linkPlaceholder": "https://…/model.gcode.3mf",
+    "nameTitle": "Save as",
+    "uploading": "Uploading {pct}%",
+    "fetching": "Downloading",
+    "done": "Imported {name}",
+    "onlyThreeMf": "Only sliced .gcode.3mf files are supported",
+    "note": "The printer can only print sliced .gcode.3mf. Raw STL/STEP must be sliced on a computer first."
+  },
+  "del": {
+    "action": "Delete",
+    "title": "Delete file",
+    "desc": "This permanently removes “{name}” from the printer's SD card.",
+    "done": "Deleted"
+  },
+  "print": {
+    "action": "Start print",
+    "title": "Start printing?",
+    "desc": "About to print “{name}”, plate {plate}.\n\nThe printer will start heating and moving immediately. Check that filament is loaded, the bed is clear, and someone can watch the first layer.",
+    "started": "Print command sent",
+    "plate": "Plate",
+    "useAms": "Use AMS",
+    "busy": "The printer is busy and cannot start a new job",
+    "risk": "Starting a print remotely means it runs unattended. Judge the risk yourself."
   }
 }

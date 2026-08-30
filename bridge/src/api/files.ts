@@ -7,6 +7,7 @@
  * 这里不注册任何鉴权豁免：路由挂在根实例上，server.ts 的 onRequest 钩子照常生效。
  */
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify'
+import { Readable } from 'node:stream'
 import * as ftp from '../printer/ftp.js'
 import { RangeNotSatisfiableError, parseRangeHeader } from '../util/range.js'
 import type { RangeSpec } from '../util/range.js'
@@ -29,6 +30,22 @@ export interface FileBackend {
   stat(path: string): Promise<number>
   openRead(path: string, spec?: RangeSpec): Promise<ftp.RemoteStream>
   readRange(path: string, spec?: RangeSpec): Promise<{ size: number; start: number; data: Buffer }>
+  uploadStream(path: string, source: Readable): Promise<void>
+  remove(path: string): Promise<void>
+}
+
+/** 文件名来自客户端，必须彻底清洗后才能拼进 FTP 路径 */
+const MAX_NAME = 120
+function safeName(raw: unknown): string {
+  const base = String(raw ?? '')
+    .split(/[/\\]/)
+    .pop()!
+    .replace(/[\u0000-\u001f\u007f]/g, '')
+    .trim()
+  if (!base || base === '.' || base === '..') throw new BadRequest('文件名非法')
+  if (!base.toLowerCase().endsWith('.3mf')) throw new BadRequest('只支持 .3mf 文件')
+  if (base.length > MAX_NAME) throw new BadRequest('文件名过长')
+  return base
 }
 
 /** 尾部预读长度。EOCD 加注释最多 64 KB，3MF 的中央目录只有几 KB，一次读完就不用再开连接。 */
@@ -94,6 +111,7 @@ export function registerFileRoutes(app: FastifyInstance, backend: FileBackend = 
   function fail(reply: FastifyReply, e: unknown) {
     if (e instanceof BadRequest) return reply.code(400).send({ error: e.message })
     if (e instanceof ftp.TooManyReadsError) return reply.code(503).send({ error: e.message })
+    if (e instanceof ftp.NotAFileError) return reply.code(e.status).send({ error: e.message })
     if (e instanceof ZipFormatError) return reply.code(422).send({ error: e.message })
     return reply.code(502).send({ error: `FTPS 失败: ${(e as Error).message}` })
   }
@@ -268,6 +286,97 @@ export function registerFileRoutes(app: FastifyInstance, backend: FileBackend = 
       return fail(reply, e)
     }
   })
+
+  // ---- 导入与删除 ----
+  /**
+   * 上传后必须校验：改个扩展名就能把任意文件塞进打印机的 SD 卡，
+   * 打印机自己不做检查。校验不过就删掉，不留垃圾。
+   */
+  async function verifyOrRemove(path: string) {
+    try {
+      const { src, entries } = await openZip(path)
+      const info = await describeThreeMf(src, entries)
+      if (!info.hasModel) throw new ZipFormatError('不是有效的 3MF：缺少 3D/3dmodel.model')
+      return info
+    } catch (e) {
+      await backend.remove(path).catch(() => {})
+      zipCache.delete(path)
+      throw e
+    }
+  }
+
+  app.post('/api/files/upload', async (req, reply) => {
+    try {
+      const mp = await (
+        req as unknown as { file(): Promise<{ filename: string; file: Readable } | undefined> }
+      ).file()
+      if (!mp) throw new BadRequest('缺少文件')
+      const name = safeName(mp.filename)
+      const path = '/' + name
+      await backend.uploadStream(path, mp.file)
+      const info = await verifyOrRemove(path)
+      return { path, name, size: await backend.stat(path).catch(() => 0), ...info }
+    } catch (e) {
+      return fail(reply, e)
+    }
+  })
+
+  /**
+   * 由桥接去取链接，而不是让手机先下载再上传 —— 桥接是有线千兆，
+   * 手机上行往往才是瓶颈，移动网络下尤其明显。
+   */
+  app.post('/api/files/import', async (req, reply) => {
+    try {
+      const body = (req.body ?? {}) as { url?: unknown; name?: unknown }
+      let url: URL
+      try {
+        url = new URL(String(body.url ?? ''))
+      } catch {
+        throw new BadRequest('链接格式不正确')
+      }
+      if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+        throw new BadRequest('只支持 http/https 链接')
+      }
+      let fallback = ''
+      try {
+        fallback = decodeURIComponent(url.pathname)
+      } catch {
+        fallback = url.pathname
+      }
+      const name = safeName(body.name || fallback)
+
+      let res: Response
+      try {
+        res = await fetch(url, { redirect: 'follow' })
+      } catch (e) {
+        // 兜底分支会把这类错误说成 "FTPS 失败"，与实际原因南辕北辙
+        throw new BadRequest(`无法访问该链接：${(e as Error).message}`)
+      }
+      if (!res.ok || !res.body) throw new BadRequest(`下载失败：HTTP ${res.status}`)
+
+      const path = '/' + name
+      await backend.uploadStream(
+        path,
+        Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]),
+      )
+      const info = await verifyOrRemove(path)
+      return { path, name, size: await backend.stat(path).catch(() => 0), ...info }
+    } catch (e) {
+      return fail(reply, e)
+    }
+  })
+
+  app.delete('/api/files', async (req, reply) => {
+    try {
+      const path = queryPath(req)
+      await backend.remove(path)
+      zipCache.delete(path)
+      return { ok: true, path }
+    } catch (e) {
+      return fail(reply, e)
+    }
+  })
+
 }
 
 class BadRequest extends Error {

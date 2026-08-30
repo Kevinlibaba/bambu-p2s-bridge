@@ -168,6 +168,41 @@ export async function download(path: string): Promise<Buffer> {
 }
 
 export async function upload(path: string, data: Buffer): Promise<void> {
+  await uploadStream(path, Readable.from(data))
+}
+
+/**
+ * 流式写入 —— 导入的切片文件动辄几十 MB，不能先读进内存再传。
+ * 上传同样占用打印机的 FTP 连接，所以走和读取一样的并发闸门。
+ */
+export async function uploadStream(path: string, source: Readable): Promise<void> {
   const file = normalize(path)
-  await withClient((c) => c.uploadFrom(Readable.from(data), file))
+  if (activeReads >= MAX_CONCURRENT_READS) throw new TooManyReadsError()
+  activeReads++
+  try {
+    await withClient((c) => c.uploadFrom(source, file))
+  } finally {
+    activeReads--
+  }
+}
+
+export class NotAFileError extends Error {
+  constructor(message: string, readonly status = 400) {
+    super(message)
+    this.name = 'NotAFileError'
+  }
+}
+
+/** 删除文件。目录不走这里 —— 打印机上的目录都是系统目录，没有删除的理由。 */
+export async function remove(path: string): Promise<void> {
+  const file = normalize(path)
+  if (file === '/') throw new NotAFileError('不能删除根目录')
+  await withClient(async (c) => {
+    const parent = file.slice(0, file.lastIndexOf('/')) || '/'
+    const name = file.slice(file.lastIndexOf('/') + 1)
+    const entry = (await c.list(parent)).find((f) => f.name === name)
+    if (!entry) throw new NotAFileError('文件不存在', 404)
+    if (entry.isDirectory) throw new NotAFileError('不能删除目录')
+    await c.remove(file)
+  })
 }

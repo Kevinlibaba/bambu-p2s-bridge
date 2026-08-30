@@ -2,7 +2,10 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
-import { api, isConfigured, type RemoteFile, type ThreeMfInfo } from '../../api/client'
+import {
+  api, isConfigured, uploadFile, importUrl, deleteFile, startPrint,
+  type RemoteFile, type ThreeMfInfo,
+} from '../../api/client'
 import { themeClass, applyChrome } from '../../store/prefs'
 import Sheet from '../../components/Sheet.vue'
 
@@ -167,6 +170,118 @@ function save() {
   // #endif
 }
 
+const busy = ref('')
+
+function toast(msg: string) {
+  uni.showToast({ title: msg, icon: 'none', duration: 2200 })
+}
+function confirm(title: string, content: string, danger = false): Promise<boolean> {
+  return new Promise((r) =>
+    uni.showModal({
+      title, content, confirmColor: danger ? '#ff453a' : '#2997ff',
+      success: (m) => r(!!m.confirm), fail: () => r(false),
+    }),
+  )
+}
+
+// ---- 导入 ----
+function openImport() {
+  const opts = [t('import.fromFile'), t('import.fromLink')]
+  uni.showActionSheet({
+    itemList: opts,
+    success: (r) => (r.tapIndex === 0 ? pickFile() : pickLink()),
+    fail: () => {},
+  })
+}
+
+function pickFile() {
+  uni.chooseFile({
+    count: 1,
+    extension: ['.3mf'],
+    success: async (r) => {
+      const path = (r.tempFilePaths as string[])[0]
+      const raw = (r.tempFiles as { name?: string }[])[0]
+      const name = raw?.name ?? path.split('/').pop() ?? 'model.gcode.3mf'
+      if (!name.toLowerCase().endsWith('.3mf')) return toast(t('import.onlyThreeMf'))
+      busy.value = t('import.uploading', { pct: 0 })
+      try {
+        const res = await uploadFile(
+          { path, name, raw },
+          (pct: number) => (busy.value = t('import.uploading', { pct })),
+        )
+        toast(t('import.done', { name: res.name }))
+        await load('/')
+      } catch (e) {
+        toast((e as Error).message)
+      } finally {
+        busy.value = ''
+      }
+    },
+    fail: () => {},
+  })
+}
+
+function pickLink() {
+  uni.showModal({
+    title: t('import.linkTitle'),
+    editable: true,
+    placeholderText: t('import.linkPlaceholder'),
+    confirmColor: '#2997ff',
+    success: async (m) => {
+      const link = (m.content ?? '').trim()
+      if (!m.confirm || !link) return
+      let guess = ''
+      try {
+        guess = decodeURIComponent(new URL(link).pathname.split('/').pop() ?? '')
+      } catch {
+        guess = ''
+      }
+      if (!guess.toLowerCase().endsWith('.3mf')) guess = 'imported.gcode.3mf'
+      busy.value = t('import.fetching')
+      try {
+        const res = await importUrl(link, guess)
+        toast(t('import.done', { name: res.name }))
+        await load('/')
+      } catch (e) {
+        toast((e as Error).message)
+      } finally {
+        busy.value = ''
+      }
+    },
+  })
+}
+
+// ---- 删除 ----
+async function removeSelected() {
+  const f = sel.value
+  if (!f) return
+  if (!(await confirm(t('del.title'), t('del.desc', { name: f.name }), true))) return
+  try {
+    await deleteFile(selPath.value)
+    toast(t('del.done'))
+    close()
+    await load()
+  } catch (e) {
+    toast((e as Error).message)
+  }
+}
+
+// ---- 开始打印 ----
+/** 二次确认里必须写清后果：远程开打意味着首层无人看管 */
+async function printSelected() {
+  const f = sel.value
+  if (!f) return
+  const plateNo = plate.value?.index ?? 1
+  if (!(await confirm(t('print.title'), t('print.desc', { name: f.name, plate: plateNo }), true))) return
+  try {
+    await startPrint({ path: selPath.value, plate: plateNo })
+    toast(t('print.started'))
+    close()
+  } catch (e) {
+    toast((e as Error).message)
+  }
+}
+
 onShow(() => { applyChrome('tab.files'); load() })
 onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 </script>
@@ -179,6 +294,14 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
       <view class="segs">
         <view v-for="q in QUICK" :key="q.path" class="seg" :class="{ on: path === q.path }"
           @click="load(q.path)"><text class="seg-t">{{ q.label }}</text></view>
+      </view>
+
+      <!-- 只在模型目录提供导入：延时摄影与录像是打印机自己写的 -->
+      <view v-if="path === '/'" class="card import-card">
+        <view class="line tappable" @click="openImport">
+          <text class="k accent">{{ busy || t('import.action') }}</text>
+          <text class="v">{{ busy ? '' : '›' }}</text>
+        </view>
       </view>
 
       <view class="crumb">
@@ -212,6 +335,7 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
       </view>
 
       <text class="note">{{ t('files.note') }}</text>
+      <text v-if="path === '/'" class="note">{{ t('import.note') }}</text>
     </view>
 
     <!-- 详情与预览 -->
@@ -308,7 +432,21 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
           <text class="k accent">{{ t('files.download') }}</text>
           <text class="v">›</text>
         </view>
+        <template v-if="selKind === 'model' && model && !modelError">
+          <view class="hsep" />
+          <view class="line tappable" @click="printSelected">
+            <text class="k accent">{{ t('print.action') }}</text>
+            <text class="v">›</text>
+          </view>
+        </template>
+        <view class="hsep" />
+        <view class="line tappable" @click="removeSelected">
+          <text class="k danger">{{ t('del.action') }}</text>
+          <text class="v">›</text>
+        </view>
       </view>
+
+      <text v-if="selKind === 'model'" class="hint">{{ t('print.risk') }}</text>
 
       <template #footer>
         <button class="cta" @click="close">{{ t('files.close') }}</button>
@@ -352,6 +490,9 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 .sub { display: block; font-size: 23rpx; color: var(--ink-2); margin-top: 6rpx; letter-spacing: -0.01em; }
 .tag { font-size: 21rpx; color: var(--accent); margin-left: 20rpx; flex-shrink: 0;
   padding: 4rpx 16rpx; border-radius: 999rpx; background: var(--accent-dim); letter-spacing: -0.01em; }
+.import-card { margin-bottom: 24rpx; }
+.k.danger { color: var(--critical); }
+
 .note { display: block; font-size: 22rpx; color: var(--ink-3);
   margin-top: 32rpx; text-align: center; letter-spacing: -0.01em; }
 

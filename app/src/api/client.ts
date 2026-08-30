@@ -50,7 +50,7 @@ export function tokenizedUrl(path: string): string {
 
 export function request<T>(
   path: string,
-  opts: { method?: 'GET' | 'POST'; data?: unknown; timeout?: number } = {},
+  opts: { method?: 'GET' | 'POST' | 'DELETE'; data?: unknown; timeout?: number } = {},
 ): Promise<T> {
   const { token } = loadSettings()
   return new Promise((resolve, reject) => {
@@ -186,3 +186,57 @@ export const api = {
 export function eventsUrl(): string {
   return tokenizedUrl('/api/events').replace(/^http/, 'ws')
 }
+
+// ---------- 导入 / 删除 / 打印 ----------
+
+/**
+ * 上传走 uni.uploadFile 而不是 request —— 它在各端都是流式的，
+ * 并且提供进度回调。几十 MB 的切片文件没有进度条会让人以为卡死了。
+ */
+export function uploadFile(
+  file: { path: string; name: string; raw?: unknown },
+  onProgress?: (pct: number) => void,
+): Promise<ThreeMfInfo> {
+  const { token } = loadSettings()
+  return new Promise((resolve, reject) => {
+    const task = uni.uploadFile({
+      url: url('/api/files/upload'),
+      filePath: file.path,
+      name: 'file',
+      // H5 下传 File 对象才能带上正确的文件名
+      file: file.raw as never,
+      header: { Authorization: 'Bearer ' + token },
+      timeout: 30 * 60 * 1000,
+      success: (res) => {
+        let body: Record<string, unknown> = {}
+        try {
+          body = JSON.parse(res.data as string)
+        } catch {
+          return reject(new ApiError('服务器返回了无法解析的内容'))
+        }
+        if (res.statusCode >= 200 && res.statusCode < 300) return resolve(body as unknown as ThreeMfInfo)
+        reject(new ApiError(String(body.error ?? `HTTP ${res.statusCode}`), res.statusCode))
+      },
+      fail: (e) => reject(new ApiError(e.errMsg || '上传失败')),
+    })
+    task?.onProgressUpdate?.((p) => onProgress?.(p.progress))
+  })
+}
+
+export const importUrl = (link: string, name: string) =>
+  request<ThreeMfInfo>('/api/files/import', { method: 'POST', data: { url: link, name }, timeout: 10 * 60 * 1000 })
+
+export const deleteFile = (path: string) =>
+  request<{ ok: boolean }>('/api/files?path=' + encodeURIComponent(path), { method: 'DELETE' })
+
+export interface PrintRequest {
+  path: string
+  plate?: number
+  useAms?: boolean
+  amsMapping?: number[]
+  timelapse?: boolean
+}
+
+export const startPrint = (req: PrintRequest) =>
+  request<{ ok: boolean; plate: number }>('/api/print/start', { method: 'POST', data: req, timeout: 60000 })
+

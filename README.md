@@ -183,6 +183,10 @@ Bearer token on everything except `/api/health` and `/app/**`.
 | `GET` | `/api/files/3mf/plate.png?path=…&plate=1` | Plate preview extracted from inside the 3MF |
 | `GET` | `/api/camera/snapshot.jpg` | Single frame (authenticated proxy) |
 | `GET` | `/api/camera/stream.mjpeg` | MJPEG — **triggers transcoding, use sparingly** |
+| `POST` | `/api/files/upload` | Import a sliced 3MF (streamed multipart) |
+| `POST` | `/api/files/import` | Import from a URL — the bridge fetches it |
+| `DELETE` | `/api/files?path=…` | Delete a file |
+| `POST` | `/api/print/start` | Start a print from a file already on the card |
 | `WS` | `/api/events` | Live state push |
 
 `/api/files/stream` and `/api/files/download` both honour `Range` and answer `206
@@ -210,6 +214,25 @@ Commands are a closed whitelist with range validation:
 ```
 
 ---
+
+### Importing and printing
+
+`POST /api/files/upload` streams multipart straight through to the printer's FTPS —
+a 35 MB slice is never held in memory. After the write the file is re-opened over
+ranged reads and validated as a real 3MF; anything that fails is deleted again, so a
+renamed `.txt` cannot sit on the card pretending to be a model. `/api/files/import`
+takes a URL and does the same, with the bridge doing the fetching — on a wired link
+that is a lot faster than pushing 35 MB up from a phone.
+
+`POST /api/print/start` is the only endpoint that makes the machine heat and move,
+so the checks are server-side rather than trusted from the client: the file must
+already be on the card, it must parse as a 3MF, the requested plate must exist, the
+AMS mapping must be integers, and the printer must not already be printing. The app
+adds a confirmation that spells out what is about to happen.
+
+> ⚠️ The `project_file` payload follows the documented X1/P1 shape. It has **not been
+> verified end to end on a P2S** — doing so means starting a real print. Supervise the
+> first one.
 
 ## Security model
 
@@ -240,10 +263,12 @@ are not shipped until they have been validated on real devices.
 Working: live state, camera, pause/resume/stop, lights, temperature, speed, file browsing,
 in-app timelapse/recording playback, 3MF plate preview, dark/light themes.
 
+Also working: importing sliced `.gcode.3mf` from the phone or from a URL, deleting
+files, and starting a print remotely (gated — see below).
+
 Not done yet:
 - [ ] Native iOS / Android builds
 - [ ] Push notifications (print complete / HMS error / offline)
-- [ ] File upload + remote print start (`project_file` + AMS mapping)
 - [ ] WebRTC signalling proxy — the true zero-transcode camera path
 - [ ] 3D mesh viewer for `3D/3dmodel.model` — deliberately skipped, see below
 

@@ -1,6 +1,7 @@
 import Fastify, { type FastifyRequest, type FastifyReply } from 'fastify'
 import websocket from '@fastify/websocket'
 import fastifyStatic from '@fastify/static'
+import multipart from '@fastify/multipart'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { config } from '../config.js'
@@ -8,6 +9,7 @@ import type { PrinterState } from '../printer/state.js'
 import type { PrinterMqtt } from '../printer/mqtt.js'
 import { execute, CommandError, type CommandInput } from '../printer/commands.js'
 import { registerFileRoutes } from './files.js'
+import { registerPrintRoutes } from './print.js'
 
 function tokenOf(req: FastifyRequest): string | undefined {
   const h = req.headers.authorization
@@ -19,6 +21,11 @@ function tokenOf(req: FastifyRequest): string | undefined {
 export async function buildServer(state: PrinterState, mqtt: PrinterMqtt) {
   const app = Fastify({ logger: { level: 'warn' } })
   await app.register(websocket)
+
+  // 切片文件几十 MB 起步；只允许单文件，且必须流式读取，不能落进内存
+  await app.register(multipart, {
+    limits: { files: 1, fileSize: 512 * 1024 * 1024 },
+  })
 
   // 前端静态资源（uni-app H5 产物）。挂在 /app/ 下，hash 路由无需 history 回退。
   await app.register(fastifyStatic, {
@@ -62,6 +69,7 @@ export async function buildServer(state: PrinterState, mqtt: PrinterMqtt) {
 
   // ---- 文件（FTPS）：列目录、Range 流式读取、3MF 预览 ----
   registerFileRoutes(app)
+  registerPrintRoutes(app, mqtt, state)
 
   // ---- 摄像头：在 go2rtc 前面做鉴权代理 ----
   // go2rtc 本身无认证，因此它只监听 127.0.0.1，外部一律经这里

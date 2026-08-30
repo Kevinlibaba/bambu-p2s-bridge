@@ -156,6 +156,8 @@ export function makeThreeMf(): Buffer {
 export function memoryBackend(files: Record<string, Buffer>): FileBackend & {
   /** 打开过、但没被 destroy 的流数量。用来证明不会漏连接。 */
   openStreams(): number
+  /** 断言上传落盘 / 删除生效 */
+  has(path: string): boolean
 } {
   let open = 0
 
@@ -212,6 +214,16 @@ export function memoryBackend(files: Record<string, Buffer>): FileBackend & {
       for await (const c of s.stream) chunks.push(Buffer.from(c as Buffer))
       return { size: s.size, start: s.start, data: Buffer.concat(chunks) }
     },
+    async uploadStream(path: string, source: Readable) {
+      const chunks: Buffer[] = []
+      for await (const c of source) chunks.push(Buffer.from(c as Buffer))
+      files[path] = Buffer.concat(chunks)
+    },
+    async remove(path: string) {
+      if (!files[path]) throw new Error(`没有这个文件: ${path}`)
+      delete files[path]
+    },
     openStreams: () => open,
+    has: (path: string) => path in files,
   }
 }

@@ -106,7 +106,7 @@
     "up": "上一層",
     "emptyDir": "空目錄",
     "dir": "目錄",
-    "note": "唯讀瀏覽。上傳與遠端開始列印尚未實作。",
+    "note": "匯入的檔案儲存在印表機 SD 卡根目錄。縮時攝影與錄影由印表機自行寫入。",
     "unknownTime": "時間未知",
     "preview": "預覽",
     "size": "大小",
@@ -161,5 +161,37 @@
     "stop": "停止",
     "lightOn": "開燈",
     "lightOff": "關燈"
+  },
+  "import": {
+    "action": "匯入模型",
+    "sheetTitle": "匯入模型",
+    "fromFile": "從檔案選擇",
+    "fromFileHint": "選擇電腦上切好的 .gcode.3mf",
+    "fromLink": "從連結匯入",
+    "fromLinkHint": "由橋接服務下載，不佔用手機流量",
+    "linkTitle": "貼上連結",
+    "linkPlaceholder": "https://…/model.gcode.3mf",
+    "nameTitle": "儲存為",
+    "uploading": "上傳中 {pct}%",
+    "fetching": "下載中",
+    "done": "已匯入 {name}",
+    "onlyThreeMf": "只支援已切片的 .gcode.3mf 檔案",
+    "note": "印表機只能列印已切片的 .gcode.3mf。原始 STL/STEP 需先在電腦上切片。"
+  },
+  "del": {
+    "action": "刪除",
+    "title": "刪除檔案",
+    "desc": "將從印表機 SD 卡上永久刪除「{name}」。",
+    "done": "已刪除"
+  },
+  "print": {
+    "action": "開始列印",
+    "title": "確認開始列印",
+    "desc": "即將列印「{name}」第 {plate} 盤。\n\n印表機會立即加熱並開始運動。請確認耗材已裝好、熱床已清理、首層有人看管。",
+    "started": "已送出列印指令",
+    "plate": "列印盤",
+    "useAms": "使用 AMS",
+    "busy": "印表機忙碌中，無法開始新任務",
+    "risk": "遠端開始列印屬於無人看管操作，請自行評估風險。"
   }
 }
