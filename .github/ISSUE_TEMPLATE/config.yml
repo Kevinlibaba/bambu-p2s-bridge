@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 🔒 Security issue
+    url: https://github.com/Kevinlibaba/bambu-p2s-bridge/security/advisories/new
+    about: Report privately. Do not open a public issue for security problems.
+  - name: 📖 Protocol reference
+    url: https://github.com/Kevinlibaba/bambu-p2s-bridge/blob/main/PROTOCOL.md
+    about: Field tables, camera/FTPS details, and the known gotchas.

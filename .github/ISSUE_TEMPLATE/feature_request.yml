@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest something this should do
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the roadmap in the README first — push notifications, file upload +
+        remote print start, and a WebRTC signalling proxy are already planned.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve
+      description: Describe the situation, not the implementation.
+    validations: { required: true }
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This keeps the printer off the public internet
+        - label: This doesn't require a cloud service in the path

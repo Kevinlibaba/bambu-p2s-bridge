@@ -1,0 +1,75 @@
+name: Bug report
+description: Something doesn't work as documented
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### ⚠️ Never paste your LAN Access Code, API token, or Tailscale domain
+        Logs often contain them. Replace with `<ACCESS_CODE>` / `<TOKEN>` / `<HOST>` before posting.
+
+  - type: input
+    id: model
+    attributes:
+      label: Printer model
+      placeholder: P2S
+    validations: { required: true }
+
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware version
+      description: Settings screen, or run `probes/probe2.py` and copy the `ota` line.
+      placeholder: ota 01.00.05.00
+    validations: { required: true }
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options:
+        - bridge (API / MQTT / FTPS)
+        - app (web UI)
+        - probes
+        - camera / go2rtc
+        - deployment (Docker / Tailscale)
+        - unsure
+    validations: { required: true }
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you expected, and what you got instead.
+    validations: { required: true }
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. …
+        2. …
+    validations: { required: true }
+
+  - type: textarea
+    id: probes
+    attributes:
+      label: Probe output
+      description: |
+        Run the relevant probe and paste the output — this separates "printer
+        doesn't speak this" from "the bridge has a bug". Redact credentials.
+      render: text
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: "`docker logs bambu-bridge --tail 50`, or the browser console."
+      render: text
+
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: Debian 12 LXC, Docker 29.7, Node 20, iPhone Safari

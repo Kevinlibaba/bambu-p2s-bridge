@@ -1,5 +1,7 @@
 # bambu-p2s-bridge
 
+[![CI](https://github.com/Kevinlibaba/bambu-p2s-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/Kevinlibaba/bambu-p2s-bridge/actions/workflows/ci.yml)
+
 Remote monitoring and control for a **Bambu Lab P2S** locked to **LAN Mode**, over
 [Tailscale](https://tailscale.com) — with **zero public exposure** and no cloud service
 in the path.
@@ -16,7 +18,7 @@ printer talking to a cloud, this gives you the phone app back on your own terms.
 | Piece | What it does |
 |---|---|
 | [`bridge/`](./bridge) | Node/TypeScript service. Speaks MQTT/FTPS to the printer, exposes a clean REST + WebSocket API with bearer auth, and proxies the camera. |
-| [`app/`](./app) | uni-app (Vue 3 + TS) client. One codebase → **H5/PWA, iOS, Android, WeChat Mini Program**. |
+| [`app/`](./app) | Web client (uni-app / Vue 3 + TS). Builds to **H5 / PWA** — installable to the home screen. |
 | [`probes/`](./probes) | Dependency-free Python scripts that verify each printer protocol. Run these first. |
 | [`PROTOCOL.md`](./PROTOCOL.md) | **Reverse-engineering notes for the P2S LAN protocol.** The P2S uses a new-generation state schema that existing libraries don't fully parse. |
 
@@ -187,22 +189,16 @@ Commands are a closed whitelist with range validation:
 
 ---
 
-## Multi-platform status
+## About the app
 
-| Target | Status |
-|---|---|
-| H5 / PWA | ✅ Works. Add to Home Screen for a native feel. |
-| iOS / Android | ✅ Builds via `npm run build:app` (needs HBuilderX or DCloud cloud build). |
-| WeChat Mini Program | ⚠️ **Dev/trial builds only.** |
+The client is a **web app (H5 / PWA)**. Open it in a browser on your phone and use
+*Add to Home Screen* — it runs full-screen with no browser chrome, which is close
+enough to native for a monitoring tool.
 
-The Mini Program limitation is platform policy, not a code problem: `wx.request` and
-WebSocket both require HTTPS/WSS on an **ICP-filed domain** in production, and a
-`*.ts.net` name can't be domain-verified. `live-player` additionally needs a business
-qualification. Publishing for real would mean exposing the service publicly with a filed
-domain — which defeats the point of the Tailscale-only design. The build target is kept
-working for anyone who wants to make that trade.
-
----
+It is built with [uni-app](https://uniapp.dcloud.io) rather than plain Vue because
+native iOS/Android and Mini Program targets are on the roadmap and uni-app compiles
+the same source to all of them. Only the H5 target is published today; the others
+are not shipped until they have been validated on real devices.
 
 ## Status and roadmap
 
@@ -210,6 +206,7 @@ Working: live state, camera, pause/resume/stop, lights, temperature, speed, file
 dark/light themes.
 
 Not done yet:
+- [ ] Native iOS / Android builds
 - [ ] Push notifications (print complete / HMS error / offline)
 - [ ] File upload + remote print start (`project_file` + AMS mapping)
 - [ ] WebRTC signalling proxy — the true zero-transcode camera path

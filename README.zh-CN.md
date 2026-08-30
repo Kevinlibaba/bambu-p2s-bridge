@@ -1,5 +1,7 @@
 # bambu-p2s-bridge
 
+[![CI](https://github.com/Kevinlibaba/bambu-p2s-bridge/actions/workflows/ci.yml/badge.svg)](https://github.com/Kevinlibaba/bambu-p2s-bridge/actions/workflows/ci.yml)
+
 给锁在**局域网模式**下的 **Bambu Lab P2S** 做的远程监控与控制，全程走
 [Tailscale](https://tailscale.com)，**零公网暴露**，链路上没有任何云服务。
 
@@ -17,7 +19,7 @@
 | 目录 | 作用 |
 |---|---|
 | [`bridge/`](./bridge) | Node/TypeScript 桥接服务。对打印机说 MQTT/FTPS，对外暴露带鉴权的 REST + WebSocket API，并代理摄像头。 |
-| [`app/`](./app) | uni-app（Vue 3 + TS）客户端。一份代码 → **H5/PWA、iOS、Android、微信小程序**。 |
+| [`app/`](./app) | 网页客户端（uni-app / Vue 3 + TS），构建为 **H5 / PWA**，可添加到主屏幕。 |
 | [`probes/`](./probes) | 零依赖的 Python 协议探针。**先跑这个**。 |
 | [`PROTOCOL.md`](./PROTOCOL.md) | **P2S 局域网协议逆向笔记。** P2S 用的是新一代状态 schema，现有库解析不全。 |
 
@@ -91,26 +93,21 @@ tailscale serve --bg --https=443 http://127.0.0.1:8080
 
 ---
 
-## 多端状态
+## 关于客户端
 
-| 目标 | 状态 |
-|---|---|
-| H5 / PWA | ✅ 可用，加到主屏幕即有原生观感 |
-| iOS / Android | ✅ `npm run build:app`（需 HBuilderX 或 DCloud 云打包） |
-| 微信小程序 | ⚠️ **只能跑开发版/体验版** |
+客户端是**网页版（H5 / PWA）**。手机浏览器打开后「添加到主屏幕」，即可全屏无地址栏运行，
+对一个监控类工具来说观感已经接近原生。
 
-小程序的限制是平台策略而非代码问题：正式版下 `wx.request` 与 WebSocket 都要求
-**HTTPS/WSS + 已备案域名**，而 `*.ts.net` 无法完成域名归属校验；`live-player`
-还需要类目资质。要真正发布就得把服务暴露到公网配备案域名 —— 这与
-「只走 Tailscale」的设计初衷冲突。构建目标保留着，取舍留给使用者。
-
----
+之所以用 [uni-app](https://uniapp.dcloud.io) 而不是纯 Vue，是因为原生 iOS/Android
+与小程序在路线图上，uni-app 能用同一份源码编译到这些平台。**当前只发布 H5 目标**，
+其余端在真机验证之前不随仓库发布。
 
 ## 进度
 
 已完成：实时状态、摄像头、暂停/继续/停止、灯光、温度、速度、文件浏览、深浅色主题。
 
 待办：
+- [ ] 原生 iOS / Android 构建
 - [ ] 推送通知（打印完成 / HMS 报错 / 离线）
 - [ ] 文件上传 + 远程启动打印（`project_file` + AMS 映射）
 - [ ] WebRTC 信令代理 —— 真正的零转码视频链路

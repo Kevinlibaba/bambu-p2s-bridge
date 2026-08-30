@@ -4,7 +4,9 @@ dist/
 .DS_Store
 
 # 桥接服务托管的前端产物（由 app 构建后拷入，不入库）
-bridge/public/
+# 保留空目录，否则干净 clone 下 Dockerfile 的 COPY public 会失败
+bridge/public/*
+!bridge/public/.gitkeep
 
 # 凭据
 .env

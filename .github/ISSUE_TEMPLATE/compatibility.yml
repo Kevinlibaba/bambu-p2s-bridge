@@ -1,0 +1,56 @@
+name: Compatibility report
+description: Report whether this works on your printer model / firmware
+title: "[compat] <model> <firmware>"
+labels: [compatibility]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This project was verified on a **P2S / `ota 01.00.05.00`** only. Reports on other
+        models and firmware are the most useful contribution you can make — both
+        successes and failures.
+
+        ### ⚠️ Redact your Access Code and serial number before pasting output.
+
+  - type: input
+    id: model
+    attributes:
+      label: Printer model
+      placeholder: P2S / P1S / X1C / H2D / A1 …
+    validations: { required: true }
+
+  - type: input
+    id: firmware
+    attributes:
+      label: Firmware
+      placeholder: ota 01.00.05.00
+    validations: { required: true }
+
+  - type: checkboxes
+    id: works
+    attributes:
+      label: What works
+      options:
+        - label: SSDP discovery (`probe.py` found the serial)
+        - label: MQTT connect + `pushall` returns state
+        - label: State parses correctly in the app (progress, temps, AMS)
+        - label: Camera via RTSPS on port 322
+        - label: Camera via legacy port 6000
+        - label: FTPS directory listing
+        - label: Pause / resume / stop
+        - label: Chamber light
+
+  - type: textarea
+    id: schema
+    attributes:
+      label: Schema differences
+      description: |
+        If state parses wrong, paste the relevant part of `probe3.py` output.
+        Most valuable: whether `device.ctc.info.temp` exists, or whether your
+        printer uses the older `chamber_temper` field instead.
+      render: json
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else
