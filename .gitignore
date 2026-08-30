@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.log
+.DS_Store
+
+# 桥接服务托管的前端产物（由 app 构建后拷入，不入库）
+bridge/public/
+
+# 凭据
+.env
+.env.*
+!.env.example

@@ -1,0 +1,145 @@
+/**
+ * 跨端网络层。
+ * uni.request / uni.connectSocket 已抹平 H5 / App / 小程序 的差异，
+ * 这里只负责拼地址、带 token、统一错误。
+ */
+
+const KEY_BASE = 'bambu.baseUrl'
+const KEY_TOKEN = 'bambu.token'
+
+export interface Settings {
+  baseUrl: string
+  token: string
+}
+
+export function loadSettings(): Settings {
+  return {
+    baseUrl: (uni.getStorageSync(KEY_BASE) as string) || '',
+    token: (uni.getStorageSync(KEY_TOKEN) as string) || '',
+  }
+}
+
+export function saveSettings(s: Settings) {
+  uni.setStorageSync(KEY_BASE, s.baseUrl.replace(/\/+$/, ''))
+  uni.setStorageSync(KEY_TOKEN, s.token)
+}
+
+export function isConfigured(): boolean {
+  const s = loadSettings()
+  return !!s.baseUrl && !!s.token
+}
+
+export class ApiError extends Error {
+  constructor(message: string, readonly status = 0) {
+    super(message)
+  }
+}
+
+function url(path: string): string {
+  const { baseUrl } = loadSettings()
+  if (!baseUrl) throw new ApiError('尚未配置服务器地址')
+  return baseUrl + path
+}
+
+/** 图片/视频等无法带 header 的场景，用查询参数携带 token */
+export function tokenizedUrl(path: string): string {
+  const { token } = loadSettings()
+  const sep = path.includes('?') ? '&' : '?'
+  return url(path) + sep + 'token=' + encodeURIComponent(token)
+}
+
+export function request<T>(
+  path: string,
+  opts: { method?: 'GET' | 'POST'; data?: unknown; timeout?: number } = {},
+): Promise<T> {
+  const { token } = loadSettings()
+  return new Promise((resolve, reject) => {
+    uni.request({
+      url: url(path),
+      method: opts.method ?? 'GET',
+      data: opts.data as any,
+      timeout: opts.timeout ?? 20000,
+      header: {
+        Authorization: 'Bearer ' + token,
+        'Content-Type': 'application/json',
+      },
+      success: (res) => {
+        const code = res.statusCode
+        if (code >= 200 && code < 300) return resolve(res.data as T)
+        const msg = (res.data as any)?.error ?? `HTTP ${code}`
+        reject(new ApiError(code === 401 ? 'Token 无效或未授权' : msg, code))
+      },
+      fail: (e) => reject(new ApiError(e.errMsg || '网络请求失败')),
+    })
+  })
+}
+
+// ---------- 具体接口 ----------
+
+export interface Summary {
+  online: boolean
+  state: string
+  progress: number
+  remainingMin: number
+  layer: number
+  totalLayers: number
+  taskName: string
+  file: string
+  nozzle: { cur: number; target: number; type: string; diameter: string }
+  bed: { cur: number; target: number }
+  chamber: number | null
+  fans: { cooling: number; aux: number; chamber: number; heatbreak: number }
+  speedLevel: number
+  speedPct: number
+  lights: { node: string; mode: string }[]
+  errors: unknown[]
+  printError: number
+  wifi: string
+  sdcard: boolean
+  ams: AmsTray[]
+  updatedAt: number
+}
+
+export interface AmsTray {
+  unit: number
+  slot: number
+  type: string
+  subBrand: string
+  color: string
+  remainPct: number
+  nozzleTempMin: number
+  nozzleTempMax: number
+  empty: boolean
+}
+
+export interface RemoteFile {
+  name: string
+  size: number
+  isDirectory: boolean
+  modifiedAt: string | null
+}
+
+export type Command =
+  | { type: 'pause' }
+  | { type: 'resume' }
+  | { type: 'stop' }
+  | { type: 'light'; on: boolean; node?: string }
+  | { type: 'speed'; level: 1 | 2 | 3 | 4 }
+  | { type: 'nozzleTemp'; celsius: number }
+  | { type: 'bedTemp'; celsius: number }
+  | { type: 'home' }
+  | { type: 'pushall' }
+
+export const api = {
+  health: () => request<{ ok: boolean; printerConnected: boolean }>('/api/health'),
+  state: () => request<Summary>('/api/state'),
+  command: (c: Command) => request<{ ok: boolean }>('/api/command', { method: 'POST', data: c }),
+  files: (path = '/') =>
+    request<{ path: string; files: RemoteFile[] }>('/api/files?path=' + encodeURIComponent(path)),
+  snapshotUrl: () => tokenizedUrl('/api/camera/snapshot.jpg'),
+}
+
+/** WebSocket 地址：把 http(s) 换成 ws(s)，token 走查询参数 */
+export function eventsUrl(): string {
+  return tokenizedUrl('/api/events').replace(/^http/, 'ws')
+}

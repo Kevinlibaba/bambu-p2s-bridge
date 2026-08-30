@@ -1,0 +1,55 @@
+{
+  "name": "Bambu P2S",
+  "appid": "",
+  "description": "Bambu Lab P2S 远程监控",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "app-plus": {
+    "usingComponents": true,
+    "nvueStyleCompiler": "uni-app",
+    "compilerVersion": 3,
+    "splashscreen": {
+      "alwaysShowBeforeRender": true,
+      "waiting": true,
+      "autoclose": true,
+      "delay": 0
+    },
+    "modules": {},
+    "distribute": {
+      "android": {
+        "permissions": [
+          "<uses-permission android:name=\"android.permission.INTERNET\"/>",
+          "<uses-permission android:name=\"android.permission.ACCESS_NETWORK_STATE\"/>"
+        ]
+      },
+      "ios": {},
+      "sdkConfigs": {}
+    }
+  },
+  "quickapp": {},
+  "mp-weixin": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false,
+      "es6": true,
+      "minified": true
+    },
+    "usingComponents": true,
+    "darkmode": true
+  },
+  "h5": {
+    "title": "Bambu P2S 远程监控",
+    "router": {
+      "base": "/app/",
+      "mode": "hash"
+    },
+    "devServer": {
+      "https": false
+    },
+    "darkmode": true
+  },
+  "vueVersion": "3",
+  "darkmode": true,
+  "themeLocation": "theme.json"
+}

@@ -1,0 +1,18 @@
+# go2rtc 自身没有鉴权机制，因此 API 只监听回环地址，
+# 对外一律经桥接服务的鉴权代理。切勿改成 0.0.0.0。
+api:
+  listen: "127.0.0.1:1984"
+
+rtsp:
+  listen: "127.0.0.1:8554"
+
+webrtc:
+  listen: ":8555"
+
+log:
+  level: info
+
+streams:
+  # P2S 直出 H.264 High@4.1 1080p ~1Mbps —— 零转码，仅 remux
+  bambu_p2s:
+    - rtsps://bblp:${BAMBU_ACCESS_CODE}@${BAMBU_HOST}:322/streaming/live/1

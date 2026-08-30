@@ -1,0 +1,18 @@
+services:
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    container_name: go2rtc
+    restart: unless-stopped
+    network_mode: host
+    env_file: .env
+    volumes:
+      - ./go2rtc.yaml:/config/go2rtc.yaml:ro
+
+  bridge:
+    build: ./bridge
+    container_name: bambu-bridge
+    restart: unless-stopped
+    network_mode: host
+    env_file: .env
+    depends_on:
+      - go2rtc

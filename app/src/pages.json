@@ -1,0 +1,61 @@
+{
+  "pages": [
+    {
+      "path": "pages/monitor/index",
+      "style": {
+        "navigationBarTitleText": "监控"
+      }
+    },
+    {
+      "path": "pages/control/index",
+      "style": {
+        "navigationBarTitleText": "控制"
+      }
+    },
+    {
+      "path": "pages/files/index",
+      "style": {
+        "navigationBarTitleText": "文件"
+      }
+    },
+    {
+      "path": "pages/settings/index",
+      "style": {
+        "navigationBarTitleText": "设置"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "@navTxtStyle",
+    "navigationBarBackgroundColor": "@navBgColor",
+    "backgroundColor": "@bgColor",
+    "backgroundColorContent": "@bgColor",
+    "navigationBarTitleText": "Bambu P2S"
+  },
+  "tabBar": {
+    "color": "@tabFontColor",
+    "selectedColor": "@tabSelectedColor",
+    "backgroundColor": "@tabBgColor",
+    "borderStyle": "@tabBorderStyle",
+    "list": [
+      {
+        "pagePath": "pages/monitor/index",
+        "text": "监控"
+      },
+      {
+        "pagePath": "pages/control/index",
+        "text": "控制"
+      },
+      {
+        "pagePath": "pages/files/index",
+        "text": "文件"
+      },
+      {
+        "pagePath": "pages/settings/index",
+        "text": "设置"
+      }
+    ],
+    "fontSize": "15px",
+    "height": "56px"
+  }
+}
