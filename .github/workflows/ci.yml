@@ -28,6 +28,9 @@ jobs:
       - name: tsc --noEmit
         run: npx tsc -p tsconfig.json --noEmit
         working-directory: bridge
+      - name: Unit tests
+        run: npm test
+        working-directory: bridge
       - name: Build
         run: npm run build
         working-directory: bridge
@@ -113,3 +116,13 @@ jobs:
         with:
           python-version: '3.11'
       - run: python3 .github/scripts/check-secrets.py
+
+  i18n:
+    name: Guard · locale keys stay in sync
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python3 .github/scripts/check-i18n.py
