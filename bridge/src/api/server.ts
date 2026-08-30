@@ -7,7 +7,7 @@ import { config } from '../config.js'
 import type { PrinterState } from '../printer/state.js'
 import type { PrinterMqtt } from '../printer/mqtt.js'
 import { execute, CommandError, type CommandInput } from '../printer/commands.js'
-import * as ftp from '../printer/ftp.js'
+import { registerFileRoutes } from './files.js'
 
 function tokenOf(req: FastifyRequest): string | undefined {
   const h = req.headers.authorization
@@ -60,30 +60,8 @@ export async function buildServer(state: PrinterState, mqtt: PrinterMqtt) {
     }
   })
 
-  // ---- 文件（FTPS）----
-  app.get('/api/files', async (req, reply) => {
-    const path = ((req.query as any)?.path as string) ?? '/'
-    try {
-      return { path, files: await ftp.listDir(path) }
-    } catch (e) {
-      return reply.code(502).send({ error: `FTPS 失败: ${(e as Error).message}` })
-    }
-  })
-
-  app.get('/api/files/download', async (req, reply) => {
-    const path = (req.query as any)?.path as string
-    if (!path) return reply.code(400).send({ error: '缺少 path' })
-    try {
-      const buf = await ftp.download(path)
-      return reply
-        .header('content-type', 'application/octet-stream')
-        .header('content-disposition',
-          `attachment; filename="${encodeURIComponent(path.split('/').pop() ?? 'file')}"`)
-        .send(buf)
-    } catch (e) {
-      return reply.code(502).send({ error: `下载失败: ${(e as Error).message}` })
-    }
-  })
+  // ---- 文件（FTPS）：列目录、Range 流式读取、3MF 预览 ----
+  registerFileRoutes(app)
 
   // ---- 摄像头：在 go2rtc 前面做鉴权代理 ----
   // go2rtc 本身无认证，因此它只监听 127.0.0.1，外部一律经这里
