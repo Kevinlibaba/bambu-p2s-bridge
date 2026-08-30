@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { onUnmounted, watch } from 'vue'
+import { onHide, onUnload } from '@dcloudio/uni-app'
 
 const props = defineProps<{ visible: boolean; title?: string }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
@@ -43,6 +44,14 @@ function lockPage(on: boolean) {
 }
 
 watch(() => props.visible, (v) => lockPage(v), { immediate: true })
+
+/*
+ * 页面被切走时必须解锁。uni-app 会缓存页面而不是卸载它，所以 onUnmounted
+ * 不会触发 —— 卡片开着时后退或切标签页，body 的 position:fixed 会留在那里，
+ * 整个应用从此都滚不动。
+ */
+onHide(() => lockPage(false))
+onUnload(() => lockPage(false))
 onUnmounted(() => lockPage(false))
 
 function swallow() { /* 生效的是模板上的 .stop.prevent 修饰符 */ }
@@ -103,7 +112,7 @@ function onMaskTap() {
       <text v-if="title" class="title">{{ title }}</text>
       <!-- 只阻止冒泡：默认行为要留着，否则内部滚不动 -->
       <scroll-view class="scroll" scroll-y @touchmove.stop>
-        <view class="inner"><slot /></view>
+        <view class="inner" :class="{ 'no-footer': !$slots.footer }"><slot /></view>
       </scroll-view>
       <!-- 主操作固定在底部，永远不随内容长度滚走 -->
       <view v-if="$slots.footer" class="footer"><slot name="footer" /></view>
@@ -185,6 +194,19 @@ function onMaskTap() {
   overflow: visible;
 }
 /* #endif */
+
+/*
+ * 内容的左右内边距在这里，不在 .sheet 上 —— 标题和底栏各自留白，
+ * 滚动区必须整块滚动，不能被父级 padding 夹住。
+ */
+.inner {
+  padding: 0 36rpx 8rpx;
+}
+/* 没有底栏时，安全区留白由内容自己负责 */
+.inner.no-footer {
+  padding-bottom: calc(24rpx + constant(safe-area-inset-bottom));
+  padding-bottom: calc(24rpx + env(safe-area-inset-bottom));
+}
 
 .footer {
   flex: none;

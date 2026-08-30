@@ -83,13 +83,12 @@ async function loadThumbs(dir: string) {
  * Windows 的 System Volume Information），把真正的模型埋掉。这些在打印机上
  * 永远没有意义，直接不显示。
  */
-const JUNK_DIRS = new Set([
-  'System Volume Information',
-  '$RECYCLE.BIN',
-  'found.000',
-])
+const JUNK_DIRS = new Set(['system volume information', '$recycle.bin', 'recycler'])
+/** chkdsk 生成的碎片目录是 FOUND.000、FOUND.001…… 编号递增 */
+const JUNK_PATTERN = /^found\.\d{3}$/
 function isUserFile(f: RemoteFile): boolean {
-  return !f.name.startsWith('.') && !JUNK_DIRS.has(f.name)
+  const name = f.name.toLowerCase()
+  return !f.name.startsWith('.') && !JUNK_DIRS.has(name) && !JUNK_PATTERN.test(name)
 }
 
 async function load(p = path.value) {

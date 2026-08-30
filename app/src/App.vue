@@ -123,7 +123,13 @@ html, body, uni-app {
  *   uni 内置浮层 999 > 弹出卡片 900 > tabBar 899 > 页面内容
  * 不依赖「同层级看 DOM 顺序」这种脆弱假设。
  */
-uni-tabbar {
+/*
+ * tabBar 与导航栏都是 z-index 998 的 fixed 内层元素，压到遮罩之下，
+ * 弹出卡片才能盖住它们、把整个界面一起压暗。
+ */
+uni-tabbar,
+.uni-tabbar,
+.uni-page-head {
   z-index: 899;
 }
 
