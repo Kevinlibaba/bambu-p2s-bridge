@@ -78,13 +78,27 @@ async function loadThumbs(dir: string) {
   }
 }
 
+/**
+ * SD 卡被电脑挂载过之后会留下一堆系统垃圾（macOS 的 ._* 与 .fseventsd、
+ * Windows 的 System Volume Information），把真正的模型埋掉。这些在打印机上
+ * 永远没有意义，直接不显示。
+ */
+const JUNK_DIRS = new Set([
+  'System Volume Information',
+  '$RECYCLE.BIN',
+  'found.000',
+])
+function isUserFile(f: RemoteFile): boolean {
+  return !f.name.startsWith('.') && !JUNK_DIRS.has(f.name)
+}
+
 async function load(p = path.value) {
   if (!isConfigured()) return
   loading.value = true; error.value = ''
   try {
     const r = await api.files(p)
     path.value = r.path
-    files.value = r.files.sort((a, b) =>
+    files.value = r.files.filter(isUserFile).sort((a, b) =>
       a.isDirectory !== b.isDirectory ? (a.isDirectory ? -1 : 1) : a.name.localeCompare(b.name))
     void loadThumbs(r.path)
   } catch (e) {
