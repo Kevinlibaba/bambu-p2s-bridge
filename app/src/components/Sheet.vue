@@ -1,19 +1,90 @@
 <script setup lang="ts">
-defineProps<{ visible: boolean; title?: string }>()
+import { onUnmounted, watch } from 'vue'
+
+const props = defineProps<{ visible: boolean; title?: string }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 
 /*
- * 防止滑动穿透到背后的页面。
+ * 防止滑动穿透到背后的页面。两道防线，缺一不可：
  *
- * 试过在 body 上加 overflow:hidden —— 这个页面的滚动发生在 viewport
- * (documentElement) 上，那条规则没生效，反而让页面在打开卡片时跳回顶部。
- * 改为在事件层拦截，分三层：
- *   遮罩   —— 阻止默认行为，背景不滚
- *   卡片   —— 抓手/标题/底栏这些不滚动的区域同样阻止
- *   滚动区 —— 只阻止冒泡，不阻止默认，让它自己正常滚
- * 配合 CSS 的 overscroll-behavior:contain，滚到尽头也不会接力给页面。
+ * 1) 事件层（下方模板上的 .stop.prevent）——遮罩与卡片的非滚动区域吞掉 touchmove。
+ *    在 Chrome 上这一道就够了，但 **iOS Safari 靠不住**：一旦手势被判定为页面
+ *    滚动，后续 touchmove 的 preventDefault 会被忽略。
+ *
+ * 2) 布局层（这里）——把 body 固定住。这是各家弹窗库通用的做法，正是为了绕开
+ *    上面那个 WebKit 行为。用 position:fixed 而不是 overflow:hidden，因为本页的
+ *    滚动发生在 viewport 上，overflow:hidden 加在 body 上不起作用（实测确认）。
+ *    固定时用负 top 保住原位置，关闭后再滚回去，所以不会跳。
  */
+let savedY = 0
+let locked = false
+
+function lockPage(on: boolean) {
+  // #ifdef H5
+  if (typeof document === 'undefined' || on === locked) return
+  const b = document.body
+  if (on) {
+    savedY = window.scrollY || document.documentElement.scrollTop || 0
+    b.style.position = 'fixed'
+    b.style.top = `-${savedY}px`
+    b.style.left = '0'
+    b.style.right = '0'
+    b.style.width = '100%'
+  } else {
+    b.style.position = ''
+    b.style.top = ''
+    b.style.left = ''
+    b.style.right = ''
+    b.style.width = ''
+    window.scrollTo(0, savedY)
+  }
+  locked = on
+  // #endif
+}
+
+watch(() => props.visible, (v) => lockPage(v), { immediate: true })
+onUnmounted(() => lockPage(false))
+
 function swallow() { /* 生效的是模板上的 .stop.prevent 修饰符 */ }
+
+/*
+ * 遮罩上「点一下关闭」要区分点击与拖拽：手指在背景上划动时不该关掉卡片。
+ * 记下按下位置，位移超过阈值就当成拖拽，忽略随后的 click。
+ */
+const TAP_SLOP = 10
+let downX = 0
+let downY = 0
+let dragged = false
+
+/** TouchList 不是数组，不能当数组用 */
+function pointOf(e: TouchEvent | MouseEvent): { x: number; y: number } | null {
+  if ('touches' in e) {
+    const t = e.touches.item(0) ?? e.changedTouches.item(0)
+    return t ? { x: t.clientX, y: t.clientY } : null
+  }
+  return { x: e.clientX, y: e.clientY }
+}
+
+function onMaskDown(e: TouchEvent | MouseEvent) {
+  const pt = pointOf(e)
+  if (!pt) return
+  downX = pt.x
+  downY = pt.y
+  dragged = false
+}
+
+function onMaskMove(e: TouchEvent) {
+  const pt = pointOf(e)
+  if (!pt) return
+  if (Math.abs(pt.x - downX) > TAP_SLOP || Math.abs(pt.y - downY) > TAP_SLOP) {
+    dragged = true
+  }
+}
+
+function onMaskTap() {
+  if (!dragged) emit('close')
+  dragged = false
+}
 </script>
 
 <template>
@@ -21,8 +92,10 @@ function swallow() { /* 生效的是模板上的 .stop.prevent 修饰符 */ }
   <view
     v-if="visible"
     class="mask"
-    @click="emit('close')"
-    @touchmove.stop.prevent="swallow"
+    @click="onMaskTap"
+    @touchstart="onMaskDown"
+    @mousedown="onMaskDown"
+    @touchmove.stop.prevent="onMaskMove"
   >
     <!-- 卡片内的滑动到此为止，不再冒泡到遮罩，否则内部滚动区也会被 prevent 掉 -->
     <view class="sheet" @click.stop @touchmove.stop.prevent="swallow">
