@@ -125,7 +125,6 @@
     "grams": "{v} 克",
     "meters": "{v} 米",
     "millimetres": "{v} mm",
-    "videoNote": "經 FTPS 從印表機邊下邊播。拖動進度條會重開連線，需要稍等。",
     "modelNote": "預覽圖與數據取自切片檔案本身，網格未載入。"
   },
   "settings": {

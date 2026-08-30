@@ -311,8 +311,6 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
         </view>
       </view>
 
-      <text v-if="selKind === 'video'" class="hint">{{ t('files.videoNote') }}</text>
-
       <template #footer>
         <button class="cta" @click="close">{{ t('files.close') }}</button>
       </template>

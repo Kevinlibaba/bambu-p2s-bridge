@@ -1,15 +1,35 @@
 <script setup lang="ts">
 defineProps<{ visible: boolean; title?: string }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
+
+/*
+ * 防止滑动穿透到背后的页面。
+ *
+ * 试过在 body 上加 overflow:hidden —— 这个页面的滚动发生在 viewport
+ * (documentElement) 上，那条规则没生效，反而让页面在打开卡片时跳回顶部。
+ * 改为在事件层拦截，分三层：
+ *   遮罩   —— 阻止默认行为，背景不滚
+ *   卡片   —— 抓手/标题/底栏这些不滚动的区域同样阻止
+ *   滚动区 —— 只阻止冒泡，不阻止默认，让它自己正常滚
+ * 配合 CSS 的 overscroll-behavior:contain，滚到尽头也不会接力给页面。
+ */
+function swallow() { /* 生效的是模板上的 .stop.prevent 修饰符 */ }
 </script>
 
 <template>
   <!-- iOS 式底部卡片：抓手 + 点遮罩关闭，不做多余装饰 -->
-  <view v-if="visible" class="mask" @click="emit('close')">
-    <view class="sheet" @click.stop>
+  <view
+    v-if="visible"
+    class="mask"
+    @click="emit('close')"
+    @touchmove.stop.prevent="swallow"
+  >
+    <!-- 卡片内的滑动到此为止，不再冒泡到遮罩，否则内部滚动区也会被 prevent 掉 -->
+    <view class="sheet" @click.stop @touchmove.stop.prevent="swallow">
       <view class="grabber" />
       <text v-if="title" class="title">{{ title }}</text>
-      <scroll-view class="scroll" scroll-y>
+      <!-- 只阻止冒泡：默认行为要留着，否则内部滚不动 -->
+      <scroll-view class="scroll" scroll-y @touchmove.stop>
         <view class="inner"><slot /></view>
       </scroll-view>
       <!-- 主操作固定在底部，永远不随内容长度滚走 -->
@@ -66,12 +86,32 @@ const emit = defineEmits<{ (e: 'close'): void }>()
   margin: 0 40rpx 24rpx;
 }
 
-/* min-height:0 是关键：不加的话 flex 子项不会收缩，内容长了就会顶破容器 */
+/*
+ * 卡片高度由内容决定，超过 max-height 才收缩 —— 所以滚动区是
+ * flex:0 1 auto（可缩不可涨），不是 flex:1。min-height:0 让它真的能缩。
+ */
 .scroll {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   min-height: 0;
 }
-.inner { padding: 0 36rpx 8rpx; }
+
+/* #ifdef H5 */
+/*
+ * uni-app 的 scroll-view 内层用 height:100%；父级高度是 flex 算出来的，
+ * 浏览器不认作确定高度，内层就塌回内容高度 —— 结果超出部分被裁掉而不是可滚。
+ * H5 下直接让外层元素承担滚动，把内层放平。
+ * 其他端保留 scroll-view 的原生行为，不受影响。
+ */
+.scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.scroll :deep(.uni-scroll-view) {
+  height: auto;
+  overflow: visible;
+}
+/* #endif */
 
 .footer {
   flex: none;
