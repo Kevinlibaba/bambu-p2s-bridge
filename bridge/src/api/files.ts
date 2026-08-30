@@ -101,8 +101,15 @@ export function registerFileRoutes(app: FastifyInstance, backend: FileBackend = 
   // ---- 列目录 ----
   app.get('/api/files', async (req, reply) => {
     const raw = ((req.query as Record<string, unknown> | undefined)?.path as string) ?? '/'
+    let path: string
     try {
-      return { path: ftp.normalizePath(raw), files: await backend.listDir(raw) }
+      // 走和其他路由同一套包装：非法路径是客户端错误(400)，不能混进上游故障(502)
+      path = ftp.normalizePath(raw)
+    } catch {
+      return fail(reply, new BadRequest('非法路径'))
+    }
+    try {
+      return { path, files: await backend.listDir(path) }
     } catch (e) {
       return fail(reply, e)
     }
