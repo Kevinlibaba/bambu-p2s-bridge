@@ -313,7 +313,9 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 
       <text v-if="selKind === 'video'" class="hint">{{ t('files.videoNote') }}</text>
 
-      <button class="cta" @click="close">{{ t('files.close') }}</button>
+      <template #footer>
+        <button class="cta" @click="close">{{ t('files.close') }}</button>
+      </template>
     </Sheet>
   </view>
 </template>
@@ -382,7 +384,7 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 .hint { display: block; font-size: 22rpx; color: var(--ink-3);
   margin: 20rpx 8rpx 0; line-height: 1.6; letter-spacing: -0.01em; }
 
-.cta { margin-top: 36rpx; width: 100%; font-size: 31rpx; font-weight: 500;
+.cta { width: 100%; font-size: 31rpx; font-weight: 500;
   height: 96rpx; line-height: 96rpx; background: var(--surface); color: var(--accent);
   border: none; border-radius: 999rpx; letter-spacing: -0.02em; padding: 0; }
 .cta::after { border: none; }

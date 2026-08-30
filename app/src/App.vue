@@ -117,6 +117,16 @@ html, body, uni-app {
   letter-spacing: -0.01em;
 }
 
+/*
+ * uni-app 给 tabBar 的默认 z-index 是 998，和它自己的 toast/modal/actionsheet(999)
+ * 只差一档，弹出卡片挤不进去。把 tabBar 压到 899，层级就变成确定的：
+ *   uni 内置浮层 999 > 弹出卡片 900 > tabBar 899 > 页面内容
+ * 不依赖「同层级看 DOM 顺序」这种脆弱假设。
+ */
+uni-tabbar {
+  z-index: 899;
+}
+
 /* CSS 变量定义在 page(uni-page-body) 上，不会向上级联到 html/body */
 html, body, uni-app, uni-page, uni-page-wrapper, uni-page-body {
   background-color: #000000;
