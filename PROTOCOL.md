@@ -326,6 +326,57 @@ Full working version: [`probes/probe7.py`](./probes/probe7.py).
 | `/ipcam` | `ipcam-record.*.mp4` chunks (~268 MB each — these accumulate) |
 | `/cache`, `/model`, `/image` | Usually empty |
 
+### 5.3 Partial reads: `SIZE` and `REST` work, aborting does not
+
+vsftpd answers `SIZE` on the control connection and honours `REST <offset>` before
+`RETR`, so you can start a transfer at an arbitrary byte. That is enough to serve HTTP
+`Range` requests, and enough to read a ZIP central directory without downloading the
+archive.
+
+What you **cannot** do is stop a transfer early. There is no "read N bytes then stop" —
+`ABOR` is unreliable and leaves the control connection in a state you cannot trust.
+The only dependable way to end a transfer you no longer want is to **destroy the
+connection**. Count the bytes you need on the way out, then close the client.
+
+Practical consequences:
+
+- One FTP connection per byte range. A `<video>` seek is a new connection.
+- Cap your concurrency. The printer does not have many connections to give, and a
+  leaked one stays leaked until the socket times out.
+- `SIZE` and `RETR` can share one connection, so a range read needs exactly one.
+
+### 5.4 Inside a Bambu-sliced `.gcode.3mf`
+
+A 3MF is an ordinary ZIP. A file sliced by Bambu Studio / Orca contains:
+
+| Entry | Contents |
+|---|---|
+| `Metadata/plate_N.png` | Rendered preview of plate *N* — roughly 200 KB |
+| `Metadata/plate_N_small.png` | Thumbnail-sized version of the same |
+| `Metadata/plate_N.json` | Per-layer data |
+| `Metadata/slice_info.config` | XML: print time, filament usage, objects, per plate |
+| `3D/3dmodel.model` | The mesh, as 3MF XML — this is the large one |
+
+`slice_info.config` looks like:
+
+```xml
+<config>
+  <plate>
+    <metadata key="index" value="1"/>
+    <metadata key="prediction" value="8130"/>       <!-- seconds -->
+    <metadata key="weight" value="42.75"/>          <!-- grams -->
+    <metadata key="nozzle_diameters" value="0.4"/>
+    <metadata key="support_used" value="false"/>
+    <object identify_id="102" name="bracket.stl" skipped="false"/>
+    <filament id="1" type="PLA" color="#2C2C2E" used_m="14.31" used_g="42.75"/>
+  </plate>
+</config>
+```
+
+The plate PNG plus this file is everything a phone needs to identify a job. Reading it
+costs two ranged FTP reads: one for the ZIP tail (which normally contains the whole
+central directory) and one for the entry itself.
+
 ---
 
 ## 6. Probe scripts
