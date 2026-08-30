@@ -119,6 +119,40 @@ export interface RemoteFile {
   modifiedAt: string | null
 }
 
+/** .gcode.3mf 预览：桥接侧从包里抽出来的信息，整包永远不下发到手机 */
+export interface ThreeMfFilament {
+  id: number | null
+  type: string
+  /** #RRGGBB */
+  color: string
+  usedM: number | null
+  usedG: number | null
+}
+
+export interface ThreeMfPlate {
+  index: number
+  /** 预计打印时长，秒 */
+  prediction: number | null
+  /** 预计耗材重量，克 */
+  weight: number | null
+  nozzleDiameters: string | null
+  printerModel: string | null
+  supportUsed: boolean | null
+  objects: string[]
+  filaments: ThreeMfFilament[]
+  hasThumbnail: boolean
+}
+
+export interface ThreeMfInfo {
+  path: string
+  name: string
+  size: number
+  plates: ThreeMfPlate[]
+  entryCount: number
+  hasModel: boolean
+  metadataMissing: boolean
+}
+
 export type Command =
   | { type: 'pause' }
   | { type: 'resume' }
@@ -136,7 +170,16 @@ export const api = {
   command: (c: Command) => request<{ ok: boolean }>('/api/command', { method: 'POST', data: c }),
   files: (path = '/') =>
     request<{ path: string; files: RemoteFile[] }>('/api/files?path=' + encodeURIComponent(path)),
+  model: (path: string) =>
+    request<ThreeMfInfo>('/api/files/3mf?path=' + encodeURIComponent(path)),
   snapshotUrl: () => tokenizedUrl('/api/camera/snapshot.jpg'),
+  /** 供 <video> / <image> 直接消费：支持 Range，token 走查询参数 */
+  mediaUrl: (path: string) =>
+    tokenizedUrl('/api/files/stream?path=' + encodeURIComponent(path)),
+  downloadUrl: (path: string) =>
+    tokenizedUrl('/api/files/download?path=' + encodeURIComponent(path)),
+  plateUrl: (path: string, plate: number) =>
+    tokenizedUrl(`/api/files/3mf/plate.png?path=${encodeURIComponent(path)}&plate=${plate}`),
 }
 
 /** WebSocket 地址：把 http(s) 换成 ws(s)，token 走查询参数 */

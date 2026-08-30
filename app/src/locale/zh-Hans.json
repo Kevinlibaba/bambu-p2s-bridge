@@ -34,7 +34,9 @@
     "loading": "载入中",
     "notConfigured": "请先在设置中配置服务器",
     "online": "在线",
-    "offline": "离线"
+    "offline": "离线",
+    "yes": "是",
+    "no": "否"
   },
   "monitor": {
     "emptyTitle": "还没连上。",
@@ -105,7 +107,26 @@
     "emptyDir": "空目录",
     "dir": "目录",
     "note": "只读浏览。上传与远程开打尚未实现。",
-    "unknownTime": "时间未知"
+    "unknownTime": "时间未知",
+    "preview": "预览",
+    "size": "大小",
+    "modified": "修改时间",
+    "download": "下载",
+    "close": "关闭",
+    "previewFailed": "预览失败",
+    "noPreview": "此文件没有内置预览图",
+    "plate": "第 {n} 盘",
+    "printTime": "打印时长",
+    "filamentUsed": "耗材",
+    "nozzleDiameter": "喷嘴",
+    "printerModel": "机型",
+    "objects": "模型",
+    "support": "支撑",
+    "grams": "{v} 克",
+    "meters": "{v} 米",
+    "millimetres": "{v} mm",
+    "videoNote": "经 FTPS 从打印机边下边播。拖动进度条会重开连接，需要稍等。",
+    "modelNote": "预览图与数据取自切片文件本身，网格未加载。"
   },
   "settings": {
     "serverGroup": "服务器",
