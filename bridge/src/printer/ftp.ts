@@ -1,22 +1,29 @@
 import { Client, type FileInfo } from 'basic-ftp'
-import { Writable, Readable } from 'node:stream'
+import { Readable } from 'node:stream'
 import { config } from '../config.js'
+import { createTruncatedStream } from '../util/stream.js'
+import { RangeNotSatisfiableError, resolveRange, type RangeSpec } from '../util/range.js'
 
 /**
  * 打印机的 vsftpd 开了 require_ssl_reuse，数据连接必须复用控制连接的 TLS session。
  * basic-ftp 会自动处理（Python 的 ftplib 则需手动传 session）。
  */
-async function withClient<T>(fn: (c: Client) => Promise<T>): Promise<T> {
+async function connect(): Promise<Client> {
   const c = new Client(20_000)
+  await c.access({
+    host: config.printer.host,
+    port: config.printer.ftpPort,
+    user: 'bblp',
+    password: config.printer.accessCode,
+    secure: 'implicit',
+    secureOptions: { rejectUnauthorized: false },
+  })
+  return c
+}
+
+async function withClient<T>(fn: (c: Client) => Promise<T>): Promise<T> {
+  const c = await connect()
   try {
-    await c.access({
-      host: config.printer.host,
-      port: config.printer.ftpPort,
-      user: 'bblp',
-      password: config.printer.accessCode,
-      secure: 'implicit',
-      secureOptions: { rejectUnauthorized: false },
-    })
     return await fn(c)
   } finally {
     c.close()
@@ -30,12 +37,31 @@ export interface RemoteFile {
   modifiedAt: string | null
 }
 
+/**
+ * 每个 Range 请求都要单开一条 FTP 连接（REST 只能定起点，没法在一条连接上复用），
+ * 而打印机能同时接受的连接数很有限。超过就直接拒绝，好过把打印机的 FTP 拖垮。
+ */
+const MAX_CONCURRENT_READS = 4
+let activeReads = 0
+
+export class TooManyReadsError extends Error {
+  constructor() {
+    super('并发读取已达上限，请稍后再试')
+    this.name = 'TooManyReadsError'
+  }
+}
+
 function normalize(path: string): string {
   const p = '/' + path.replace(/^\/+/, '')
   // 挡掉路径穿越
   if (p.includes('..')) throw new Error('非法路径')
+  // 控制字符会被原样拼进 FTP 命令行，CRLF 等同于命令注入
+  if (/[\u0000-\u001f\u007f]/.test(p)) throw new Error('非法路径')
   return p
 }
+
+/** 供路由层在进 FTP 之前就做同一套校验 */
+export { normalize as normalizePath }
 
 export async function listDir(path = '/'): Promise<RemoteFile[]> {
   const dir = normalize(path)
@@ -48,17 +74,97 @@ export async function listDir(path = '/'): Promise<RemoteFile[]> {
   }))
 }
 
-export async function download(path: string): Promise<Buffer> {
+/** 只走控制连接的 SIZE，不开数据连接 */
+export async function stat(path: string): Promise<number> {
   const file = normalize(path)
+  return withClient((c) => c.size(file))
+}
+
+export interface RemoteStream {
+  /** 文件总大小 */
+  size: number
+  start: number
+  /** 闭区间末字节 */
+  end: number
+  length: number
+  stream: Readable
+  /** 客户端提前断开时必须调用，否则这条 FTP 连接会一直挂着 */
+  destroy(): void
+}
+
+/**
+ * 按字节区间流式读取。
+ *
+ * SIZE 与 RETR 走同一条连接，所以调用方不必事先知道文件大小 —— 把客户端原样的
+ * Range 意图（RangeSpec）交进来即可，对齐在这里完成。
+ * 区间落在文件之外时抛 RangeNotSatisfiableError，其中带着真实大小供应答 416。
+ */
+export async function openRead(path: string, spec?: RangeSpec): Promise<RemoteStream> {
+  const file = normalize(path)
+  if (activeReads >= MAX_CONCURRENT_READS) throw new TooManyReadsError()
+
+  activeReads += 1
+  let released = false
+  let client: Client | null = null
+  const release = () => {
+    if (released) return
+    released = true
+    activeReads -= 1
+    client?.close()
+  }
+
+  try {
+    client = await connect()
+    const size = await client.size(file)
+    const range = resolveRange(spec, size)
+    if (!range) throw new RangeNotSatisfiableError(size)
+
+    const length = range.end - range.start + 1
+    const pipe = createTruncatedStream(length, release)
+
+    // FTP 传输一旦开始就停不下来，只能靠 release() 销毁连接把它掐掉。
+    // 提前收工时 downloadTo 必然以错误 reject，此时 finish 已是 no-op。
+    void client.downloadTo(pipe.sink, file, range.start).then(
+      () => pipe.finish(),
+      (e: unknown) => pipe.finish(e as Error),
+    )
+
+    return {
+      size,
+      start: range.start,
+      end: range.end,
+      length,
+      stream: pipe.out,
+      destroy: () => pipe.finish(),
+    }
+  } catch (e) {
+    release()
+    throw e
+  }
+}
+
+/** 读一小段到内存。ZIP 中央目录这类小体量随机读走这里，视频永远不要走。 */
+export async function readRange(
+  path: string,
+  spec?: RangeSpec,
+): Promise<{ size: number; start: number; data: Buffer }> {
+  const s = await openRead(path, spec)
   const chunks: Buffer[] = []
-  const sink = new Writable({
-    write(chunk, _enc, cb) {
-      chunks.push(Buffer.from(chunk))
-      cb()
-    },
-  })
-  await withClient((c) => c.downloadTo(sink, file))
-  return Buffer.concat(chunks)
+  try {
+    for await (const chunk of s.stream) chunks.push(Buffer.from(chunk as Buffer))
+  } catch (e) {
+    s.destroy()
+    throw e
+  }
+  return { size: s.size, start: s.start, data: Buffer.concat(chunks) }
+}
+
+/**
+ * 整包读进内存。只适用于 3MF 这类小文件。
+ * 视频动辄 268 MB，一律走 openRead。
+ */
+export async function download(path: string): Promise<Buffer> {
+  return (await readRange(path)).data
 }
 
 export async function upload(path: string, data: Buffer): Promise<void> {

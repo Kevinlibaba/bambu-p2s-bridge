@@ -156,10 +156,24 @@ Bearer token on everything except `/api/health` and `/app/**`.
 | `GET` | `/api/state/raw` | All 95 raw fields |
 | `POST` | `/api/command` | Whitelisted commands |
 | `GET` | `/api/files?path=/` | FTPS listing |
-| `GET` | `/api/files/download?path=…` | Download |
+| `GET` | `/api/files/stream?path=…` | Stream a file inline — **HTTP Range / `206`**, for `<video>` |
+| `GET` | `/api/files/download?path=…` | Same bytes, `Content-Disposition: attachment` |
+| `GET` | `/api/files/3mf?path=…` | `.gcode.3mf` metadata — per-plate time, filament, objects |
+| `GET` | `/api/files/3mf/plate.png?path=…&plate=1` | Plate preview extracted from inside the 3MF |
 | `GET` | `/api/camera/snapshot.jpg` | Single frame (authenticated proxy) |
 | `GET` | `/api/camera/stream.mjpeg` | MJPEG — **triggers transcoding, use sparingly** |
 | `WS` | `/api/events` | Live state push |
+
+`/api/files/stream` and `/api/files/download` both honour `Range` and answer `206
+Partial Content` with `Content-Range` / `Accept-Ranges` / an exact `Content-Length`,
+so a `<video>` element can seek. FTP has no way to stop a transfer mid-flight, so the
+bridge counts bytes on the way out and destroys the FTP connection once the requested
+range is satisfied — including when the phone walks away. Concurrent reads are capped
+(one FTP connection per range request; the printer does not have many to give).
+
+`/api/files/3mf*` reads the ZIP central directory over `REST` and pulls out only the
+entries it needs. A whole 3MF is never shipped to the phone, and never fully buffered
+on the bridge.
 
 Commands are a closed whitelist with range validation:
 
@@ -203,14 +217,25 @@ are not shipped until they have been validated on real devices.
 ## Status and roadmap
 
 Working: live state, camera, pause/resume/stop, lights, temperature, speed, file browsing,
-dark/light themes.
+in-app timelapse/recording playback, 3MF plate preview, dark/light themes.
 
 Not done yet:
 - [ ] Native iOS / Android builds
 - [ ] Push notifications (print complete / HMS error / offline)
 - [ ] File upload + remote print start (`project_file` + AMS mapping)
 - [ ] WebRTC signalling proxy — the true zero-transcode camera path
-- [ ] Timelapse download in-app
+- [ ] 3D mesh viewer for `3D/3dmodel.model` — deliberately skipped, see below
+
+### Why there is no mesh viewer
+
+The 3MF preview shows the plate render that Bambu Studio already baked into the file,
+plus the figures parsed from `Metadata/slice_info.config`. That is a few hundred KB and
+works on every uni-app target.
+
+An actual mesh viewer would mean three.js plus an XML mesh parser, a WebGL canvas that
+only exists on the H5 target, and shipping megabytes of triangles to a phone — to show
+the same object the baked render already shows, minus the toolpath. It was not worth the
+weight. If it ever lands it should be lazy-loaded so it costs nothing when unused.
 
 ---
 

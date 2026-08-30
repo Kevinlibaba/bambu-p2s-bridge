@@ -34,7 +34,9 @@
     "loading": "Loading",
     "notConfigured": "Configure the server in Settings first",
     "online": "online",
-    "offline": "offline"
+    "offline": "offline",
+    "yes": "Yes",
+    "no": "No"
   },
   "monitor": {
     "emptyTitle": "Not connected.",
@@ -105,7 +107,26 @@
     "emptyDir": "Empty",
     "dir": "Folder",
     "note": "Read-only. Upload and remote print start are not implemented yet.",
-    "unknownTime": "unknown time"
+    "unknownTime": "unknown time",
+    "preview": "Preview",
+    "size": "Size",
+    "modified": "Modified",
+    "download": "Download",
+    "close": "Close",
+    "previewFailed": "Preview failed",
+    "noPreview": "No preview in this file",
+    "plate": "Plate {n}",
+    "printTime": "Print time",
+    "filamentUsed": "Filament",
+    "nozzleDiameter": "Nozzle",
+    "printerModel": "Printer",
+    "objects": "Objects",
+    "support": "Supports",
+    "grams": "{v} g",
+    "meters": "{v} m",
+    "millimetres": "{v} mm",
+    "videoNote": "Streamed from the printer over FTPS. Seeking reopens the connection, so it takes a moment.",
+    "modelNote": "Preview and figures come from the sliced file. The mesh itself is not loaded."
   },
   "settings": {
     "serverGroup": "Server",

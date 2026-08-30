@@ -34,7 +34,9 @@
     "loading": "読み込み中",
     "notConfigured": "先に設定でサーバーを構成してください",
     "online": "オンライン",
-    "offline": "オフライン"
+    "offline": "オフライン",
+    "yes": "あり",
+    "no": "なし"
   },
   "monitor": {
     "emptyTitle": "未接続です。",
@@ -105,7 +107,26 @@
     "emptyDir": "空のフォルダ",
     "dir": "フォルダ",
     "note": "閲覧のみ。アップロードとリモート印刷開始は未実装です。",
-    "unknownTime": "時刻不明"
+    "unknownTime": "時刻不明",
+    "preview": "プレビュー",
+    "size": "サイズ",
+    "modified": "更新日時",
+    "download": "ダウンロード",
+    "close": "閉じる",
+    "previewFailed": "プレビューに失敗",
+    "noPreview": "このファイルにプレビュー画像はありません",
+    "plate": "プレート {n}",
+    "printTime": "印刷時間",
+    "filamentUsed": "フィラメント",
+    "nozzleDiameter": "ノズル",
+    "printerModel": "プリンター",
+    "objects": "オブジェクト",
+    "support": "サポート",
+    "grams": "{v} g",
+    "meters": "{v} m",
+    "millimetres": "{v} mm",
+    "videoNote": "FTPS 経由でプリンターからストリーミングします。シークすると接続を開き直すため少し待ちます。",
+    "modelNote": "プレビューと数値はスライス済みファイル自体から取得します。メッシュは読み込みません。"
   },
   "settings": {
     "serverGroup": "サーバー",

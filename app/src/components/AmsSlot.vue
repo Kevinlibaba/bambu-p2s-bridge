@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { AmsTray } from '../api/client'
+
+const { t } = useI18n()
 
 const props = defineProps<{ tray: AmsTray }>()
 const swatch = computed(() => {
@@ -13,12 +16,12 @@ const low = computed(() => props.tray.remainPct >= 0 && props.tray.remainPct <= 
 <template>
   <view class="row">
     <view class="swatch" :style="{ background: swatch }" />
-    <text class="name">{{ tray.empty ? '空槽' : tray.subBrand || tray.type }}</text>
+    <text class="name">{{ tray.empty ? t('ams.empty') : tray.subBrand || tray.type }}</text>
     <view class="right">
       <text class="pct" :class="{ low }">
         {{ tray.empty || tray.remainPct < 0 ? '—' : tray.remainPct + '%' }}
       </text>
-      <text v-if="low" class="tag">偏低</text>
+      <text v-if="low" class="tag">{{ t('ams.low') }}</text>
     </view>
   </view>
 </template>
