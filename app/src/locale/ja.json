@@ -1,0 +1,145 @@
+{
+  "lang": {
+    "name": "日本語"
+  },
+  "tab": {
+    "monitor": "モニター",
+    "control": "操作",
+    "files": "ファイル",
+    "settings": "設定"
+  },
+  "state": {
+    "IDLE": "待機中",
+    "RUNNING": "印刷中",
+    "PAUSE": "一時停止",
+    "FINISH": "完了",
+    "FAILED": "失敗",
+    "PREPARE": "準備中",
+    "SLICING": "スライス中",
+    "UNKNOWN": "不明"
+  },
+  "link": {
+    "idle": "未接続",
+    "connecting": "接続中",
+    "live": "リアルタイム",
+    "polling": "ポーリング",
+    "error": "エラー"
+  },
+  "common": {
+    "confirmTitle": "確認",
+    "sent": "送信しました",
+    "on": "オン",
+    "off": "オフ",
+    "none": "—",
+    "loading": "読み込み中",
+    "notConfigured": "先に設定でサーバーを構成してください",
+    "online": "オンライン",
+    "offline": "オフライン"
+  },
+  "monitor": {
+    "emptyTitle": "未接続です。",
+    "emptyDesc": "設定でサーバーアドレスとトークンを入力してください。",
+    "emptyCta": "設定を開く",
+    "camPause": "一時停止",
+    "camPlay": "再生",
+    "camPaused": "映像を停止中",
+    "quality": {
+      "smooth": "高フレーム",
+      "standard": "標準",
+      "saver": "低データ"
+    },
+    "errorTitle": "プリンターエラー",
+    "errorDesc": "HMS {count} 件 · コード {code}",
+    "noTask": "ジョブなし",
+    "layers": "{cur} / {total} 層",
+    "remaining": "残り {value}",
+    "calculating": "計算中",
+    "hoursMinutes": "{h} 時間 {m} 分",
+    "minutes": "{m} 分",
+    "nozzle": "ノズル",
+    "bed": "ベッド",
+    "chamber": "チャンバー",
+    "target": "目標 {t}℃",
+    "heatingTo": "{t}℃ に加熱中",
+    "speedPct": "速度 {p}%",
+    "amsGroup": "フィラメント",
+    "updatedAt": "更新 {time}",
+    "confirmPause": "印刷を一時停止しますか？",
+    "confirmStop": "停止すると元に戻せません。印刷を停止しますか？"
+  },
+  "ams": {
+    "empty": "空きスロット",
+    "low": "残量少"
+  },
+  "control": {
+    "tempGroup": "温度",
+    "nozzle": "ノズル",
+    "bed": "ベッド",
+    "current": "現在 {c}℃ · 最大 {max}℃",
+    "turnOff": "加熱を停止",
+    "apply": "適用",
+    "confirmNozzleOff": "ノズルの加熱を停止しますか？",
+    "confirmBedOff": "ベッドの加熱を停止しますか？",
+    "confirmNozzle": "ノズルを {t}℃ に設定しますか？",
+    "confirmBed": "ベッドを {t}℃ に設定しますか？",
+    "speedGroup": "速度 · 現在 {p}%",
+    "speed": {
+      "silent": "静音",
+      "standard": "標準",
+      "sport": "スポーツ",
+      "ludicrous": "最速"
+    },
+    "confirmSpeed": "「{name}」に切り替えますか？",
+    "otherGroup": "その他",
+    "chamberLight": "チャンバーライト",
+    "refresh": "状態を更新",
+    "home": "原点復帰 (G28)",
+    "confirmHome": "原点復帰はツールヘッドを動かします。印刷中に実行すると造形物が台無しになります。続行しますか？",
+    "gcodeNote": "生の G-code は既定で無効です。使用するにはサーバー側で ALLOW_RAW_GCODE=true を設定してください。"
+  },
+  "files": {
+    "models": "モデル",
+    "timelapse": "タイムラプス",
+    "recordings": "録画",
+    "up": "上へ",
+    "emptyDir": "空のフォルダ",
+    "dir": "フォルダ",
+    "note": "閲覧のみ。アップロードとリモート印刷開始は未実装です。",
+    "unknownTime": "時刻不明"
+  },
+  "settings": {
+    "serverGroup": "サーバー",
+    "address": "アドレス",
+    "token": "トークン",
+    "addressPlaceholder": "https://your-node.your-tailnet.ts.net",
+    "tokenPlaceholder": "サーバーの .env にある API_TOKEN",
+    "serverNote": "Tailscale MagicDNS 名（Let's Encrypt 正規証明書）。認証情報は端末内にのみ保存されます。",
+    "testAndSave": "テストして保存",
+    "testing": "テスト中",
+    "connected": "接続済み · プリンター{state} · {gcode}",
+    "statusGroup": "ステータス",
+    "channel": "チャネル",
+    "printer": "プリンター",
+    "updated": "更新",
+    "error": "エラー",
+    "reconnect": "再接続",
+    "clearConfig": "設定を消去",
+    "clearTitle": "設定を消去",
+    "clearDesc": "この端末に保存されたアドレスとトークンを削除します。",
+    "appearanceGroup": "外観",
+    "language": "言語",
+    "theme": "テーマ",
+    "themeAuto": "システムに従う",
+    "themeDark": "ダーク",
+    "themeLight": "ライト",
+    "langAuto": "システムに従う",
+    "footer": "Bambu Lab P2S リモートモニター\nTailscale によるエンドツーエンド暗号化。クラウドサービスを経由しません。"
+  },
+  "action": {
+    "pause": "一時停止",
+    "resume": "再開",
+    "stop": "停止",
+    "lightOn": "ライト点灯",
+    "lightOff": "ライト消灯"
+  }
+}

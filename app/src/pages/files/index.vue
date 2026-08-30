@@ -1,18 +1,21 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
 import { api, isConfigured, type RemoteFile } from '../../api/client'
+import { themeClass, applyChrome } from '../../store/prefs'
 
+const { t } = useI18n()
 const path = ref('/')
 const files = ref<RemoteFile[]>([])
 const loading = ref(false)
 const error = ref('')
 
-const QUICK = [
-  { label: '模型', path: '/' },
-  { label: '延时摄影', path: '/timelapse' },
-  { label: '录像', path: '/ipcam' },
-]
+const QUICK = computed(() => [
+  { label: t('files.models'), path: '/' },
+  { label: t('files.timelapse'), path: '/timelapse' },
+  { label: t('files.recordings'), path: '/ipcam' },
+])
 
 function fmtSize(n: number) {
   if (n < 1024) return n + ' B'
@@ -38,7 +41,7 @@ function open(f: RemoteFile) {
   if (f.isDirectory) load((path.value === '/' ? '' : path.value) + '/' + f.name)
   else uni.showModal({
     title: f.name, showCancel: false, confirmColor: '#2997ff',
-    content: `${fmtSize(f.size)}\n${f.modifiedAt?.slice(0, 19).replace('T', ' ') ?? '时间未知'}`,
+    content: `${fmtSize(f.size)}\n${f.modifiedAt?.slice(0, 19).replace('T', ' ') ?? t('files.unknownTime')}`,
   })
 }
 
@@ -48,13 +51,13 @@ function up() {
   load('/' + parts.join('/'))
 }
 
-onShow(() => load())
+onShow(() => { applyChrome('tab.files'); load() })
 onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 </script>
 
 <template>
-  <view class="root">
-    <view v-if="!isConfigured()" class="empty"><text class="empty-s">请先在设置中配置服务器。</text></view>
+  <view class="root" :class="themeClass">
+    <view v-if="!isConfigured()" class="empty"><text class="empty-s">{{ t('common.notConfigured') }}</text></view>
 
     <view v-else class="body">
       <view class="segs">
@@ -63,13 +66,13 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
       </view>
 
       <view class="crumb">
-        <text v-if="path !== '/'" class="up" @click="up">‹ 上级</text>
+        <text v-if="path !== '/'" class="up" @click="up">‹ {{ t('files.up') }}</text>
         <text class="path">{{ path }}</text>
       </view>
 
-      <view v-if="loading" class="empty"><text class="empty-s">载入中</text></view>
+      <view v-if="loading" class="empty"><text class="empty-s">{{ t('common.loading') }}</text></view>
       <view v-else-if="error" class="empty"><text class="empty-s err">{{ error }}</text></view>
-      <view v-else-if="!files.length" class="empty"><text class="empty-s">空目录</text></view>
+      <view v-else-if="!files.length" class="empty"><text class="empty-s">{{ t('files.emptyDir') }}</text></view>
 
       <view v-else class="card">
         <view v-for="(f, i) in files" :key="f.name">
@@ -81,7 +84,7 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
             <view class="meta">
               <text class="name">{{ f.name }}</text>
               <text class="sub">
-                {{ f.isDirectory ? '目录' : fmtSize(f.size) }}
+                {{ f.isDirectory ? t('files.dir') : fmtSize(f.size) }}
                 <text v-if="f.modifiedAt"> · {{ f.modifiedAt.slice(0, 10) }}</text>
               </text>
             </view>
@@ -89,7 +92,7 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
         </view>
       </view>
 
-      <text class="note">只读浏览。上传与远程开打尚未实现。</text>
+      <text class="note">{{ t('files.note') }}</text>
     </view>
   </view>
 </template>

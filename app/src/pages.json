@@ -3,25 +3,25 @@
     {
       "path": "pages/monitor/index",
       "style": {
-        "navigationBarTitleText": "监控"
+        "navigationBarTitleText": "%tab.monitor%"
       }
     },
     {
       "path": "pages/control/index",
       "style": {
-        "navigationBarTitleText": "控制"
+        "navigationBarTitleText": "%tab.control%"
       }
     },
     {
       "path": "pages/files/index",
       "style": {
-        "navigationBarTitleText": "文件"
+        "navigationBarTitleText": "%tab.files%"
       }
     },
     {
       "path": "pages/settings/index",
       "style": {
-        "navigationBarTitleText": "设置"
+        "navigationBarTitleText": "%tab.settings%"
       }
     }
   ],
@@ -40,19 +40,19 @@
     "list": [
       {
         "pagePath": "pages/monitor/index",
-        "text": "监控"
+        "text": "%tab.monitor%"
       },
       {
         "pagePath": "pages/control/index",
-        "text": "控制"
+        "text": "%tab.control%"
       },
       {
         "pagePath": "pages/files/index",
-        "text": "文件"
+        "text": "%tab.files%"
       },
       {
         "pagePath": "pages/settings/index",
-        "text": "设置"
+        "text": "%tab.settings%"
       }
     ],
     "fontSize": "15px",

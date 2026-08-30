@@ -1,8 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
+import { onShow } from '@dcloudio/uni-app'
 import { api, isConfigured, type Command } from '../../api/client'
 import { printer } from '../../store/printer'
+import { themeClass, applyChrome } from '../../store/prefs'
 
+const { t } = useI18n()
 const s = computed(() => printer.summary)
 const nozzle = ref(0)
 const bed = ref(0)
@@ -13,21 +17,23 @@ watch(s, (v) => {
 }, { immediate: true })
 
 const SPEEDS = [
-  { level: 1 as const, name: '静音', pct: '50%' },
-  { level: 2 as const, name: '标准', pct: '100%' },
-  { level: 3 as const, name: '运动', pct: '124%' },
-  { level: 4 as const, name: '狂暴', pct: '166%' },
+  { level: 1 as const, key: 'silent', pct: '50%' },
+  { level: 2 as const, key: 'standard', pct: '100%' },
+  { level: 3 as const, key: 'sport', pct: '124%' },
+  { level: 4 as const, key: 'ludicrous', pct: '166%' },
 ]
 const lightOn = computed(() => s.value?.lights?.find((l) => l.node === 'chamber_light')?.mode === 'on')
+
+onShow(() => applyChrome('tab.control'))
 
 async function send(c: Command, confirmText?: string) {
   if (confirmText) {
     const ok = await new Promise<boolean>((r) =>
-      uni.showModal({ title: '确认操作', content: confirmText, confirmColor: '#2997ff',
+      uni.showModal({ title: t('common.confirmTitle'), content: confirmText, confirmColor: '#2997ff',
         success: (m) => r(!!m.confirm), fail: () => r(false) }))
     if (!ok) return
   }
-  try { await api.command(c); uni.showToast({ title: '已发送', icon: 'none' }) }
+  try { await api.command(c); uni.showToast({ title: t('common.sent'), icon: 'none' }) }
   catch (e) { uni.showToast({ title: (e as Error).message, icon: 'none', duration: 2500 }) }
 }
 
@@ -39,16 +45,18 @@ const step = (which: 'n' | 'b', d: number) => {
 </script>
 
 <template>
-  <view class="root">
-    <view v-if="!isConfigured()" class="empty"><text class="empty-s">请先在设置中配置服务器。</text></view>
+  <view class="root" :class="themeClass">
+    <view v-if="!isConfigured()" class="empty">
+      <text class="empty-s">{{ t('common.notConfigured') }}</text>
+    </view>
 
     <view v-else class="body">
-      <text class="grouphead">温度</text>
+      <text class="grouphead">{{ t('control.tempGroup') }}</text>
       <view class="card">
         <view class="line">
           <view class="line-l">
-            <text class="line-t">喷嘴</text>
-            <text class="line-s">当前 {{ Math.round(s?.nozzle.cur ?? 0) }}℃ · 最高 300℃</text>
+            <text class="line-t">{{ t('control.nozzle') }}</text>
+            <text class="line-s">{{ t('control.current', { c: Math.round(s?.nozzle.cur ?? 0), max: 300 }) }}</text>
           </view>
           <view class="stepper">
             <text class="sbtn" @click="step('n', -5)">−</text>
@@ -58,16 +66,20 @@ const step = (which: 'n' | 'b', d: number) => {
         </view>
         <view class="hsep" />
         <view class="line">
-          <text class="link" @click="send({ type: 'nozzleTemp', celsius: 0 }, '确定关闭喷嘴加热？')">关闭加热</text>
-          <text class="link strong" @click="send({ type: 'nozzleTemp', celsius: nozzle }, `将喷嘴设为 ${nozzle}℃？`)">应用</text>
+          <text class="link" @click="send({ type: 'nozzleTemp', celsius: 0 }, t('control.confirmNozzleOff'))">
+            {{ t('control.turnOff') }}
+          </text>
+          <text class="link strong" @click="send({ type: 'nozzleTemp', celsius: nozzle }, t('control.confirmNozzle', { t: nozzle }))">
+            {{ t('control.apply') }}
+          </text>
         </view>
       </view>
 
       <view class="card mt">
         <view class="line">
           <view class="line-l">
-            <text class="line-t">热床</text>
-            <text class="line-s">当前 {{ Math.round(s?.bed.cur ?? 0) }}℃ · 最高 110℃</text>
+            <text class="line-t">{{ t('control.bed') }}</text>
+            <text class="line-s">{{ t('control.current', { c: Math.round(s?.bed.cur ?? 0), max: 110 }) }}</text>
           </view>
           <view class="stepper">
             <text class="sbtn" @click="step('b', -5)">−</text>
@@ -77,40 +89,43 @@ const step = (which: 'n' | 'b', d: number) => {
         </view>
         <view class="hsep" />
         <view class="line">
-          <text class="link" @click="send({ type: 'bedTemp', celsius: 0 }, '确定关闭热床加热？')">关闭加热</text>
-          <text class="link strong" @click="send({ type: 'bedTemp', celsius: bed }, `将热床设为 ${bed}℃？`)">应用</text>
+          <text class="link" @click="send({ type: 'bedTemp', celsius: 0 }, t('control.confirmBedOff'))">
+            {{ t('control.turnOff') }}
+          </text>
+          <text class="link strong" @click="send({ type: 'bedTemp', celsius: bed }, t('control.confirmBed', { t: bed }))">
+            {{ t('control.apply') }}
+          </text>
         </view>
       </view>
 
-      <text class="grouphead">速度 · 当前 {{ s?.speedPct ?? 100 }}%</text>
+      <text class="grouphead">{{ t('control.speedGroup', { p: s?.speedPct ?? 100 }) }}</text>
       <view class="segs">
         <view v-for="sp in SPEEDS" :key="sp.level" class="seg" :class="{ on: s?.speedLevel === sp.level }"
-          @click="send({ type: 'speed', level: sp.level }, `切换到「${sp.name}」？`)">
-          <text class="seg-n">{{ sp.name }}</text>
+          @click="send({ type: 'speed', level: sp.level }, t('control.confirmSpeed', { name: t('control.speed.' + sp.key) }))">
+          <text class="seg-n">{{ t('control.speed.' + sp.key) }}</text>
           <text class="seg-p">{{ sp.pct }}</text>
         </view>
       </view>
 
-      <text class="grouphead">其他</text>
+      <text class="grouphead">{{ t('control.otherGroup') }}</text>
       <view class="card">
         <view class="line tappable" @click="send({ type: 'light', on: !lightOn })">
-          <text class="line-t">腔内灯</text>
-          <text class="line-v">{{ lightOn ? '开' : '关' }}</text>
+          <text class="line-t">{{ t('control.chamberLight') }}</text>
+          <text class="line-v">{{ lightOn ? t('common.on') : t('common.off') }}</text>
         </view>
         <view class="hsep" />
         <view class="line tappable" @click="send({ type: 'pushall' })">
-          <text class="line-t">刷新状态</text>
+          <text class="line-t">{{ t('control.refresh') }}</text>
           <text class="line-v">›</text>
         </view>
         <view class="hsep" />
-        <view class="line tappable"
-          @click="send({ type: 'home' }, '归零会移动打印头。打印中执行将毁掉当前打印件。确定继续？')">
-          <text class="line-t danger">回原点 G28</text>
+        <view class="line tappable" @click="send({ type: 'home' }, t('control.confirmHome'))">
+          <text class="line-t danger">{{ t('control.home') }}</text>
           <text class="line-v">›</text>
         </view>
       </view>
 
-      <text class="note">原始 G-code 通道默认关闭。需要时在服务端设置 ALLOW_RAW_GCODE=true。</text>
+      <text class="note">{{ t('control.gcodeNote') }}</text>
     </view>
   </view>
 </template>

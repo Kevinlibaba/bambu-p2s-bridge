@@ -1,0 +1,145 @@
+{
+  "lang": {
+    "name": "English"
+  },
+  "tab": {
+    "monitor": "Monitor",
+    "control": "Control",
+    "files": "Files",
+    "settings": "Settings"
+  },
+  "state": {
+    "IDLE": "Idle",
+    "RUNNING": "Printing",
+    "PAUSE": "Paused",
+    "FINISH": "Finished",
+    "FAILED": "Failed",
+    "PREPARE": "Preparing",
+    "SLICING": "Slicing",
+    "UNKNOWN": "Unknown"
+  },
+  "link": {
+    "idle": "Offline",
+    "connecting": "Connecting",
+    "live": "Live",
+    "polling": "Polling",
+    "error": "Error"
+  },
+  "common": {
+    "confirmTitle": "Confirm",
+    "sent": "Sent",
+    "on": "On",
+    "off": "Off",
+    "none": "—",
+    "loading": "Loading",
+    "notConfigured": "Configure the server in Settings first",
+    "online": "online",
+    "offline": "offline"
+  },
+  "monitor": {
+    "emptyTitle": "Not connected.",
+    "emptyDesc": "Enter your server address and token in Settings to begin.",
+    "emptyCta": "Open Settings",
+    "camPause": "Pause",
+    "camPlay": "Play",
+    "camPaused": "Feed paused",
+    "quality": {
+      "smooth": "Smooth",
+      "standard": "Standard",
+      "saver": "Data saver"
+    },
+    "errorTitle": "Printer error",
+    "errorDesc": "{count} HMS · code {code}",
+    "noTask": "No job",
+    "layers": "Layer {cur} of {total}",
+    "remaining": "{value} remaining",
+    "calculating": "Calculating",
+    "hoursMinutes": "{h} h {m} min",
+    "minutes": "{m} min",
+    "nozzle": "Nozzle",
+    "bed": "Bed",
+    "chamber": "Chamber",
+    "target": "Target {t}℃",
+    "heatingTo": "Heating to {t}℃",
+    "speedPct": "Speed {p}%",
+    "amsGroup": "Filament",
+    "updatedAt": "Updated {time}",
+    "confirmPause": "Pause the current print?",
+    "confirmStop": "Stopping cannot be undone. Stop the print?"
+  },
+  "ams": {
+    "empty": "Empty",
+    "low": "Low"
+  },
+  "control": {
+    "tempGroup": "Temperature",
+    "nozzle": "Nozzle",
+    "bed": "Bed",
+    "current": "Now {c}℃ · max {max}℃",
+    "turnOff": "Turn off",
+    "apply": "Apply",
+    "confirmNozzleOff": "Turn off nozzle heating?",
+    "confirmBedOff": "Turn off bed heating?",
+    "confirmNozzle": "Set the nozzle to {t}℃?",
+    "confirmBed": "Set the bed to {t}℃?",
+    "speedGroup": "Speed · now {p}%",
+    "speed": {
+      "silent": "Silent",
+      "standard": "Standard",
+      "sport": "Sport",
+      "ludicrous": "Ludicrous"
+    },
+    "confirmSpeed": "Switch to {name}?",
+    "otherGroup": "Other",
+    "chamberLight": "Chamber light",
+    "refresh": "Refresh state",
+    "home": "Home all (G28)",
+    "confirmHome": "Homing moves the toolhead. Running it mid-print will ruin the current part. Continue?",
+    "gcodeNote": "Raw G-code is disabled by default. Set ALLOW_RAW_GCODE=true on the server to enable it."
+  },
+  "files": {
+    "models": "Models",
+    "timelapse": "Timelapse",
+    "recordings": "Recordings",
+    "up": "Up",
+    "emptyDir": "Empty",
+    "dir": "Folder",
+    "note": "Read-only. Upload and remote print start are not implemented yet.",
+    "unknownTime": "unknown time"
+  },
+  "settings": {
+    "serverGroup": "Server",
+    "address": "Address",
+    "token": "Token",
+    "addressPlaceholder": "https://your-node.your-tailnet.ts.net",
+    "tokenPlaceholder": "API_TOKEN from the server's .env",
+    "serverNote": "Tailscale MagicDNS name with a real Let's Encrypt certificate. Credentials stay on this device.",
+    "testAndSave": "Test and save",
+    "testing": "Testing",
+    "connected": "Connected · printer {state} · {gcode}",
+    "statusGroup": "Status",
+    "channel": "Channel",
+    "printer": "Printer",
+    "updated": "Updated",
+    "error": "Error",
+    "reconnect": "Reconnect",
+    "clearConfig": "Clear configuration",
+    "clearTitle": "Clear configuration",
+    "clearDesc": "This removes the address and token stored on this device.",
+    "appearanceGroup": "Appearance",
+    "language": "Language",
+    "theme": "Theme",
+    "themeAuto": "System",
+    "themeDark": "Dark",
+    "themeLight": "Light",
+    "langAuto": "System",
+    "footer": "Bambu Lab P2S remote monitor\nEnd-to-end encrypted over Tailscale. No cloud service in the path."
+  },
+  "action": {
+    "pause": "Pause",
+    "resume": "Resume",
+    "stop": "Stop",
+    "lightOn": "Light on",
+    "lightOff": "Light off"
+  }
+}

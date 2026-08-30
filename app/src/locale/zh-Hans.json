@@ -1,0 +1,145 @@
+{
+  "lang": {
+    "name": "简体中文"
+  },
+  "tab": {
+    "monitor": "监控",
+    "control": "控制",
+    "files": "文件",
+    "settings": "设置"
+  },
+  "state": {
+    "IDLE": "空闲",
+    "RUNNING": "打印中",
+    "PAUSE": "已暂停",
+    "FINISH": "已完成",
+    "FAILED": "失败",
+    "PREPARE": "准备中",
+    "SLICING": "切片中",
+    "UNKNOWN": "未知"
+  },
+  "link": {
+    "idle": "未连接",
+    "connecting": "连接中",
+    "live": "实时",
+    "polling": "轮询",
+    "error": "异常"
+  },
+  "common": {
+    "confirmTitle": "确认操作",
+    "sent": "已发送",
+    "on": "开",
+    "off": "关",
+    "none": "—",
+    "loading": "载入中",
+    "notConfigured": "请先在设置中配置服务器",
+    "online": "在线",
+    "offline": "离线"
+  },
+  "monitor": {
+    "emptyTitle": "还没连上。",
+    "emptyDesc": "在设置里填入服务器地址与 Token，即可开始。",
+    "emptyCta": "前往设置",
+    "camPause": "暂停",
+    "camPlay": "播放",
+    "camPaused": "画面已暂停",
+    "quality": {
+      "smooth": "流畅",
+      "standard": "标准",
+      "saver": "省流"
+    },
+    "errorTitle": "打印机报错",
+    "errorDesc": "HMS {count} 项 · 错误码 {code}",
+    "noTask": "暂无任务",
+    "layers": "第 {cur} / {total} 层",
+    "remaining": "剩余 {value}",
+    "calculating": "计算中",
+    "hoursMinutes": "{h} 小时 {m} 分",
+    "minutes": "{m} 分钟",
+    "nozzle": "喷嘴",
+    "bed": "热床",
+    "chamber": "腔温",
+    "target": "目标 {t}℃",
+    "heatingTo": "升温至 {t}℃",
+    "speedPct": "速度 {p}%",
+    "amsGroup": "耗材",
+    "updatedAt": "更新于 {time}",
+    "confirmPause": "确定暂停当前打印？",
+    "confirmStop": "停止后无法恢复。确定停止打印？"
+  },
+  "ams": {
+    "empty": "空槽",
+    "low": "偏低"
+  },
+  "control": {
+    "tempGroup": "温度",
+    "nozzle": "喷嘴",
+    "bed": "热床",
+    "current": "当前 {c}℃ · 最高 {max}℃",
+    "turnOff": "关闭加热",
+    "apply": "应用",
+    "confirmNozzleOff": "确定关闭喷嘴加热？",
+    "confirmBedOff": "确定关闭热床加热？",
+    "confirmNozzle": "将喷嘴设为 {t}℃？",
+    "confirmBed": "将热床设为 {t}℃？",
+    "speedGroup": "速度 · 当前 {p}%",
+    "speed": {
+      "silent": "静音",
+      "standard": "标准",
+      "sport": "运动",
+      "ludicrous": "狂暴"
+    },
+    "confirmSpeed": "切换到「{name}」？",
+    "otherGroup": "其他",
+    "chamberLight": "腔内灯",
+    "refresh": "刷新状态",
+    "home": "回原点 G28",
+    "confirmHome": "归零会移动打印头。打印中执行将毁掉当前打印件。确定继续？",
+    "gcodeNote": "原始 G-code 通道默认关闭。需要时在服务端设置 ALLOW_RAW_GCODE=true。"
+  },
+  "files": {
+    "models": "模型",
+    "timelapse": "延时摄影",
+    "recordings": "录像",
+    "up": "上级",
+    "emptyDir": "空目录",
+    "dir": "目录",
+    "note": "只读浏览。上传与远程开打尚未实现。",
+    "unknownTime": "时间未知"
+  },
+  "settings": {
+    "serverGroup": "服务器",
+    "address": "地址",
+    "token": "Token",
+    "addressPlaceholder": "https://your-node.your-tailnet.ts.net",
+    "tokenPlaceholder": "服务端 .env 中的 API_TOKEN",
+    "serverNote": "Tailscale MagicDNS 域名，Let's Encrypt 正式证书。凭据只存本机。",
+    "testAndSave": "测试并保存",
+    "testing": "测试中",
+    "connected": "已连接 · 打印机{state} · {gcode}",
+    "statusGroup": "状态",
+    "channel": "通道",
+    "printer": "打印机",
+    "updated": "更新",
+    "error": "错误",
+    "reconnect": "重新连接",
+    "clearConfig": "清除配置",
+    "clearTitle": "清除配置",
+    "clearDesc": "将删除本机保存的地址与 Token。",
+    "appearanceGroup": "外观",
+    "language": "语言",
+    "theme": "主题",
+    "themeAuto": "跟随系统",
+    "themeDark": "深色",
+    "themeLight": "浅色",
+    "langAuto": "跟随系统",
+    "footer": "Bambu Lab P2S 远程监控\n经 Tailscale 端到端加密，不经任何云服务。"
+  },
+  "action": {
+    "pause": "暂停",
+    "resume": "继续",
+    "stop": "停止",
+    "lightOn": "开灯",
+    "lightOff": "关灯"
+  }
+}

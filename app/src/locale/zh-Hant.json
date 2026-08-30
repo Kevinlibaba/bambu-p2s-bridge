@@ -1,0 +1,145 @@
+{
+  "lang": {
+    "name": "繁體中文"
+  },
+  "tab": {
+    "monitor": "監控",
+    "control": "控制",
+    "files": "檔案",
+    "settings": "設定"
+  },
+  "state": {
+    "IDLE": "閒置",
+    "RUNNING": "列印中",
+    "PAUSE": "已暫停",
+    "FINISH": "已完成",
+    "FAILED": "失敗",
+    "PREPARE": "準備中",
+    "SLICING": "切片中",
+    "UNKNOWN": "未知"
+  },
+  "link": {
+    "idle": "未連線",
+    "connecting": "連線中",
+    "live": "即時",
+    "polling": "輪詢",
+    "error": "異常"
+  },
+  "common": {
+    "confirmTitle": "確認操作",
+    "sent": "已送出",
+    "on": "開",
+    "off": "關",
+    "none": "—",
+    "loading": "載入中",
+    "notConfigured": "請先在設定中設定伺服器",
+    "online": "線上",
+    "offline": "離線"
+  },
+  "monitor": {
+    "emptyTitle": "尚未連線。",
+    "emptyDesc": "在設定中填入伺服器位址與 Token 即可開始。",
+    "emptyCta": "前往設定",
+    "camPause": "暫停",
+    "camPlay": "播放",
+    "camPaused": "畫面已暫停",
+    "quality": {
+      "smooth": "流暢",
+      "standard": "標準",
+      "saver": "省流量"
+    },
+    "errorTitle": "印表機錯誤",
+    "errorDesc": "HMS {count} 項 · 錯誤碼 {code}",
+    "noTask": "目前無工作",
+    "layers": "第 {cur} / {total} 層",
+    "remaining": "剩餘 {value}",
+    "calculating": "計算中",
+    "hoursMinutes": "{h} 小時 {m} 分",
+    "minutes": "{m} 分鐘",
+    "nozzle": "噴嘴",
+    "bed": "熱床",
+    "chamber": "腔溫",
+    "target": "目標 {t}℃",
+    "heatingTo": "升溫至 {t}℃",
+    "speedPct": "速度 {p}%",
+    "amsGroup": "耗材",
+    "updatedAt": "更新於 {time}",
+    "confirmPause": "確定暫停目前列印？",
+    "confirmStop": "停止後無法復原。確定停止列印？"
+  },
+  "ams": {
+    "empty": "空槽",
+    "low": "偏低"
+  },
+  "control": {
+    "tempGroup": "溫度",
+    "nozzle": "噴嘴",
+    "bed": "熱床",
+    "current": "目前 {c}℃ · 最高 {max}℃",
+    "turnOff": "關閉加熱",
+    "apply": "套用",
+    "confirmNozzleOff": "確定關閉噴嘴加熱？",
+    "confirmBedOff": "確定關閉熱床加熱？",
+    "confirmNozzle": "將噴嘴設為 {t}℃？",
+    "confirmBed": "將熱床設為 {t}℃？",
+    "speedGroup": "速度 · 目前 {p}%",
+    "speed": {
+      "silent": "靜音",
+      "standard": "標準",
+      "sport": "運動",
+      "ludicrous": "狂暴"
+    },
+    "confirmSpeed": "切換至「{name}」？",
+    "otherGroup": "其他",
+    "chamberLight": "機箱燈",
+    "refresh": "重新整理狀態",
+    "home": "回原點 G28",
+    "confirmHome": "歸零會移動列印頭。列印中執行將毀掉目前的列印件。確定繼續？",
+    "gcodeNote": "原始 G-code 通道預設關閉。需要時請在伺服器端設定 ALLOW_RAW_GCODE=true。"
+  },
+  "files": {
+    "models": "模型",
+    "timelapse": "縮時攝影",
+    "recordings": "錄影",
+    "up": "上一層",
+    "emptyDir": "空目錄",
+    "dir": "目錄",
+    "note": "唯讀瀏覽。上傳與遠端開始列印尚未實作。",
+    "unknownTime": "時間未知"
+  },
+  "settings": {
+    "serverGroup": "伺服器",
+    "address": "位址",
+    "token": "Token",
+    "addressPlaceholder": "https://your-node.your-tailnet.ts.net",
+    "tokenPlaceholder": "伺服器 .env 中的 API_TOKEN",
+    "serverNote": "Tailscale MagicDNS 網域，Let's Encrypt 正式憑證。憑證只存在本機。",
+    "testAndSave": "測試並儲存",
+    "testing": "測試中",
+    "connected": "已連線 · 印表機{state} · {gcode}",
+    "statusGroup": "狀態",
+    "channel": "通道",
+    "printer": "印表機",
+    "updated": "更新",
+    "error": "錯誤",
+    "reconnect": "重新連線",
+    "clearConfig": "清除設定",
+    "clearTitle": "清除設定",
+    "clearDesc": "將刪除本機儲存的位址與 Token。",
+    "appearanceGroup": "外觀",
+    "language": "語言",
+    "theme": "主題",
+    "themeAuto": "跟隨系統",
+    "themeDark": "深色",
+    "themeLight": "淺色",
+    "langAuto": "跟隨系統",
+    "footer": "Bambu Lab P2S 遠端監控\n經 Tailscale 端到端加密，不經過任何雲端服務。"
+  },
+  "action": {
+    "pause": "暫停",
+    "resume": "繼續",
+    "stop": "停止",
+    "lightOn": "開燈",
+    "lightOff": "關燈"
+  }
+}

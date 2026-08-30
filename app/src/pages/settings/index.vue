@@ -1,15 +1,25 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { onShow } from '@dcloudio/uni-app'
 import { loadSettings, saveSettings, api, type Settings } from '../../api/client'
 import { printer, restart, stop } from '../../store/printer'
+import {
+  prefs, setLocale, setTheme, themeClass, applyChrome, localeName,
+  type ThemePref, type LocalePref,
+} from '../../store/prefs'
+import { LOCALES } from '../../locale'
 
+const { t } = useI18n()
 const form = ref<Settings>({ baseUrl: '', token: '' })
 const testing = ref(false)
 const result = ref('')
 const ok = ref(false)
 
-onShow(() => { form.value = loadSettings() })
+onShow(() => {
+  applyChrome('tab.settings')
+  form.value = loadSettings()
+})
 
 async function testAndSave() {
   testing.value = true; result.value = ''
@@ -19,7 +29,10 @@ async function testAndSave() {
     const h = await api.health()
     const st = await api.state()
     ok.value = true
-    result.value = `已连接 · 打印机${h.printerConnected ? '在线' : '离线'} · ${st.state}`
+    result.value = t('settings.connected', {
+      state: h.printerConnected ? t('common.online') : t('common.offline'),
+      gcode: st.state,
+    })
     restart()
   } catch (e) {
     ok.value = false
@@ -30,7 +43,7 @@ async function testAndSave() {
 
 function clearAll() {
   uni.showModal({
-    title: '清除配置', content: '将删除本机保存的地址与 Token。', confirmColor: '#ff453a',
+    title: t('settings.clearTitle'), content: t('settings.clearDesc'), confirmColor: '#ff453a',
     success: (r) => {
       if (!r.confirm) return
       stop(); saveSettings({ baseUrl: '', token: '' })
@@ -39,63 +52,104 @@ function clearAll() {
   })
 }
 
-const LINK: Record<string, string> = {
-  idle: '未连接', connecting: '连接中', live: '实时', polling: '轮询', error: '异常',
+// ---- 外观 ----
+const themeOptions = computed(() => [
+  { key: 'auto' as ThemePref, label: t('settings.themeAuto') },
+  { key: 'dark' as ThemePref, label: t('settings.themeDark') },
+  { key: 'light' as ThemePref, label: t('settings.themeLight') },
+])
+
+const localeOptions = computed<{ key: LocalePref; label: string }[]>(() => [
+  { key: 'auto', label: t('settings.langAuto') },
+  ...LOCALES.map((c) => ({ key: c as LocalePref, label: localeName(c) })),
+])
+const currentLocaleLabel = computed(
+  () => localeOptions.value.find((o) => o.key === prefs.locale)?.label ?? '',
+)
+
+function pickLocale() {
+  const opts = localeOptions.value
+  uni.showActionSheet({
+    itemList: opts.map((o) => o.label),
+    success: (r) => setLocale(opts[r.tapIndex].key),
+    fail: () => {},
+  })
 }
 </script>
 
 <template>
-  <view class="root">
+  <view class="root" :class="themeClass">
     <view class="body">
-      <text class="grouphead">服务器</text>
+      <text class="grouphead">{{ t('settings.serverGroup') }}</text>
       <view class="card">
         <view class="field">
-          <text class="flabel">地址</text>
+          <text class="flabel">{{ t('settings.address') }}</text>
           <input class="finput" v-model="form.baseUrl"
-            placeholder="https://your-node.your-tailnet.ts.net" placeholder-class="ph" />
+            :placeholder="t('settings.addressPlaceholder')" placeholder-class="ph" />
         </view>
         <view class="hsep" />
         <view class="field">
-          <text class="flabel">Token</text>
+          <text class="flabel">{{ t('settings.token') }}</text>
           <input class="finput" v-model="form.token" password
-            placeholder="服务端 .env 中的 API_TOKEN" placeholder-class="ph" />
+            :placeholder="t('settings.tokenPlaceholder')" placeholder-class="ph" />
         </view>
       </view>
-      <text class="note">Tailscale MagicDNS 域名，Let's Encrypt 正式证书。凭据只存本机。</text>
+      <text class="note">{{ t('settings.serverNote') }}</text>
 
       <button class="cta" :disabled="testing" @click="testAndSave">
-        {{ testing ? '测试中' : '测试并保存' }}
+        {{ testing ? t('settings.testing') : t('settings.testAndSave') }}
       </button>
       <view v-if="result" class="result">
         <view class="rdot" :class="ok ? 'good' : 'bad'" />
         <text class="rtext">{{ result }}</text>
       </view>
 
-      <text class="grouphead">状态</text>
+      <!-- 外观：语言与主题都以「跟随系统」为默认 -->
+      <text class="grouphead">{{ t('settings.appearanceGroup') }}</text>
       <view class="card">
-        <view class="line"><text class="k">通道</text><text class="v">{{ LINK[printer.link] }}</text></view>
+        <view class="line tappable" @click="pickLocale">
+          <text class="k">{{ t('settings.language') }}</text>
+          <text class="v">{{ currentLocaleLabel }} ›</text>
+        </view>
         <view class="hsep" />
-        <view class="line"><text class="k">打印机</text>
-          <text class="v">{{ printer.summary?.online ? '在线' : '离线' }}</text></view>
+        <view class="line stack">
+          <text class="k">{{ t('settings.theme') }}</text>
+          <view class="segs">
+            <view v-for="o in themeOptions" :key="o.key" class="seg"
+              :class="{ on: prefs.theme === o.key }" @click="setTheme(o.key)">
+              <text class="seg-t">{{ o.label }}</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <text class="grouphead">{{ t('settings.statusGroup') }}</text>
+      <view class="card">
+        <view class="line"><text class="k">{{ t('settings.channel') }}</text>
+          <text class="v">{{ t('link.' + printer.link) }}</text></view>
         <view class="hsep" />
-        <view class="line"><text class="k">更新</text>
-          <text class="v">{{ printer.lastAt ? new Date(printer.lastAt).toLocaleTimeString() : '—' }}</text></view>
+        <view class="line"><text class="k">{{ t('settings.printer') }}</text>
+          <text class="v">{{ printer.summary?.online ? t('common.online') : t('common.offline') }}</text></view>
+        <view class="hsep" />
+        <view class="line"><text class="k">{{ t('settings.updated') }}</text>
+          <text class="v">{{ printer.lastAt ? new Date(printer.lastAt).toLocaleTimeString() : t('common.none') }}</text></view>
         <view v-if="printer.error" class="hsep" />
         <view v-if="printer.error" class="line">
-          <text class="k">错误</text><text class="v bad">{{ printer.error }}</text></view>
+          <text class="k">{{ t('settings.error') }}</text>
+          <text class="v bad">{{ printer.error }}</text></view>
       </view>
 
       <view class="card mt">
         <view class="line tappable" @click="restart">
-          <text class="k accent">重新连接</text><text class="v">›</text>
+          <text class="k accent">{{ t('settings.reconnect') }}</text><text class="v">›</text>
         </view>
         <view class="hsep" />
         <view class="line tappable" @click="clearAll">
-          <text class="k danger">清除配置</text><text class="v">›</text>
+          <text class="k danger">{{ t('settings.clearConfig') }}</text><text class="v">›</text>
         </view>
       </view>
 
-      <text class="foot">Bambu Lab P2S 远程监控{{ '\n' }}经 Tailscale 端到端加密，不经任何云服务。</text>
+      <text class="foot">{{ t('settings.footer') }}</text>
     </view>
   </view>
 </template>
@@ -132,12 +186,21 @@ const LINK: Record<string, string> = {
 .rtext { font-size: 25rpx; color: var(--ink-2); letter-spacing: -0.01em; }
 
 .line { display: flex; align-items: center; justify-content: space-between; min-height: 100rpx; }
+.line.stack { display: block; padding: 26rpx 0 30rpx; }
 .tappable:active { opacity: 0.55; }
 .k { font-size: 30rpx; color: var(--ink); letter-spacing: -0.02em; }
 .k.accent { color: var(--accent); }
 .k.danger { color: var(--critical); }
 .v { font-size: 29rpx; color: var(--ink-2); letter-spacing: -0.02em; }
 .v.bad { color: var(--critical); }
+
+.segs { display: flex; background: var(--surface-2); border-radius: 20rpx;
+  padding: 6rpx; margin-top: 20rpx; }
+.seg { flex: 1; padding: 16rpx 0; text-align: center; border-radius: 15rpx;
+  transition: background 0.25s ease; }
+.seg.on { background: var(--surface); }
+.seg-t { font-size: 26rpx; color: var(--ink); letter-spacing: -0.02em; }
+.seg.on .seg-t { font-weight: 600; }
 
 .note { display: block; font-size: 22rpx; color: var(--ink-3);
   margin: 16rpx 0 0; padding: 0 8rpx; line-height: 1.6; letter-spacing: -0.01em; }

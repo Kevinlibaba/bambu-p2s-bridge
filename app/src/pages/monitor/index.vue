@@ -1,19 +1,23 @@
 <script setup lang="ts">
 import { computed, ref, onUnmounted } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { onShow, onHide, onPullDownRefresh } from '@dcloudio/uni-app'
 import { api, isConfigured, type Command } from '../../api/client'
 import { printer, restart } from '../../store/printer'
+import { themeClass, applyChrome } from '../../store/prefs'
 import StatTile from '../../components/StatTile.vue'
 import Meter from '../../components/Meter.vue'
 import AmsSlot from '../../components/AmsSlot.vue'
 
-const STATE_LABEL: Record<string, string> = {
-  IDLE: '空闲', RUNNING: '打印中', PAUSE: '已暂停',
-  FINISH: '已完成', FAILED: '失败', PREPARE: '准备中', SLICING: '切片中',
-}
+const { t } = useI18n()
+
+const KNOWN_STATES = ['IDLE', 'RUNNING', 'PAUSE', 'FINISH', 'FAILED', 'PREPARE', 'SLICING']
 
 const s = computed(() => printer.summary)
-const stateText = computed(() => STATE_LABEL[s.value?.state ?? ''] ?? s.value?.state ?? '未知')
+const stateText = computed(() => {
+  const v = s.value?.state
+  return t(`state.${v && KNOWN_STATES.includes(v) ? v : 'UNKNOWN'}`)
+})
 const running = computed(() => s.value?.state === 'RUNNING')
 const paused = computed(() => s.value?.state === 'PAUSE')
 const hasError = computed(
@@ -36,11 +40,18 @@ const meterTone = computed<'accent' | 'warning' | 'critical'>(() =>
 
 const eta = computed(() => {
   const m = s.value?.remainingMin ?? 0
-  if (!m) return running.value ? '计算中' : '—'
-  return m >= 60 ? `${Math.floor(m / 60)} 小时 ${m % 60} 分` : `${m} 分钟`
+  if (!m) return running.value ? t('monitor.calculating') : t('common.none')
+  return m >= 60
+    ? t('monitor.hoursMinutes', { h: Math.floor(m / 60), m: m % 60 })
+    : t('monitor.minutes', { m })
 })
 
 const heating = (cur: number, target: number) => target > 0 && Math.abs(cur - target) > 3
+const tempSub = (cur: number, target: number) =>
+  heating(cur, target)
+    ? t('monitor.heatingTo', { t: Math.round(target) })
+    : t('monitor.target', { t: Math.round(target) })
+
 const lightOn = computed(
   () => s.value?.lights?.find((l) => l.node === 'chamber_light')?.mode === 'on',
 )
@@ -73,10 +84,18 @@ function cycleRate() {
   stopCam(); startCam()
 }
 const rateLabel = computed(() =>
-  camIntervalMs.value === 1000 ? '流畅' : camIntervalMs.value === 3000 ? '标准' : '省流',
+  camIntervalMs.value === 1000
+    ? t('monitor.quality.smooth')
+    : camIntervalMs.value === 3000
+      ? t('monitor.quality.standard')
+      : t('monitor.quality.saver'),
 )
 
-onShow(() => startCam())
+function goSettings() {
+  uni.switchTab({ url: '/pages/settings/index' })
+}
+
+onShow(() => { applyChrome('tab.monitor'); startCam() })
 onHide(() => stopCam())
 onUnmounted(() => stopCam())
 onPullDownRefresh(() => {
@@ -88,7 +107,7 @@ async function send(c: Command, confirmText?: string) {
   if (confirmText) {
     const ok = await new Promise<boolean>((resolve) =>
       uni.showModal({
-        title: '确认操作', content: confirmText, confirmColor: '#2997ff',
+        title: t('common.confirmTitle'), content: confirmText, confirmColor: '#2997ff',
         success: (r) => resolve(!!r.confirm), fail: () => resolve(false),
       }),
     )
@@ -96,7 +115,7 @@ async function send(c: Command, confirmText?: string) {
   }
   try {
     await api.command(c)
-    uni.showToast({ title: '已发送', icon: 'none' })
+    uni.showToast({ title: t('common.sent'), icon: 'none' })
   } catch (e) {
     uni.showToast({ title: (e as Error).message, icon: 'none', duration: 2500 })
   }
@@ -104,23 +123,23 @@ async function send(c: Command, confirmText?: string) {
 </script>
 
 <template>
-  <view class="root">
+  <view class="root" :class="themeClass">
     <!-- 未配置 -->
     <view v-if="!isConfigured()" class="empty">
-      <text class="empty-t">还没连上。</text>
-      <text class="empty-s">在设置里填入服务器地址与 Token，即可开始。</text>
-      <button class="cta" @click="uni.switchTab({ url: '/pages/settings/index' })">前往设置</button>
+      <text class="empty-t">{{ t('monitor.emptyTitle') }}</text>
+      <text class="empty-s">{{ t('monitor.emptyDesc') }}</text>
+      <button class="cta" @click="goSettings">{{ t('monitor.emptyCta') }}</button>
     </view>
 
     <template v-else>
       <!-- 摄像头：全出血，控件浮在画面上 -->
       <view class="cam">
         <image v-if="camOn && camUrl" class="cam-img" :src="camUrl" mode="widthFix" />
-        <view v-else class="cam-off"><text class="cam-off-t">画面已暂停</text></view>
+        <view v-else class="cam-off"><text class="cam-off-t">{{ t('monitor.camPaused') }}</text></view>
         <view class="scrim" />
         <view class="cam-ctl">
           <view class="glass" @click="toggleCam">
-            <text class="glass-t">{{ camOn ? '暂停' : '播放' }}</text>
+            <text class="glass-t">{{ camOn ? t('monitor.camPause') : t('monitor.camPlay') }}</text>
           </view>
           <view class="glass" @click="cycleRate">
             <text class="glass-t">{{ rateLabel }}</text>
@@ -133,8 +152,8 @@ async function send(c: Command, confirmText?: string) {
         <view v-if="hasError" class="alert">
           <view class="alert-i"><text class="alert-g">!</text></view>
           <view class="alert-b">
-            <text class="alert-t">打印机报错</text>
-            <text class="alert-s">HMS {{ s?.errors?.length || 0 }} 项 · 错误码 {{ s?.printError }}</text>
+            <text class="alert-t">{{ t('monitor.errorTitle') }}</text>
+            <text class="alert-s">{{ t('monitor.errorDesc', { count: s?.errors?.length || 0, code: s?.printError }) }}</text>
           </view>
         </view>
 
@@ -143,7 +162,7 @@ async function send(c: Command, confirmText?: string) {
           <view class="statusline">
             <view class="dot" :class="'d-' + stateTone" />
             <text class="status-t">{{ stateText }}</text>
-            <text class="status-s">{{ printer.link === 'live' ? '实时' : printer.link === 'polling' ? '轮询' : '连接中' }}</text>
+            <text class="status-s">{{ t('link.' + printer.link) }}</text>
           </view>
 
           <view class="figure">
@@ -153,45 +172,45 @@ async function send(c: Command, confirmText?: string) {
 
           <Meter :pct="s?.progress ?? 0" :tone="meterTone" />
 
-          <text class="task">{{ s?.taskName || '暂无任务' }}</text>
+          <text class="task">{{ s?.taskName || t('monitor.noTask') }}</text>
           <view class="facts">
-            <text class="fact">第 {{ s?.layer ?? 0 }} / {{ s?.totalLayers ?? 0 }} 层</text>
+            <text class="fact">{{ t('monitor.layers', { cur: s?.layer ?? 0, total: s?.totalLayers ?? 0 }) }}</text>
             <text class="sep">·</text>
-            <text class="fact">剩余 {{ eta }}</text>
+            <text class="fact">{{ t('monitor.remaining', { value: eta }) }}</text>
           </view>
         </view>
 
         <!-- 温度 -->
         <view class="card temps">
           <StatTile
-            label="喷嘴" :value="String(Math.round(s?.nozzle.cur ?? 0))" unit="℃"
-            :sub="heating(s?.nozzle.cur ?? 0, s?.nozzle.target ?? 0) ? `升温至 ${Math.round(s?.nozzle.target ?? 0)}℃` : `目标 ${Math.round(s?.nozzle.target ?? 0)}℃`"
+            :label="t('monitor.nozzle')" :value="String(Math.round(s?.nozzle.cur ?? 0))" unit="℃"
+            :sub="tempSub(s?.nozzle.cur ?? 0, s?.nozzle.target ?? 0)"
             :tone="heating(s?.nozzle.cur ?? 0, s?.nozzle.target ?? 0) ? 'warning' : 'neutral'" />
           <view class="vsep" />
           <StatTile
-            label="热床" :value="String(Math.round(s?.bed.cur ?? 0))" unit="℃"
-            :sub="heating(s?.bed.cur ?? 0, s?.bed.target ?? 0) ? `升温至 ${Math.round(s?.bed.target ?? 0)}℃` : `目标 ${Math.round(s?.bed.target ?? 0)}℃`"
+            :label="t('monitor.bed')" :value="String(Math.round(s?.bed.cur ?? 0))" unit="℃"
+            :sub="tempSub(s?.bed.cur ?? 0, s?.bed.target ?? 0)"
             :tone="heating(s?.bed.cur ?? 0, s?.bed.target ?? 0) ? 'warning' : 'neutral'" />
           <view class="vsep" />
           <StatTile
-            label="腔温" :value="s?.chamber != null ? String(Math.round(s.chamber)) : '—'" unit="℃"
-            :sub="`速度 ${s?.speedPct ?? 100}%`" />
+            :label="t('monitor.chamber')" :value="s?.chamber != null ? String(Math.round(s.chamber)) : t('common.none')" unit="℃"
+            :sub="t('monitor.speedPct', { p: s?.speedPct ?? 100 })" />
         </view>
 
         <!-- 操作 -->
         <view class="acts">
           <button v-if="!paused" class="pill" :disabled="!running"
-            @click="send({ type: 'pause' }, '确定暂停当前打印？')">暂停</button>
-          <button v-else class="pill fill" @click="send({ type: 'resume' })">继续</button>
+            @click="send({ type: 'pause' }, t('monitor.confirmPause'))">{{ t('action.pause') }}</button>
+          <button v-else class="pill fill" @click="send({ type: 'resume' })">{{ t('action.resume') }}</button>
           <button class="pill warn" :disabled="!running && !paused"
-            @click="send({ type: 'stop' }, '停止后无法恢复。确定停止打印？')">停止</button>
+            @click="send({ type: 'stop' }, t('monitor.confirmStop'))">{{ t('action.stop') }}</button>
           <button class="pill" @click="send({ type: 'light', on: !lightOn })">
-            {{ lightOn ? '关灯' : '开灯' }}
+            {{ lightOn ? t('action.lightOff') : t('action.lightOn') }}
           </button>
         </view>
 
         <!-- 耗材 -->
-        <text class="grouphead">耗材</text>
+        <text class="grouphead">{{ t('monitor.amsGroup') }}</text>
         <view class="card list">
           <view v-for="(t, i) in s?.ams ?? []" :key="`${t.unit}-${t.slot}`">
             <view v-if="i > 0" class="hsep" />
@@ -199,7 +218,7 @@ async function send(c: Command, confirmText?: string) {
           </view>
         </view>
 
-        <text class="foot">{{ s?.wifi }} · 更新于 {{ printer.lastAt ? new Date(printer.lastAt).toLocaleTimeString() : '—' }}</text>
+        <text class="foot">{{ s?.wifi }} · {{ t('monitor.updatedAt', { time: printer.lastAt ? new Date(printer.lastAt).toLocaleTimeString() : t('common.none') }) }}</text>
       </view>
     </template>
   </view>

@@ -44,6 +44,9 @@ jobs:
           cache-dependency-path: app/package-lock.json
       - run: npm ci
         working-directory: app
+      - name: vue-tsc --noEmit
+        run: npx vue-tsc --noEmit
+        working-directory: app
       - name: Build H5
         run: npm run build:h5
         working-directory: app
