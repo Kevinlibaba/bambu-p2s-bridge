@@ -8,6 +8,7 @@ import {
 } from '../../api/client'
 import { themeClass, applyChrome } from '../../store/prefs'
 import Sheet from '../../components/Sheet.vue'
+import Meter from '../../components/Meter.vue'
 
 const { t } = useI18n()
 const path = ref('/')
@@ -185,70 +186,80 @@ function confirm(title: string, content: string, danger = false): Promise<boolea
 }
 
 // ---- 导入 ----
-function openImport() {
-  const opts = [t('import.fromFile'), t('import.fromLink')]
-  uni.showActionSheet({
-    itemList: opts,
-    success: (r) => (r.tapIndex === 0 ? pickFile() : pickLink()),
-    fail: () => {},
-  })
+/**
+ * 全部走应用自己的卡片，不用 uni.showActionSheet / showModal ——
+ * 系统控件是浅灰居中样式，和这里的纯黑分组列表完全不是一套语言。
+ */
+type ImportStep = '' | 'choose' | 'link' | 'progress'
+const importStep = ref<ImportStep>('')
+const linkText = ref('')
+const progressName = ref('')
+const progressPct = ref(0)
+const progressLabel = ref('')
+
+const importTitle = computed(() =>
+  importStep.value === 'link'
+    ? t('import.linkTitle')
+    : importStep.value === 'progress'
+      ? t('import.progressTitle')
+      : t('import.sheetTitle'),
+)
+
+function closeImport() {
+  importStep.value = ''
+  linkText.value = ''
+}
+
+/** 上传/下载期间把卡片切到进度态，完成后自动收起 */
+async function runImport(name: string, work: () => Promise<{ name: string }>) {
+  progressName.value = name
+  progressPct.value = 0
+  progressLabel.value = t('import.fetching')
+  importStep.value = 'progress'
+  try {
+    const res = await work()
+    toast(t('import.done', { name: res.name }))
+    closeImport()
+    await load('/')
+  } catch (e) {
+    toast((e as Error).message)
+    closeImport()
+  }
 }
 
 function pickFile() {
   uni.chooseFile({
     count: 1,
     extension: ['.3mf'],
-    success: async (r) => {
+    success: (r) => {
       const path = (r.tempFilePaths as string[])[0]
       const raw = (r.tempFiles as { name?: string }[])[0]
       const name = raw?.name ?? path.split('/').pop() ?? 'model.gcode.3mf'
       if (!name.toLowerCase().endsWith('.3mf')) return toast(t('import.onlyThreeMf'))
-      busy.value = t('import.uploading', { pct: 0 })
-      try {
-        const res = await uploadFile(
-          { path, name, raw },
-          (pct: number) => (busy.value = t('import.uploading', { pct })),
-        )
-        toast(t('import.done', { name: res.name }))
-        await load('/')
-      } catch (e) {
-        toast((e as Error).message)
-      } finally {
-        busy.value = ''
-      }
+      void runImport(name, () =>
+        uploadFile({ path, name, raw }, (pct: number) => {
+          progressPct.value = pct
+          // 传完之后服务端还要把文件当 3MF 重新解析一遍，别让标签停在"上传中 100%"
+          progressLabel.value =
+            pct >= 100 ? t('import.verifying') : t('import.uploading', { pct })
+        }),
+      )
     },
     fail: () => {},
   })
 }
 
-function pickLink() {
-  uni.showModal({
-    title: t('import.linkTitle'),
-    editable: true,
-    placeholderText: t('import.linkPlaceholder'),
-    confirmColor: '#2997ff',
-    success: async (m) => {
-      const link = (m.content ?? '').trim()
-      if (!m.confirm || !link) return
-      let guess = ''
-      try {
-        guess = decodeURIComponent(new URL(link).pathname.split('/').pop() ?? '')
-      } catch {
-        guess = ''
-      }
-      if (!guess.toLowerCase().endsWith('.3mf')) guess = 'imported.gcode.3mf'
-      busy.value = t('import.fetching')
-      try {
-        const res = await importUrl(link, guess)
-        toast(t('import.done', { name: res.name }))
-        await load('/')
-      } catch (e) {
-        toast((e as Error).message)
-      } finally {
-        busy.value = ''
-      }
-    },
-  })
+function doImportLink() {
+  const link = linkText.value.trim()
+  if (!link) return
+  let guess = ''
+  try {
+    guess = decodeURIComponent(new URL(link).pathname.split('/').pop() ?? '')
+  } catch {
+    guess = ''
+  }
+  if (!guess.toLowerCase().endsWith('.3mf')) guess = 'imported.gcode.3mf'
+  void runImport(guess, () => importUrl(link, guess))
 }
 
 // ---- 删除 ----
@@ -298,9 +309,12 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 
       <!-- 只在模型目录提供导入：延时摄影与录像是打印机自己写的 -->
       <view v-if="path === '/'" class="card import-card">
-        <view class="line tappable" @click="openImport">
-          <text class="k accent">{{ busy || t('import.action') }}</text>
-          <text class="v">{{ busy ? '' : '›' }}</text>
+        <view class="row tappable" @click="importStep = 'choose'">
+          <view class="ic add"><text class="ic-t">+</text></view>
+          <view class="meta">
+            <text class="name accent">{{ t('import.action') }}</text>
+            <text class="sub">{{ t('import.entryHint') }}</text>
+          </view>
         </view>
       </view>
 
@@ -452,6 +466,53 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
         <button class="cta" @click="close">{{ t('files.close') }}</button>
       </template>
     </Sheet>
+
+    <!-- 导入：三个步骤共用一张卡片 -->
+    <Sheet :visible="importStep !== ''" :title="importTitle" @close="closeImport">
+      <template v-if="importStep === 'choose'">
+        <view class="card sheet-card">
+          <view class="line stack tappable" @click="pickFile">
+            <text class="k accent">{{ t('import.fromFile') }}</text>
+            <text class="opt-sub">{{ t('import.fromFileHint') }}</text>
+          </view>
+          <view class="hsep" />
+          <view class="line stack tappable" @click="importStep = 'link'">
+            <text class="k accent">{{ t('import.fromLink') }}</text>
+            <text class="opt-sub">{{ t('import.fromLinkHint') }}</text>
+          </view>
+        </view>
+        <text class="hint">{{ t('import.note') }}</text>
+      </template>
+
+      <template v-else-if="importStep === 'link'">
+        <view class="card sheet-card">
+          <view class="field">
+            <input class="finput" v-model="linkText" type="text" confirm-type="done"
+              :placeholder="t('import.linkPlaceholder')" placeholder-class="ph"
+              @confirm="doImportLink" />
+          </view>
+        </view>
+        <text class="hint">{{ t('import.fromLinkHint') }}</text>
+      </template>
+
+      <template v-else-if="importStep === 'progress'">
+        <view class="prog">
+          <text class="prog-name">{{ progressName }}</text>
+          <Meter :pct="progressPct" />
+          <text class="prog-sub">{{ progressLabel }}</text>
+        </view>
+      </template>
+
+      <template #footer>
+        <button v-if="importStep === 'link'" class="cta fill"
+          :disabled="!linkText.trim()" @click="doImportLink">
+          {{ t('import.confirm') }}
+        </button>
+        <button v-else-if="importStep === 'choose'" class="cta" @click="closeImport">
+          {{ t('files.close') }}
+        </button>
+      </template>
+    </Sheet>
   </view>
 </template>
 
@@ -491,6 +552,29 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 .tag { font-size: 21rpx; color: var(--accent); margin-left: 20rpx; flex-shrink: 0;
   padding: 4rpx 16rpx; border-radius: 999rpx; background: var(--accent-dim); letter-spacing: -0.01em; }
 .import-card { margin-bottom: 24rpx; }
+/* 入口用蓝色着色的图标块，一眼看出是动作而不是文件 */
+.ic.add { background: var(--accent-dim); }
+.ic.add .ic-t { color: var(--accent); font-size: 32rpx; font-weight: 500; line-height: 1; }
+.name.accent { color: var(--accent); }
+
+/* 选项行：标题 + 说明纵向排列，比系统 actionSheet 能承载更多信息 */
+.line.stack { display: block; padding: 26rpx 0; min-height: 0; }
+.opt-sub { display: block; font-size: 23rpx; color: var(--ink-2);
+  margin-top: 8rpx; line-height: 1.45; letter-spacing: -0.01em; }
+
+.field { padding: 26rpx 0; }
+.finput { width: 100%; font-size: 29rpx; color: var(--ink); letter-spacing: -0.01em; }
+.ph { color: var(--ink-3); }
+
+/* 进度：文件名 + 进度条 + 状态，替代把标签文字换成"上传中 45%" */
+.prog { padding: 20rpx 0 8rpx; }
+.prog-name { display: block; font-size: 28rpx; color: var(--ink);
+  letter-spacing: -0.02em; line-height: 1.4; word-break: break-all; margin-bottom: 28rpx; }
+.prog-sub { display: block; font-size: 24rpx; color: var(--ink-2);
+  margin-top: 20rpx; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; }
+
+.cta.fill { background: var(--accent); color: #fff; }
+.cta.fill[disabled] { opacity: 0.4; }
 .k.danger { color: var(--critical); }
 
 .note { display: block; font-size: 22rpx; color: var(--ink-3);

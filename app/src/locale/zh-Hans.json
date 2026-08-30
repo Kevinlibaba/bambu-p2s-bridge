@@ -176,7 +176,11 @@
     "fetching": "下载中",
     "done": "已导入 {name}",
     "onlyThreeMf": "只支持已切片的 .gcode.3mf 文件",
-    "note": "打印机只能打印已切片的 .gcode.3mf。原始 STL/STEP 需要先在电脑上切片。"
+    "note": "打印机只能打印已切片的 .gcode.3mf。原始 STL/STEP 需要先在电脑上切片。",
+    "entryHint": "从设备或链接添加已切片文件",
+    "confirm": "导入",
+    "progressTitle": "正在导入",
+    "verifying": "校验中"
   },
   "del": {
     "action": "删除",

@@ -176,7 +176,11 @@
     "fetching": "Downloading",
     "done": "Imported {name}",
     "onlyThreeMf": "Only sliced .gcode.3mf files are supported",
-    "note": "The printer can only print sliced .gcode.3mf. Raw STL/STEP must be sliced on a computer first."
+    "note": "The printer can only print sliced .gcode.3mf. Raw STL/STEP must be sliced on a computer first.",
+    "entryHint": "Add a sliced file from this device or a link",
+    "confirm": "Import",
+    "progressTitle": "Importing",
+    "verifying": "Verifying"
   },
   "del": {
     "action": "Delete",

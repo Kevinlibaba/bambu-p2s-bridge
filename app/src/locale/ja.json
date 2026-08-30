@@ -176,7 +176,11 @@
     "fetching": "ダウンロード中",
     "done": "{name} を読み込みました",
     "onlyThreeMf": "スライス済みの .gcode.3mf のみ対応しています",
-    "note": "プリンターはスライス済みの .gcode.3mf しか印刷できません。STL/STEP は先に PC でスライスしてください。"
+    "note": "プリンターはスライス済みの .gcode.3mf しか印刷できません。STL/STEP は先に PC でスライスしてください。",
+    "entryHint": "端末またはリンクからスライス済みファイルを追加",
+    "confirm": "読み込む",
+    "progressTitle": "読み込み中",
+    "verifying": "検証中"
   },
   "del": {
     "action": "削除",
