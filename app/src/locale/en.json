@@ -117,7 +117,6 @@
     "close": "Close",
     "previewFailed": "Preview failed",
     "noPreview": "No preview in this file",
-    "plate": "Plate {n}",
     "printTime": "Print time",
     "filamentUsed": "Filament & slots",
     "nozzleDiameter": "Nozzle",
@@ -153,7 +152,8 @@
     },
     "externalSlot": "External spool · {name}",
     "externalShort": "the external spool",
-    "slotShort": "slot {n}"
+    "slotShort": "slot {n}",
+    "plateGroup": "Plate"
   },
   "settings": {
     "serverGroup": "Server",

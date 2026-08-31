@@ -117,7 +117,6 @@
     "close": "閉じる",
     "previewFailed": "プレビューに失敗",
     "noPreview": "このファイルにプレビュー画像はありません",
-    "plate": "プレート {n}",
     "printTime": "印刷時間",
     "filamentUsed": "フィラメントとスロット",
     "nozzleDiameter": "ノズル",
@@ -153,7 +152,8 @@
     },
     "externalSlot": "外部スプール · {name}",
     "externalShort": "外部スプール",
-    "slotShort": "スロット {n}"
+    "slotShort": "スロット {n}",
+    "plateGroup": "プレート"
   },
   "settings": {
     "serverGroup": "サーバー",

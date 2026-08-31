@@ -19,10 +19,16 @@ const canvasId = 'tempchart'
 const W = ref(0)
 const H = 180
 
-/** 线色跟随主题 token，避免深浅模式下有一条看不见 */
+/*
+ * 主题 token 定义在 `page`（H5 下是 uni-page-body），手动切换主题时
+ * .theme-dark/.theme-light 还会加在各页面的根节点上。所以必须从
+ * 图表自己的节点往上解析，读 documentElement 什么都拿不到 ——
+ * 那会让浅色模式下的图表底色仍然是深色。
+ */
 function cssVar(name: string, fallback: string): string {
   // #ifdef H5
-  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  const el = document.getElementById(canvasId) ?? document.body
+  const v = getComputedStyle(el).getPropertyValue(name).trim()
   return v || fallback
   // #endif
   // #ifndef H5
@@ -30,10 +36,23 @@ function cssVar(name: string, fallback: string): string {
   // #endif
 }
 
+/** 取一次色板。绘制与图例共用，避免两处各读一遍读出不同结果。 */
+function readTone() {
+  return {
+    nozzle: cssVar('--critical', '#FF453A'),
+    bed: cssVar('--accent', '#0A84FF'),
+    chamber: cssVar('--good', '#30D158'),
+    surface: cssVar('--surface', '#1c1c1e'),
+    grid: cssVar('--separator', 'rgba(255,255,255,0.08)'),
+    ink3: cssVar('--ink-3', '#6e6e73'),
+  }
+}
+const tone = ref(readTone())
+
 const SERIES = [
-  { key: 'n' as const, color: () => cssVar('--critical', '#FF453A'), label: () => t('chart.nozzle') },
-  { key: 'b' as const, color: () => cssVar('--accent', '#0A84FF'), label: () => t('chart.bed') },
-  { key: 'c' as const, color: () => cssVar('--good', '#30D158'), label: () => t('chart.chamber') },
+  { key: 'n' as const, tone: 'nozzle' as const, label: () => t('chart.nozzle') },
+  { key: 'b' as const, tone: 'bed' as const, label: () => t('chart.bed') },
+  { key: 'c' as const, tone: 'chamber' as const, label: () => t('chart.chamber') },
 ]
 
 const hasData = computed(() => props.samples.length >= 2)
@@ -43,6 +62,8 @@ const latest = computed(() => props.samples[props.samples.length - 1] ?? null)
 
 function draw() {
   if (!W.value || !hasData.value) return
+  tone.value = readTone()          // 主题可能在两次绘制之间被切换
+  const c = tone.value
   const ctx = uni.createCanvasContext(canvasId, inst?.proxy ?? undefined)
   const s = props.samples
   const pad = { l: 34, r: 8, t: 10, b: 18 }
@@ -57,12 +78,12 @@ function draw() {
   const px = (i: number) => pad.l + (i / (s.length - 1)) * w
   const py = (v: number) => pad.t + h - (v / max) * h
 
-  ctx.setFillStyle(cssVar('--surface', '#1c1c1e'))
+  ctx.setFillStyle(c.surface)
   ctx.fillRect(0, 0, W.value, H)
 
   // 网格与刻度：四条线足够定位，再多就成了背景噪声
-  const grid = cssVar('--separator', 'rgba(255,255,255,0.08)')
-  const ink3 = cssVar('--ink-3', '#6e6e73')
+  const grid = c.grid
+  const ink3 = c.ink3
   ctx.setFontSize(9)
   for (let i = 0; i <= 4; i += 1) {
     const v = (max / 4) * i
@@ -81,7 +102,7 @@ function draw() {
     const vals = s.map((x) => x[ser.key])
     if (vals.every((v) => v === null)) continue // 腔温取不到时不画那条线
     ctx.beginPath()
-    ctx.setStrokeStyle(ser.color())
+    ctx.setStrokeStyle(c[ser.tone])
     ctx.setLineWidth(2)
     let started = false
     vals.forEach((v, i) => {
@@ -127,7 +148,7 @@ watch(() => props.samples, () => void nextTick(draw), { deep: false })
     </view>
     <view class="legend">
       <view v-for="ser in SERIES" :key="ser.key" class="leg">
-        <view class="swatch" :style="{ background: ser.color() }" />
+        <view class="swatch" :style="{ background: tone[ser.tone] }" />
         <text class="leg-t">{{ ser.label() }}</text>
         <text class="leg-v">{{ latest && latest[ser.key] !== null ? latest[ser.key] + '℃' : '—' }}</text>
       </view>

@@ -8,7 +8,7 @@
 [English](./README.md)
 
 <p align="center">
-  <img src="docs/carousel.gif" width="300" alt="实时监控画面，随后是控制、文件、导入、3MF 预览与视频播放">
+  <img src="docs/carousel.gif" width="300" alt="实时监控画面，随后是文件、打印前自检、历史、烘干与通知设置">
 </p>
 
 <details>
@@ -21,19 +21,19 @@
     <td width="33%"><img src="docs/screenshot-files.png" alt="文件"></td>
   </tr>
   <tr>
-    <td align="center"><b>监控</b><br>WebRTC 实时画面、进度、温度、AMS</td>
-    <td align="center"><b>控制</b><br>温度、速度、灯光</td>
-    <td align="center"><b>文件</b><br>模型、延时摄影、录像</td>
+    <td align="center"><sub>监控</sub></td>
+    <td align="center"><sub>控制</sub></td>
+    <td align="center"><sub>文件</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshot-import.png" alt="导入"></td>
-    <td><img src="docs/screenshot-model.png" alt="3MF 预览"></td>
-    <td><img src="docs/screenshot-video.png" alt="视频播放"></td>
+    <td><img src="docs/screenshot-preflight.png" alt="打印前自检与逐耗材选料盘"></td>
+    <td><img src="docs/screenshot-history.png" alt="打印历史"></td>
+    <td><img src="docs/screenshot-notify.png" alt="推送通知"></td>
   </tr>
   <tr>
-    <td align="center"><b>导入</b><br>从设备或链接</td>
-    <td align="center"><b>3MF 预览</b><br>盘图与切片参数</td>
-    <td align="center"><b>视频播放</b><br>基于 Range 的 FTPS 流式播放</td>
+    <td align="center"><sub>打印前自检与逐耗材选料盘</sub></td>
+    <td align="center"><sub>打印历史</sub></td>
+    <td align="center"><sub>推送通知</sub></td>
   </tr>
 </table>
 

@@ -117,7 +117,6 @@
     "close": "关闭",
     "previewFailed": "预览失败",
     "noPreview": "此文件没有内置预览图",
-    "plate": "第 {n} 盘",
     "printTime": "打印时长",
     "filamentUsed": "耗材与料盘",
     "nozzleDiameter": "喷嘴",
@@ -153,7 +152,8 @@
     },
     "externalSlot": "外置料盘 · {name}",
     "externalShort": "外置料盘",
-    "slotShort": "槽 {n}"
+    "slotShort": "槽 {n}",
+    "plateGroup": "打印盘"
   },
   "settings": {
     "serverGroup": "服务器",

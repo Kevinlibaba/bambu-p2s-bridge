@@ -7,7 +7,7 @@ Remote monitoring and control for a **Bambu Lab P2S** locked to **LAN Mode**, ov
 in the path.
 
 <p align="center">
-  <img src="docs/carousel.gif" width="300" alt="Live monitor feed, then control, files, import, 3MF preview and video playback">
+  <img src="docs/carousel.gif" width="300" alt="Live monitor feed, then files, pre-flight checks, history, drying and notifications">
 </p>
 
 <details>
@@ -20,19 +20,19 @@ in the path.
     <td width="33%"><img src="docs/screenshot-files.png" alt="Files"></td>
   </tr>
   <tr>
-    <td align="center"><b>Monitor</b><br>Live WebRTC video, progress, temperatures, AMS</td>
-    <td align="center"><b>Control</b><br>Temperature, speed, lighting</td>
-    <td align="center"><b>Files</b><br>Models, timelapse, recordings</td>
+    <td align="center"><sub>Monitor</sub></td>
+    <td align="center"><sub>Control</sub></td>
+    <td align="center"><sub>Files</sub></td>
   </tr>
   <tr>
-    <td><img src="docs/screenshot-import.png" alt="Import"></td>
-    <td><img src="docs/screenshot-model.png" alt="3MF preview"></td>
-    <td><img src="docs/screenshot-video.png" alt="Video playback"></td>
+    <td><img src="docs/screenshot-preflight.png" alt="Pre-flight checks and per-filament tray selection"></td>
+    <td><img src="docs/screenshot-history.png" alt="Print history"></td>
+    <td><img src="docs/screenshot-notify.png" alt="Push notifications"></td>
   </tr>
   <tr>
-    <td align="center"><b>Import</b><br>From the device or a URL</td>
-    <td align="center"><b>3MF preview</b><br>Plate render and slicer metadata</td>
-    <td align="center"><b>Video playback</b><br>Seekable over ranged FTPS</td>
+    <td align="center"><sub>Pre-flight checks and per-filament tray selection</sub></td>
+    <td align="center"><sub>Print history</sub></td>
+    <td align="center"><sub>Push notifications</sub></td>
   </tr>
 </table>
 

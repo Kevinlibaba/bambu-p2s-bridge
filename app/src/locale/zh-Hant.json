@@ -117,7 +117,6 @@
     "close": "關閉",
     "previewFailed": "預覽失敗",
     "noPreview": "此檔案沒有內建預覽圖",
-    "plate": "第 {n} 盤",
     "printTime": "列印時長",
     "filamentUsed": "耗材與料盤",
     "nozzleDiameter": "噴嘴",
@@ -153,7 +152,8 @@
     },
     "externalSlot": "外置料盤 · {name}",
     "externalShort": "外置料盤",
-    "slotShort": "槽 {n}"
+    "slotShort": "槽 {n}",
+    "plateGroup": "列印盤"
   },
   "settings": {
     "serverGroup": "伺服器",
