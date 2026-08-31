@@ -16,9 +16,20 @@ self.addEventListener('install', (e) => {
 
 self.addEventListener('activate', (e) => {
   e.waitUntil(
-    caches.keys().then((ks) =>
-      Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k))),
-    ).then(() => self.clients.claim()),
+    (async () => {
+      // 换名的旧缓存整份删掉
+      const keys = await caches.keys()
+      await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))
+      /*
+       * 带哈希的资源每次发版都是新文件名，旧的再也不会被请求，
+       * 却会一直躺在同一个缓存里越堆越多。激活时清掉，
+       * 页面随后会把新版重新缓存进来。
+       */
+      const cache = await caches.open(CACHE)
+      const stale = (await cache.keys()).filter((r) => new URL(r.url).pathname.includes('/assets/'))
+      await Promise.all(stale.map((r) => cache.delete(r)))
+      await self.clients.claim()
+    })(),
   )
 })
 

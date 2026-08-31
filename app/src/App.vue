@@ -2,10 +2,12 @@
 import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
 import { start, stop } from './store/printer'
 import { applyChrome, watchSystem } from './store/prefs'
+import { registerServiceWorker } from './util/sw'
 
 onLaunch(() => {
   watchSystem()
   applyChrome()
+  registerServiceWorker()
   start()
 })
 onShow(() => {

@@ -57,13 +57,14 @@ export function isIOS(): boolean {
   // #endif
 }
 
-/** 注册 Service Worker。已注册时直接返回现有的。 */
+/**
+ * 拿到 Service Worker 注册。应用启动时已经注册过（见 util/sw.ts），
+ * 这里只等它就绪，不重复注册 —— 重复注册会多触发一次 controllerchange。
+ */
 export async function ensureServiceWorker(): Promise<ServiceWorkerRegistration | null> {
   // #ifdef H5
   if (pushSupport() !== 'ok') return null
-  // sw.js 放在 H5 产物根目录，作用域即整个 /app/
-  const base = import.meta.env.BASE_URL || '/'
-  return navigator.serviceWorker.register(`${base}sw.js`, { scope: base })
+  return (await navigator.serviceWorker.getRegistration()) ?? navigator.serviceWorker.ready
   // #endif
   // #ifndef H5
   return null
