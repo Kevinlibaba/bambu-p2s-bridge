@@ -115,6 +115,7 @@ export interface AmsUnit {
   id: number
   temp: number
   humidity: number
+  humidityPct: number | null
   dryStatus: DryStatus
   dryRemainMin: number
   loadedSlot: number | null
@@ -129,6 +130,8 @@ export interface AmsTray {
   remainPct: number
   nozzleTempMin: number
   nozzleTempMax: number
+  dryTemp: number
+  dryHours: number
   empty: boolean
 }
 

@@ -64,8 +64,13 @@ export interface AmsUnit {
   id: number
   /** 仓内温度 ℃ */
   temp: number
-  /** 湿度等级 1–5，5 最干 */
+  /** 湿度等级 1–5 */
   humidity: number
+  /**
+   * 湿度百分比。Bambu 的解析器把 humidity_raw 读作 m_humidity_percent，
+   * 但这台固件一直上报 0 —— 取不到时为 null，界面回退到显示等级。
+   */
+  humidityPct: number | null
   dryStatus: DryStatus
   /** 烘干剩余分钟，未烘干为 0 */
   dryRemainMin: number
@@ -82,6 +87,9 @@ export interface AmsTray {
   remainPct: number
   nozzleTempMin: number
   nozzleTempMax: number
+  /** 该卷耗材 RFID 里带的推荐烘干参数，0 表示没有 */
+  dryTemp: number
+  dryHours: number
   empty: boolean
 }
 
@@ -184,6 +192,7 @@ export class PrinterState extends EventEmitter {
         id,
         temp: num(u.temp),
         humidity: num(u.humidity),
+        humidityPct: num(u.humidity_raw) > 0 ? num(u.humidity_raw) : null,
         dryStatus: this.dryStatusOf(u.info),
         dryRemainMin: num(u.dry_time),
         // tray_now 是全局槽位号（unit * 4 + slot），换算回本单元
@@ -220,6 +229,8 @@ export class PrinterState extends EventEmitter {
           remainPct: num(t.remain, -1),
           nozzleTempMin: num(t.nozzle_temp_min),
           nozzleTempMax: num(t.nozzle_temp_max),
+          dryTemp: num(t.drying_temp),
+          dryHours: num(t.drying_time),
           empty: !type,
         })
       }

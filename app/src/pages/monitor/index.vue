@@ -11,9 +11,10 @@ import AmsSlot from '../../components/AmsSlot.vue'
 import CameraView from '../../components/CameraView.vue'
 import Sheet from '../../components/Sheet.vue'
 import Spinner from '../../components/Spinner.vue'
+import SunIcon from '../../components/SunIcon.vue'
 import {
   startDrying, stopDrying, unloadFilament, DryBlockedError,
-  type AmsUnit, type DryBlocker,
+  type AmsUnit, type AmsTray, type DryBlocker,
 } from '../../api/client'
 
 const { t } = useI18n()
@@ -110,15 +111,70 @@ const isDrying = computed(
   () => unit.value?.dryStatus === 'drying' || unit.value?.dryStatus === 'checking',
 )
 
-/* 默认值取该槽耗材 RFID 里的推荐参数，取不到再退回一个保守值 */
+/*
+ * 预设来源优先取该槽耗材 RFID 里的推荐值 —— 比硬编码材料表准，也正是
+ * Bambu 自己的做法（CtrlAmsStartDryingHour 传的是选中槽位的 filament_type）。
+ * RFID 里没有时才落到这张表，并统一夹到 AMS 2 Pro 的 45–65℃ 区间内。
+ */
+const FALLBACK: Record<string, [number, number]> = {
+  PLA: [55, 8], PETG: [65, 8], TPU: [65, 12], ABS: [65, 8],
+  ASA: [65, 8], PC: [65, 8], PA: [65, 12], PVA: [65, 12], PET: [65, 8],
+}
+const clampT = (n: number) => Math.max(45, Math.min(65, Math.round(n)))
+const clampH = (n: number) => Math.max(1, Math.min(24, Math.round(n)))
+
+function presetFor(tray: AmsTray | null): [number, number] {
+  if (tray && tray.dryTemp > 0 && tray.dryHours > 0) {
+    return [clampT(tray.dryTemp), clampH(tray.dryHours)]
+  }
+  const key = Object.keys(FALLBACK).find((k) => (tray?.type ?? '').toUpperCase().startsWith(k))
+  const [t, h] = key ? FALLBACK[key] : [55, 8]
+  return [clampT(t), clampH(h)]
+}
+
 const dryTemp = ref(55)
 const dryHours = ref(8)
+const drySlot = ref<number | null>(null)
+/** 手动调过参数就不再跟随选中的耗材，避免把用户的修改冲掉 */
 let dryTouched = false
-watch(unit, (u) => {
-  if (dryTouched || !u) return
-  const tray = s.value?.ams?.find((t) => t.unit === u.id && !t.empty)
-  if (tray) dryTemp.value = Math.min(65, Math.max(45, tray.nozzleTempMin ? 55 : 55))
+
+const dryTrays = computed(() =>
+  (s.value?.ams ?? []).filter((t) => unit.value && t.unit === unit.value.id),
+)
+const selectedTray = computed(
+  () => dryTrays.value.find((t) => t.slot === drySlot.value) ?? null,
+)
+
+function pickSlot(slot: number) {
+  drySlot.value = slot
+  dryTouched = false
+  const [t, h] = presetFor(dryTrays.value.find((x) => x.slot === slot) ?? null)
+  dryTemp.value = t
+  dryHours.value = h
+}
+
+/* 首次拿到料槽时默认选第一个非空槽 */
+watch(dryTrays, (list) => {
+  if (drySlot.value !== null || !list.length) return
+  const first = list.find((t) => !t.empty) ?? list[0]
+  if (first) pickSlot(first.slot)
 }, { immediate: true })
+
+// 本机 AMS 无百分比传感器（humidity_raw 恒为 0），只报 1–5 级；
+// 有百分比时优先显示百分比，否则显示语义等级 + 点阵。
+const humLevel = computed(() => {
+  const n = unit.value?.humidity ?? 0
+  return n >= 1 && n <= 5 ? n : 0
+})
+const humidityText = computed(() => {
+  const u = unit.value
+  if (!u) return '—'
+  if (u.humidityPct !== null) return t('dry.humidityPct', { p: u.humidityPct })
+  return humLevel.value ? t('dry.humLv' + humLevel.value) : '—'
+})
+// 1–2 干爽 / 3 一般 / 4–5 需要烘干
+const humTone = computed(() =>
+  humLevel.value >= 4 ? 'bad' : humLevel.value === 3 ? 'mid' : 'ok')
 
 function confirmAsk(title: string, content: string, danger = false): Promise<boolean> {
   return new Promise((r) =>
@@ -138,11 +194,10 @@ async function doStartDry() {
     true,
   )
   if (!ok) return
-  const tray = s.value?.ams?.find((x) => x.unit === unit.value!.id && !x.empty)
   try {
     await startDrying({
       amsId: unit.value.id, temp: dryTemp.value, duration: dryHours.value,
-      filament: tray?.type ?? '',
+      filament: selectedTray.value?.type ?? '',
     })
     toast(t('dry.started'))
   } catch (e) {
@@ -300,24 +355,14 @@ async function send(c: Command, confirmText?: string) {
         </view>
 
         <!-- 耗材 -->
-        <text class="grouphead">{{ t('monitor.amsGroup') }}</text>
-        <view class="card list">
-          <!-- 烘干状态行：常显状态，点进去控制 -->
-          <view v-if="unit" class="row dry-row tappable" @click="drySheet = true">
-            <view class="ic" :class="{ hot: isDrying }">
-              <text class="ic-t">{{ isDrying ? '≈' : '·' }}</text>
-            </view>
-            <view class="meta">
-              <text class="name">{{ t('dry.entry') }}</text>
-              <text class="sub">
-                {{ t('dry.status.' + unit.dryStatus) }}
-                <text v-if="unit.dryRemainMin > 0"> · {{ t('dry.remain', { min: unit.dryRemainMin }) }}</text>
-                <text> · {{ Math.round(unit.temp) }}℃ · {{ t('dry.humidityLevel', { n: unit.humidity }) }}</text>
-              </text>
-            </view>
-            <text class="v">›</text>
+        <!-- 分组标题右侧一个按钮，不再占掉列表一整行 -->
+        <view class="grouprow">
+          <text class="grouphead">{{ t('monitor.amsGroup') }}</text>
+          <view v-if="unit" class="dry-btn" :aria-label="t('dry.entry')" @click="drySheet = true">
+            <SunIcon :active="isDrying" :size="38" />
           </view>
-          <view v-if="unit" class="hsep" />
+        </view>
+        <view class="card list">
           <view v-for="(t, i) in s?.ams ?? []" :key="`${t.unit}-${t.slot}`">
             <view v-if="i > 0" class="hsep" />
             <AmsSlot :tray="t" />
@@ -328,8 +373,11 @@ async function send(c: Command, confirmText?: string) {
       <Sheet :visible="drySheet" :title="t('dry.title')" @close="drySheet = false">
         <view class="card sheet-card">
           <view class="line">
-            <text class="k">{{ t('dry.status.' + (unit?.dryStatus ?? 'unknown')) }}</text>
-            <text class="v">{{ unit && unit.dryRemainMin > 0 ? t('dry.remain', { min: unit.dryRemainMin }) : '' }}</text>
+            <text class="k">{{ t('dry.statusLabel') }}</text>
+            <text class="v" :class="{ accent: isDrying }">
+              {{ t('dry.status.' + (unit?.dryStatus ?? 'unknown'))
+              }}{{ unit && unit.dryRemainMin > 0 ? ' · ' + t('dry.remain', { min: unit.dryRemainMin }) : '' }}
+            </text>
           </view>
           <view class="hsep" />
           <view class="line">
@@ -339,7 +387,13 @@ async function send(c: Command, confirmText?: string) {
           <view class="hsep" />
           <view class="line">
             <text class="k">{{ t('dry.humidity') }}</text>
-            <text class="v">{{ unit ? t('dry.humidityLevel', { n: unit.humidity }) : '—' }}</text>
+            <view class="trail">
+              <text class="v">{{ humidityText }}</text>
+              <view v-if="humLevel && unit && unit.humidityPct === null" class="dots">
+                <view v-for="i in 5" :key="i" class="hdot"
+                  :class="[humTone, { on: i <= humLevel }]" />
+              </view>
+            </view>
           </view>
         </view>
 
@@ -361,24 +415,51 @@ async function send(c: Command, confirmText?: string) {
           <text class="hint">{{ t('dry.note') }}</text>
         </template>
 
-        <!-- 参数设置 -->
+        <!-- 选耗材：参数随之带出，也可再手动调 -->
         <template v-else-if="!isDrying">
+          <text class="grouphead">{{ t('dry.filamentGroup') }}</text>
+          <view class="card sheet-card">
+            <view v-for="(tray, i) in dryTrays" :key="tray.slot">
+              <view v-if="i > 0" class="hsep" />
+              <view class="line tappable" @click="pickSlot(tray.slot)">
+                <view class="pick">
+                  <view class="swatch" :style="{ background: tray.empty ? 'transparent' : '#' + tray.color.slice(0, 6) }" />
+                  <view class="pick-meta">
+                    <text class="k">{{ tray.empty ? t('dry.empty') : (tray.subBrand || tray.type) }}</text>
+                    <text class="pick-sub">
+                      {{ t('dry.slot', { n: tray.slot + 1 }) }}
+                      <text v-if="!tray.empty"> · {{ t('dry.recommended', { t: presetFor(tray)[0], h: presetFor(tray)[1] }) }}</text>
+                    </text>
+                  </view>
+                </view>
+                <text v-if="drySlot === tray.slot" class="tick">✓</text>
+              </view>
+            </view>
+          </view>
+
+          <text class="grouphead">{{ t('dry.paramsGroup') }}</text>
           <view class="card sheet-card">
             <view class="line">
               <text class="k">{{ t('dry.tempLabel') }}</text>
-              <view class="stepper">
-                <text class="sbtn" @click="stepTemp(-5)">−</text>
-                <text class="sval">{{ dryTemp }}℃</text>
-                <text class="sbtn" @click="stepTemp(5)">＋</text>
+              <view class="trail">
+                <text class="v num">{{ dryTemp }}℃</text>
+                <view class="stepper">
+                  <text class="sbtn" :class="{ off: dryTemp <= 45 }" @click="stepTemp(-5)">−</text>
+                  <view class="svsep" />
+                  <text class="sbtn" :class="{ off: dryTemp >= 65 }" @click="stepTemp(5)">＋</text>
+                </view>
               </view>
             </view>
             <view class="hsep" />
             <view class="line">
               <text class="k">{{ t('dry.durationLabel') }}</text>
-              <view class="stepper">
-                <text class="sbtn" @click="stepHours(-1)">−</text>
-                <text class="sval">{{ dryHours }} {{ t('dry.hours') }}</text>
-                <text class="sbtn" @click="stepHours(1)">＋</text>
+              <view class="trail">
+                <text class="v num">{{ dryHours }} {{ t('dry.hours') }}</text>
+                <view class="stepper">
+                  <text class="sbtn" :class="{ off: dryHours <= 1 }" @click="stepHours(-1)">−</text>
+                  <view class="svsep" />
+                  <text class="sbtn" :class="{ off: dryHours >= 24 }" @click="stepHours(1)">＋</text>
+                </view>
               </view>
             </view>
           </view>
@@ -532,6 +613,42 @@ async function send(c: Command, confirmText?: string) {
 .pill.warn { color: var(--critical); }
 .pill.warn[disabled] { color: var(--ink-3); }
 
+/* 耗材选择行：色块 + 名称 + 推荐参数，选中用 iOS 的对勾而不是单选圈 */
+.pick { display: flex; align-items: center; flex: 1; min-width: 0; }
+.swatch {
+  width: 34rpx; height: 34rpx; border-radius: 10rpx; flex-shrink: 0;
+  box-shadow: inset 0 0 0 1rpx var(--swatch-ring);
+}
+.pick-meta { margin-left: 22rpx; min-width: 0; }
+.pick-meta .k { display: block; }
+.pick-sub {
+  display: block; font-size: 22rpx; color: var(--ink-2);
+  margin-top: 6rpx; letter-spacing: -0.01em;
+}
+.tick { font-size: 30rpx; color: var(--accent); margin-left: 20rpx; flex-shrink: 0; }
+
+/* 烘干入口：与「耗材」同一行、贴最右。小太阳灰色静止=未烘干，红色旋转=烘干中 */
+.grouprow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 52rpx 0 16rpx;
+  padding: 0 8rpx;
+}
+.grouprow .grouphead { margin: 0; }
+.dry-btn {
+  flex: none;
+  width: 68rpx;
+  height: 68rpx;
+  border-radius: 50%;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.25s ease;
+}
+.dry-btn:active { opacity: 0.55; }
+
 .grouphead { display: block; font-size: 24rpx; color: var(--ink-2);
   margin: 52rpx 0 16rpx 8rpx; letter-spacing: 0.01em; }
 .list { padding: 0 34rpx; }
@@ -539,4 +656,37 @@ async function send(c: Command, confirmText?: string) {
 
 .foot { display: block; text-align: center; font-size: 22rpx;
   color: var(--ink-3); margin-top: 52rpx; letter-spacing: -0.01em; }
+
+/* —— 烘干弹窗 —— */
+.sheet-card { margin-top: 24rpx; }
+.line { display: flex; align-items: center; justify-content: space-between;
+  min-height: 96rpx; padding: 16rpx 0; box-sizing: border-box; }
+.tappable:active { opacity: 0.55; }
+.k { font-size: 29rpx; color: var(--ink); letter-spacing: -0.02em; }
+.v { font-size: 28rpx; color: var(--ink-2); letter-spacing: -0.02em;
+  text-align: right; margin-left: 32rpx; flex-shrink: 0; }
+.v.accent { color: var(--accent); }
+.trail { display: flex; align-items: center; margin-left: 32rpx; flex-shrink: 0; }
+.trail .v { margin-left: 0; }
+.v.num { font-variant-numeric: tabular-nums; color: var(--ink); min-width: 132rpx; }
+.stepper { display: flex; align-items: center; margin-left: 20rpx;
+  background: var(--surface-2); border-radius: 15rpx; overflow: hidden; }
+.sbtn { width: 82rpx; height: 62rpx; line-height: 62rpx; text-align: center;
+  font-size: 32rpx; color: var(--ink); }
+.sbtn:active { background: var(--separator); }
+.sbtn.off { color: var(--ink-3); }
+.svsep { width: 1rpx; height: 34rpx; background: var(--separator); }
+.busy { display: flex; align-items: center; justify-content: center; margin-top: 28rpx; }
+.busy-t { font-size: 25rpx; color: var(--ink-2); margin-left: 16rpx; letter-spacing: -0.01em; }
+.hint { display: block; font-size: 22rpx; color: var(--ink-3);
+  margin: 20rpx 8rpx 0; line-height: 1.6; letter-spacing: -0.01em; }
+.cta.fill { width: 100%; padding: 0; }
+.cta.fill[disabled] { opacity: 0.4; }
+.cta.danger { width: 100%; padding: 0; background: var(--surface); color: var(--critical); }
+.dots { display: flex; align-items: center; margin-left: 18rpx; }
+.hdot { width: 10rpx; height: 10rpx; border-radius: 50%; margin-left: 7rpx;
+  background: var(--separator); }
+.hdot.on.ok { background: var(--good); }
+.hdot.on.mid { background: var(--warning); }
+.hdot.on.bad { background: var(--critical); }
 </style>

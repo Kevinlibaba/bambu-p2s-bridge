@@ -235,6 +235,20 @@
     "confirmUnload": "This retracts the filament from the extruder back into the AMS. The nozzle heats to 210℃ first, which takes about a minute.",
     "confirmStopPrint": "Stop the current print? It cannot be resumed.",
     "unloading": "Unloading, please wait",
-    "note": "Without the AMS power adapter, drying only runs when the printer is idle and no filament is loaded."
+    "note": "Without the AMS power adapter, drying only runs when the printer is idle and no filament is loaded.",
+    "filamentGroup": "Filament",
+    "paramsGroup": "Settings",
+    "slot": "Slot {n}",
+    "empty": "Empty",
+    "recommended": "{t}℃ · {h}h recommended",
+    "humidityPct": "{p}%",
+    "humidityUnknown": "Level {n}",
+    "custom": "Custom",
+    "humLv1": "Dry",
+    "humLv2": "Good",
+    "humLv3": "Fair",
+    "humLv4": "Damp",
+    "humLv5": "Wet",
+    "statusLabel": "Status"
   }
 }

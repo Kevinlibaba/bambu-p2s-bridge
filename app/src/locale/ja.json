@@ -235,6 +235,20 @@
     "confirmUnload": "フィラメントをエクストルーダーから AMS に戻します。先にノズルを 210℃ まで加熱するため約 1 分かかります。",
     "confirmStopPrint": "現在の印刷を停止しますか？再開はできません。",
     "unloading": "取り出し中です",
-    "note": "AMS 用電源アダプターがない場合、乾燥はプリンターが待機中かつフィラメント未装填のときのみ実行できます。"
+    "note": "AMS 用電源アダプターがない場合、乾燥はプリンターが待機中かつフィラメント未装填のときのみ実行できます。",
+    "filamentGroup": "フィラメント",
+    "paramsGroup": "乾燥設定",
+    "slot": "スロット {n}",
+    "empty": "空",
+    "recommended": "推奨 {t}℃ · {h}h",
+    "humidityPct": "{p}%",
+    "humidityUnknown": "レベル {n}",
+    "custom": "カスタム",
+    "humLv1": "乾燥",
+    "humLv2": "良好",
+    "humLv3": "普通",
+    "humLv4": "やや湿",
+    "humLv5": "湿潤",
+    "statusLabel": "状態"
   }
 }
