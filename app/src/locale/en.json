@@ -236,14 +236,11 @@
     "confirmStopPrint": "Stop the current print? It cannot be resumed.",
     "unloading": "Unloading, please wait",
     "note": "Without the AMS power adapter, drying only runs when the printer is idle and no filament is loaded.",
-    "filamentGroup": "Filament",
     "paramsGroup": "Settings",
-    "slot": "Slot {n}",
-    "empty": "Empty",
     "recommended": "{t}℃ · {h}h recommended",
     "humidityPct": "{p}%",
-    "custom": "Custom",
-    "statusLabel": "Status"
+    "statusLabel": "Status",
+    "matLabel": "Filament"
   },
   "err": {
     "title": "Printer errors",

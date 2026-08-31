@@ -35,7 +35,6 @@ page {
   --ink-3: #6e6e73;
   --separator: rgba(255, 255, 255, 0.08);
   --hairline: rgba(255, 255, 255, 0.06);
-  --swatch-ring: rgba(255, 255, 255, 0.28);
   --accent: #2997ff;
   --accent-dim: rgba(41, 151, 255, 0.16);
   --good: #30d158;
@@ -59,7 +58,6 @@ page {
     --ink-3: #a1a1a6;
     --separator: rgba(0, 0, 0, 0.08);
     --hairline: rgba(0, 0, 0, 0.06);
-  --swatch-ring: rgba(0, 0, 0, 0.28);
     --accent: #0066cc;
     --accent-dim: rgba(0, 102, 204, 0.1);
     --good: #248a3d;
@@ -78,7 +76,6 @@ page {
   --ink-3: #6e6e73;
   --separator: rgba(255, 255, 255, 0.08);
   --hairline: rgba(255, 255, 255, 0.06);
-  --swatch-ring: rgba(255, 255, 255, 0.28);
   --accent: #2997ff;
   --accent-dim: rgba(41, 151, 255, 0.16);
   --good: #30d158;
@@ -96,7 +93,6 @@ page {
   --ink-3: #a1a1a6;
   --separator: rgba(0, 0, 0, 0.08);
   --hairline: rgba(0, 0, 0, 0.06);
-  --swatch-ring: rgba(0, 0, 0, 0.28);
   --accent: #0066cc;
   --accent-dim: rgba(0, 102, 204, 0.1);
   --good: #248a3d;

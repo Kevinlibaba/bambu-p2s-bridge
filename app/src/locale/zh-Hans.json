@@ -236,14 +236,11 @@
     "confirmStopPrint": "停止当前打印任务？停止后无法恢复。",
     "unloading": "退料中，请稍候",
     "note": "没有 AMS 电源适配器时，烘干只能在打印机空闲且已退料的状态下进行。",
-    "filamentGroup": "选择耗材",
     "paramsGroup": "烘干参数",
-    "slot": "槽 {n}",
-    "empty": "空槽",
     "recommended": "推荐 {t}℃ · {h}h",
     "humidityPct": "{p}%",
-    "custom": "自定义",
-    "statusLabel": "状态"
+    "statusLabel": "状态",
+    "matLabel": "耗材类型"
   },
   "err": {
     "title": "打印机报错",

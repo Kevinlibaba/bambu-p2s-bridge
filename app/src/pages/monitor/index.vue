@@ -15,7 +15,7 @@ import SunIcon from '../../components/SunIcon.vue'
 import {
   startDrying, stopDrying, unloadFilament, DryBlockedError,
   fetchErrors, clearErrors,
-  type AmsUnit, type AmsTray, type DryBlocker, type PrinterErrorItem,
+  type AmsUnit, type DryBlocker, type PrinterErrorItem,
 } from '../../api/client'
 
 const { t, locale } = useI18n()
@@ -174,49 +174,45 @@ const isDrying = computed(
  * Bambu 自己的做法（CtrlAmsStartDryingHour 传的是选中槽位的 filament_type）。
  * RFID 里没有时才落到这张表，并统一夹到 AMS 2 Pro 的 45–65℃ 区间内。
  */
-const FALLBACK: Record<string, [number, number]> = {
-  PLA: [55, 8], PETG: [65, 8], TPU: [65, 12], ABS: [65, 8],
-  ASA: [65, 8], PC: [65, 8], PA: [65, 12], PVA: [65, 12], PET: [65, 8],
-}
+/*
+ * 烘干预设。数值取自 BambuStudio 耗材配置里的
+ * filament_dev_ams_drying_temperature / _time（resources/profiles/BBL/filament/
+ * fdm_filament_*.json），数组首值就是内置 AMS / AMS 2 Pro 这一档 ——
+ * 与打印机屏幕上的预设一致（PLA 45℃/12h、PETG 65℃/12h）。
+ * 官方对照表见 wiki.bambulab.com/en/filament-acc/filament/dry-filament。
+ */
+const DRY_PRESETS: { id: string; temp: number; hours: number }[] = [
+  { id: 'PLA', temp: 45, hours: 12 },
+  { id: 'PETG', temp: 65, hours: 12 },
+  { id: 'PET', temp: 65, hours: 12 },
+  { id: 'PCTG', temp: 65, hours: 12 },
+  { id: 'TPU', temp: 65, hours: 12 },
+  { id: 'ABS', temp: 65, hours: 12 },
+  { id: 'ASA', temp: 65, hours: 12 },
+  { id: 'PC', temp: 65, hours: 12 },
+  { id: 'PA', temp: 65, hours: 12 },
+  { id: 'PVA', temp: 65, hours: 12 },
+  { id: 'PP', temp: 60, hours: 12 },
+  { id: 'PE', temp: 45, hours: 12 },
+]
+
 const clampT = (n: number) => Math.max(45, Math.min(65, Math.round(n)))
 const clampH = (n: number) => Math.max(1, Math.min(24, Math.round(n)))
 
-function presetFor(tray: AmsTray | null): [number, number] {
-  if (tray && tray.dryTemp > 0 && tray.dryHours > 0) {
-    return [clampT(tray.dryTemp), clampH(tray.dryHours)]
-  }
-  const key = Object.keys(FALLBACK).find((k) => (tray?.type ?? '').toUpperCase().startsWith(k))
-  const [t, h] = key ? FALLBACK[key] : [55, 8]
-  return [clampT(t), clampH(h)]
+const dryMat = ref('PLA')
+const dryTemp = ref(45)
+const dryHours = ref(12)
+/** 下拉展开状态 */
+const matOpen = ref(false)
+
+function pickMat(id: string) {
+  const p = DRY_PRESETS.find((x) => x.id === id)
+  if (!p) return
+  dryMat.value = id
+  dryTemp.value = clampT(p.temp)
+  dryHours.value = clampH(p.hours)
+  matOpen.value = false
 }
-
-const dryTemp = ref(55)
-const dryHours = ref(8)
-const drySlot = ref<number | null>(null)
-/** 手动调过参数就不再跟随选中的耗材，避免把用户的修改冲掉 */
-let dryTouched = false
-
-const dryTrays = computed(() =>
-  (s.value?.ams ?? []).filter((t) => unit.value && t.unit === unit.value.id),
-)
-const selectedTray = computed(
-  () => dryTrays.value.find((t) => t.slot === drySlot.value) ?? null,
-)
-
-function pickSlot(slot: number) {
-  drySlot.value = slot
-  dryTouched = false
-  const [t, h] = presetFor(dryTrays.value.find((x) => x.slot === slot) ?? null)
-  dryTemp.value = t
-  dryHours.value = h
-}
-
-/* 首次拿到料槽时默认选第一个非空槽 */
-watch(dryTrays, (list) => {
-  if (drySlot.value !== null || !list.length) return
-  const first = list.find((t) => !t.empty) ?? list[0]
-  if (first) pickSlot(first.slot)
-}, { immediate: true })
 
 // humidity_raw 就是 BambuStudio 显示的那个百分比，0 也是合法读数。
 const humidityText = computed(() => {
@@ -245,7 +241,7 @@ async function doStartDry() {
   try {
     await startDrying({
       amsId: unit.value.id, temp: dryTemp.value, duration: dryHours.value,
-      filament: selectedTray.value?.type ?? '',
+      filament: dryMat.value,
     })
     toast(t('dry.started'))
   } catch (e) {
@@ -283,8 +279,8 @@ async function resolveBlocker(b: DryBlocker) {
   }
 }
 
-const stepTemp = (d: number) => { dryTouched = true; dryTemp.value = Math.max(45, Math.min(65, dryTemp.value + d)) }
-const stepHours = (d: number) => { dryTouched = true; dryHours.value = Math.max(1, Math.min(24, dryHours.value + d)) }
+const stepTemp = (d: number) => { dryTemp.value = clampT(dryTemp.value + d) }
+const stepHours = (d: number) => { dryHours.value = clampH(dryHours.value + d) }
 
 async function send(c: Command, confirmText?: string) {
   if (confirmText) {
@@ -493,28 +489,29 @@ async function send(c: Command, confirmText?: string) {
 
         <!-- 选耗材：参数随之带出，也可再手动调 -->
         <template v-else-if="!isDrying">
-          <text class="grouphead">{{ t('dry.filamentGroup') }}</text>
-          <view class="card sheet-card">
-            <view v-for="(tray, i) in dryTrays" :key="tray.slot">
-              <view v-if="i > 0" class="hsep" />
-              <view class="line tappable" @click="pickSlot(tray.slot)">
-                <view class="pick">
-                  <view class="swatch" :style="{ background: tray.empty ? 'transparent' : '#' + tray.color.slice(0, 6) }" />
-                  <view class="pick-meta">
-                    <text class="k">{{ tray.empty ? t('dry.empty') : (tray.subBrand || tray.type) }}</text>
-                    <text class="pick-sub">
-                      {{ t('dry.slot', { n: tray.slot + 1 }) }}
-                      <text v-if="!tray.empty"> · {{ t('dry.recommended', { t: presetFor(tray)[0], h: presetFor(tray)[1] }) }}</text>
-                    </text>
-                  </view>
-                </view>
-                <text v-if="drySlot === tray.slot" class="tick">✓</text>
-              </view>
-            </view>
-          </view>
-
           <text class="grouphead">{{ t('dry.paramsGroup') }}</text>
           <view class="card sheet-card">
+            <!-- 耗材类型下拉：选中即带出官方预设，之后仍可手调 -->
+            <view class="line tappable" @click="matOpen = !matOpen">
+              <text class="k">{{ t('dry.matLabel') }}</text>
+              <view class="trail">
+                <text class="v">{{ dryMat }}</text>
+                <text class="caret" :class="{ open: matOpen }">⌄</text>
+              </view>
+            </view>
+            <template v-if="matOpen">
+              <view v-for="m in DRY_PRESETS" :key="m.id" class="mat">
+                <view class="hsep" />
+                <view class="line tappable" @click="pickMat(m.id)">
+                  <view class="pick-meta">
+                    <text class="k">{{ m.id }}</text>
+                    <text class="pick-sub">{{ t('dry.recommended', { t: m.temp, h: m.hours }) }}</text>
+                  </view>
+                  <text v-if="dryMat === m.id" class="tick">✓</text>
+                </view>
+              </view>
+            </template>
+            <view class="hsep" />
             <view class="line">
               <text class="k">{{ t('dry.tempLabel') }}</text>
               <view class="trail">
@@ -690,11 +687,6 @@ async function send(c: Command, confirmText?: string) {
 .pill.warn[disabled] { color: var(--ink-3); }
 
 /* 耗材选择行：色块 + 名称 + 推荐参数，选中用 iOS 的对勾而不是单选圈 */
-.pick { display: flex; align-items: center; flex: 1; min-width: 0; }
-.swatch {
-  width: 34rpx; height: 34rpx; border-radius: 10rpx; flex-shrink: 0;
-  box-shadow: inset 0 0 0 1rpx var(--swatch-ring);
-}
 .pick-meta { margin-left: 22rpx; min-width: 0; }
 .pick-meta .k { display: block; }
 .pick-sub {
@@ -768,4 +760,8 @@ async function send(c: Command, confirmText?: string) {
 .err-code { font-size: 22rpx; color: var(--ink-3); font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em; }
 .err-more { font-size: 23rpx; color: var(--accent); }
+.caret { font-size: 26rpx; color: var(--ink-3); margin-left: 12rpx; line-height: 1;
+  transition: transform 0.2s ease; }
+.caret.open { transform: rotate(180deg); }
+.mat .line { padding-left: 24rpx; }
 </style>

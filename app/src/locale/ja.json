@@ -236,14 +236,11 @@
     "confirmStopPrint": "現在の印刷を停止しますか？再開はできません。",
     "unloading": "取り出し中です",
     "note": "AMS 用電源アダプターがない場合、乾燥はプリンターが待機中かつフィラメント未装填のときのみ実行できます。",
-    "filamentGroup": "フィラメント",
     "paramsGroup": "乾燥設定",
-    "slot": "スロット {n}",
-    "empty": "空",
     "recommended": "推奨 {t}℃ · {h}h",
     "humidityPct": "{p}%",
-    "custom": "カスタム",
-    "statusLabel": "状態"
+    "statusLabel": "状態",
+    "matLabel": "フィラメント"
   },
   "err": {
     "title": "プリンターのエラー",

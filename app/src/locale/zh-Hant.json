@@ -236,14 +236,11 @@
     "confirmStopPrint": "停止目前的列印工作？停止後無法復原。",
     "unloading": "退料中，請稍候",
     "note": "沒有 AMS 電源轉接器時，烘乾只能在印表機閒置且已退料的狀態下進行。",
-    "filamentGroup": "選擇耗材",
     "paramsGroup": "烘乾參數",
-    "slot": "槽 {n}",
-    "empty": "空槽",
     "recommended": "建議 {t}℃ · {h}h",
     "humidityPct": "{p}%",
-    "custom": "自訂",
-    "statusLabel": "狀態"
+    "statusLabel": "狀態",
+    "matLabel": "耗材類型"
   },
   "err": {
     "title": "印表機報錯",
