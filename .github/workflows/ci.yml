@@ -87,14 +87,14 @@ jobs:
     needs: [bridge, app]
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: h5-build
-          path: bridge/public
       - uses: docker/setup-buildx-action@v3
+      # 上下文是仓库根目录，前端由 Dockerfile 自己构建 ——
+      # 这样 CI 构建的就是用户 docker compose up --build 得到的同一个东西，
+      # 而不是把 CI 里另外产出的 H5 产物塞进去。
       - uses: docker/build-push-action@v6
         with:
-          context: ./bridge
+          context: .
+          file: bridge/Dockerfile
           push: false
           load: true
           tags: bambu-bridge:ci
