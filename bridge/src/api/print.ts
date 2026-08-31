@@ -48,10 +48,11 @@ export interface PrintRequest {
   force?: boolean
 }
 
-/** 料盘全局序号：AMS 编号 * 4 + 槽位，与固件 ams_mapping 的取值一致 */
-const trayIndex = (unit: number, slot: number) => unit * 4 + slot
-/** 外置料盘（vt_slot）。固件用 254 表示 */
+/** 外置料盘（vt_slot）。固件用 254 表示，不参与 编号*4+槽位 的换算 */
 const EXTERNAL_TRAY = 254
+/** 料盘全局序号：AMS 编号 * 4 + 槽位，与固件 ams_mapping 的取值一致 */
+const trayIndex = (unit: number, slot: number) =>
+  unit < 0 ? EXTERNAL_TRAY : unit * 4 + slot
 
 /**
  * 给某一号耗材挑一个料盘。优先级：
@@ -109,7 +110,7 @@ export function buildMapping(
     const asked = body.slots?.[String(id)]
     if (asked !== undefined) {
       if (!Number.isInteger(asked)) throw new PrintError(`耗材 ${id} 的料盘序号必须是整数`)
-      if (asked !== EXTERNAL_TRAY && !valid.has(asked)) {
+      if (!valid.has(asked)) {
         throw new PrintError(`耗材 ${id} 指定的料盘 ${asked} 不存在或为空`)
       }
       mapping[id - 1] = asked

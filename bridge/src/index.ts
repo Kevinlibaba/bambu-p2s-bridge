@@ -5,11 +5,13 @@ import { buildServer } from './api/server.js'
 import { Notifier } from './notify/index.js'
 import { History } from './history/index.js'
 import { lookupPlate } from './history/lookup.js'
+import { Temps } from './history/temps.js'
 
 const state = new PrinterState()
 const mqtt = new PrinterMqtt(state)
 const notifier = new Notifier(state)
 const history = new History(state, lookupPlate)
+const temps = new Temps(state)
 
 async function main() {
   if (!config.api.token) {
@@ -17,8 +19,9 @@ async function main() {
   }
   await notifier.start()
   await history.start()
+  temps.start()
   mqtt.start()
-  const app = await buildServer(state, mqtt, notifier, history)
+  const app = await buildServer(state, mqtt, notifier, history, temps)
   await app.listen({ port: config.api.port, host: config.api.host })
   console.log(`[api] 监听 ${config.api.host}:${config.api.port}`)
   console.log(`[api] 打印机 ${config.printer.host} (${config.printer.serial})`)

@@ -136,8 +136,8 @@
     "checkTitle": "自檢未通過",
     "checkForce": "仍要列印？",
     "check": {
-      "filamentLow": "槽 {slot} 餘量約 {left} 克，這個盤需要 {need} 克",
-      "typeMismatch": "槽 {slot} 裝的是 {have}，切片要求 {want}",
+      "filamentLow": "{slot} 餘量約 {left} 克，這個盤需要 {need} 克",
+      "typeMismatch": "{slot} 裝的是 {have}，切片要求 {want}",
       "nozzleMismatch": "切片依 {want} mm 噴嘴產生，印表機上是 {have} mm",
       "printerBusy": "印表機目前狀態為 {state}，無法開始新任務",
       "noSdCard": "印表機沒有偵測到 SD 卡",
@@ -150,7 +150,10 @@
       "toolpath_outside": "走刀路徑超出可列印範圍",
       "nozzle_hrc_checker": "耗材硬度超過目前噴嘴的耐受",
       "filament_is_not_compatible": "耗材與目前印表機不相容"
-    }
+    },
+    "externalSlot": "外置料盤 · {name}",
+    "externalShort": "外置料盤",
+    "slotShort": "槽 {n}"
   },
   "settings": {
     "serverGroup": "伺服器",
@@ -308,5 +311,12 @@
     "minutes": "{n} 分鐘",
     "hoursMinutes": "{h} 小時 {m} 分",
     "unknownTime": "耗時未知"
+  },
+  "chart": {
+    "nozzle": "噴嘴",
+    "bed": "熱床",
+    "chamber": "腔溫",
+    "span": "近 {n} 分鐘",
+    "empty": "正在採集溫度資料"
   }
 }

@@ -30,10 +30,13 @@ export interface Check {
 /** 这些状态下开打会被打印机拒绝，或者会打断正在进行的任务 */
 const BUSY = new Set(['RUNNING', 'PAUSE', 'PREPARE', 'SLICING'])
 
-/** 料盘全局序号 → 料盘 */
+/** 料盘全局序号 → 料盘。外置料盘固定 254，不参与 编号*4+槽位 的换算 */
 function trayAt(trays: AmsTray[], slot: number): AmsTray | undefined {
-  return trays.find((t) => t.unit * 4 + t.slot === slot)
+  return trays.find((t) => (t.unit < 0 ? 254 : t.unit * 4 + t.slot) === slot)
 }
+
+/** 外置料盘没有槽位号，提示里用 0 表示，前端据此换成「外置料盘」 */
+const slotLabel = (t: AmsTray) => (t.unit < 0 ? 0 : t.slot + 1)
 
 /** 归一化耗材类型，PLA Matte / PLA-CF 都算 PLA 系 */
 function family(type: string): string {
@@ -88,7 +91,7 @@ export function preflight(
       out.push({
         code: 'typeMismatch',
         level: 'warn',
-        params: { id, slot: tray.slot + 1, want: f.type, have: tray.type },
+        params: { id, slot: slotLabel(tray), want: f.type, have: tray.type },
       })
     }
 
@@ -100,14 +103,14 @@ export function preflight(
         out.push({
           code: 'filamentLow',
           level: 'error',
-          params: { id, slot: tray.slot + 1, need: Math.round(need), left },
+          params: { id, slot: slotLabel(tray), need: Math.round(need), left },
         })
       } else if (left < need * 1.15) {
         // 余量刚好够，中途断料的代价太大，值得提醒一句
         out.push({
           code: 'filamentLow',
           level: 'warn',
-          params: { id, slot: tray.slot + 1, need: Math.round(need), left },
+          params: { id, slot: slotLabel(tray), need: Math.round(need), left },
         })
       }
     }

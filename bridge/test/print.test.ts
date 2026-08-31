@@ -119,9 +119,24 @@ test('指定到空槽或不存在的槽会被拒', () => {
   assert.throws(() => buildMapping({ slots: { 1: 2 } }, p, trays), /不存在或为空/)
 })
 
-test('外置料盘 254 放行', () => {
+/** 外置料盘（vt_slot）：unit 为 -1，全局序号固定 254，不参与 编号*4+槽位 */
+const external = () => tray({ unit: -1, slot: 254, remainPct: -1, weightG: 0 })
+
+test('外置料盘的全局序号是 254，不按 编号*4+槽位 算', () => {
   const p = plate([fil({ id: 1 })], 1)
-  assert.deepEqual(buildMapping({ slots: { 1: 254 } }, p, [tray({ slot: 0 })]), [254])
+  assert.deepEqual(buildMapping({ slots: { 1: 254 } }, p, [tray({ slot: 0 }), external()]), [254])
+  // 自动匹配也能落到外置料盘
+  assert.deepEqual(buildMapping({}, p, [external()]), [254])
+})
+
+test('外置料盘不在机器上时，指定 254 会被拒', () => {
+  const p = plate([fil({ id: 1 })], 1)
+  assert.throws(() => buildMapping({ slots: { 1: 254 } }, p, [tray({ slot: 0 })]), /不存在或为空/)
+})
+
+test('自检：外置料盘没有余量数据，不报料不足', () => {
+  const p = plate([fil({ id: 1, usedG: 900 })], 1)
+  assert.deepEqual(preflight(p, [254], [external()], state()), [])
 })
 
 test('直接给 amsMapping 时校验长度', () => {

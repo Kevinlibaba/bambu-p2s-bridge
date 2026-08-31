@@ -80,6 +80,10 @@ export interface AmsUnit {
 }
 
 export interface AmsTray {
+  /**
+   * AMS 编号。外置料盘（vt_slot）用 -1 —— 它不属于任何 AMS，
+   * 全局序号固定是 254，不参与 编号*4+槽位 的换算。
+   */
   unit: number
   slot: number
   type: string
@@ -242,6 +246,28 @@ export class PrinterState extends EventEmitter {
           empty: !type,
         })
       }
+    }
+
+    // 外置料盘：不在 AMS 里，但可以作为打印目标（ams_mapping 填 254）
+    const vt = (this.raw.vir_slot as Json[] | undefined)?.[0] as Json | undefined
+    if (vt) {
+      const type = (vt.tray_type as string) ?? ''
+      out.push({
+        unit: -1,
+        slot: 254,
+        type,
+        subBrand: (vt.tray_sub_brands as string) ?? '',
+        trayInfoIdx: (vt.tray_info_idx as string) ?? '',
+        color: (vt.tray_color as string) ?? '',
+        // 外置料盘没有 RFID，打印机不知道还剩多少，别装作知道
+        remainPct: -1,
+        weightG: 0,
+        nozzleTempMin: num(vt.nozzle_temp_min),
+        nozzleTempMax: num(vt.nozzle_temp_max),
+        dryTemp: 0,
+        dryHours: 0,
+        empty: !type,
+      })
     }
     return out
   }

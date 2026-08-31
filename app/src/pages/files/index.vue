@@ -184,6 +184,8 @@ function trayOf(id: number | null): PlanTray | null {
 }
 
 function trayLabel(tr: PlanTray): string {
+  // 外置料盘不属于任何 AMS，没有槽位号
+  if (tr.unit < 0) return t('files.externalSlot', { name: tr.subBrand || tr.type })
   return t('files.slotName', { n: tr.index + 1, name: tr.subBrand || tr.type })
 }
 
@@ -222,7 +224,8 @@ function checkText(c: PreflightCheck): string {
     const s = t(known)
     return s === known ? String(p.msg) : s
   }
-  return t(`files.check.${c.code}`, p as Record<string, unknown>)
+  const slotName = p.slot === 0 ? t('files.externalShort') : t('files.slotShort', { n: p.slot })
+  return t(`files.check.${c.code}`, { ...p, slot: slotName } as Record<string, unknown>)
 }
 
 function open(f: RemoteFile) {

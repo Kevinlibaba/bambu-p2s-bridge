@@ -12,10 +12,11 @@ import CameraView from '../../components/CameraView.vue'
 import Sheet from '../../components/Sheet.vue'
 import Spinner from '../../components/Spinner.vue'
 import SunIcon from '../../components/SunIcon.vue'
+import TempChart from '../../components/TempChart.vue'
 import {
   startDrying, stopDrying, unloadFilament, DryBlockedError,
-  fetchErrors, clearErrors,
-  type AmsUnit, type DryBlocker, type PrinterErrorItem,
+  fetchErrors, clearErrors, fetchTemps,
+  type AmsUnit, type DryBlocker, type PrinterErrorItem, type TempSample,
 } from '../../api/client'
 
 const { t, locale } = useI18n()
@@ -105,8 +106,8 @@ function goSettings() {
   uni.switchTab({ url: '/pages/settings/index' })
 }
 
-onShow(() => { pageActive.value = true; applyChrome('tab.monitor') })
-onHide(() => { pageActive.value = false })
+onShow(() => { pageActive.value = true; applyChrome('tab.monitor'); startTemps() })
+onHide(() => { pageActive.value = false; stopTemps() })
 onPullDownRefresh(() => {
   restart()
   setTimeout(() => uni.stopPullDownRefresh(), 600)
@@ -215,6 +216,37 @@ function pickMat(id: string) {
 }
 
 // humidity_raw 就是 BambuStudio 显示的那个百分比，0 也是合法读数。
+// ---- 温度曲线 ----
+/*
+ * 采样在桥接里做（10 秒一个点），这里只按可见性拉取：
+ * 页面在前台且没有弹窗时每 30 秒续一次，切走就停 —— 曲线不值得为它烧电。
+ */
+const temps = ref<TempSample[]>([])
+let tempTimer: ReturnType<typeof setInterval> | null = null
+
+async function loadTemps() {
+  try {
+    temps.value = (await fetchTemps(60)).samples
+  } catch {
+    /* 曲线拉不到不该影响主界面 */
+  }
+}
+
+function startTemps() {
+  void loadTemps()
+  if (tempTimer) return
+  tempTimer = setInterval(() => void loadTemps(), 30_000)
+}
+
+function stopTemps() {
+  if (tempTimer) clearInterval(tempTimer)
+  tempTimer = null
+}
+
+// 外置料盘（unit 为 -1）不属于 AMS，不该混进料槽列表里
+const amsTrays = computed(() => (s.value?.ams ?? []).filter((t) => t.unit >= 0))
+const extTray = computed(() => (s.value?.ams ?? []).find((t) => t.unit < 0 && !t.empty) ?? null)
+
 const humidityText = computed(() => {
   const pct = unit.value?.humidityPct
   return pct === undefined || pct === null ? '—' : t('dry.humidityPct', { p: pct })
@@ -387,6 +419,9 @@ async function send(c: Command, confirmText?: string) {
             :sub="t('monitor.speedPct', { p: s?.speedPct ?? 100 })" />
         </view>
 
+        <!-- 温度走势：翘边、层间粘接出问题时用来倒查 -->
+        <view class="chart"><TempChart :samples="temps" /></view>
+
         <!-- 操作 -->
         <view class="acts">
           <button v-if="!paused" class="pill" :disabled="!running"
@@ -408,7 +443,7 @@ async function send(c: Command, confirmText?: string) {
           </view>
         </view>
         <view class="card list">
-          <view v-for="(t, i) in s?.ams ?? []" :key="`${t.unit}-${t.slot}`">
+          <view v-for="(t, i) in amsTrays" :key="`${t.unit}-${t.slot}`">
             <view v-if="i > 0" class="hsep" />
             <AmsSlot :tray="t" />
           </view>
@@ -764,4 +799,5 @@ async function send(c: Command, confirmText?: string) {
   transition: transform 0.2s ease; }
 .caret.open { transform: rotate(180deg); }
 .mat .line { padding-left: 24rpx; }
+.chart { margin-top: 24rpx; }
 </style>

@@ -136,8 +136,8 @@
     "checkTitle": "Checks failed",
     "checkForce": "Print anyway?",
     "check": {
-      "filamentLow": "Slot {slot} has about {left} g left; this plate needs {need} g",
-      "typeMismatch": "Slot {slot} holds {have}, but the slice expects {want}",
+      "filamentLow": "{slot} has about {left} g left; this plate needs {need} g",
+      "typeMismatch": "{slot} holds {have}, but the slice expects {want}",
       "nozzleMismatch": "Sliced for a {want} mm nozzle; the printer has {have} mm",
       "printerBusy": "The printer is {state} and cannot start a new job",
       "noSdCard": "No SD card detected in the printer",
@@ -150,7 +150,10 @@
       "toolpath_outside": "Toolpath extends outside the printable area",
       "nozzle_hrc_checker": "Filament is harder than this nozzle tolerates",
       "filament_is_not_compatible": "Filament is not compatible with this printer"
-    }
+    },
+    "externalSlot": "External spool · {name}",
+    "externalShort": "the external spool",
+    "slotShort": "slot {n}"
   },
   "settings": {
     "serverGroup": "Server",
@@ -308,5 +311,12 @@
     "minutes": "{n} min",
     "hoursMinutes": "{h} h {m} min",
     "unknownTime": "duration unknown"
+  },
+  "chart": {
+    "nozzle": "Nozzle",
+    "bed": "Bed",
+    "chamber": "Chamber",
+    "span": "last {n} min",
+    "empty": "Collecting temperature data"
   }
 }

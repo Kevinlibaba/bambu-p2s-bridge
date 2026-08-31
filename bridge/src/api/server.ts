@@ -17,6 +17,7 @@ import { registerNotifyRoutes } from './notify.js'
 import type { Notifier } from '../notify/index.js'
 import { registerHistoryRoutes } from './history.js'
 import type { History } from '../history/index.js'
+import type { Temps } from '../history/temps.js'
 
 function tokenOf(req: FastifyRequest): string | undefined {
   const h = req.headers.authorization
@@ -30,6 +31,7 @@ export async function buildServer(
   mqtt: PrinterMqtt,
   notifier: Notifier,
   history: History,
+  temps: Temps,
 ) {
   const app = Fastify({ logger: { level: 'warn' } })
   await app.register(websocket)
@@ -85,7 +87,7 @@ export async function buildServer(
   registerAmsRoutes(app, mqtt, state)
   registerErrorRoutes(app, mqtt, state)
   registerNotifyRoutes(app, notifier)
-  registerHistoryRoutes(app, history)
+  registerHistoryRoutes(app, history, temps)
 
   // ---- 摄像头：在 go2rtc 前面做鉴权代理 ----
   // go2rtc 本身无认证，因此它只监听 127.0.0.1，外部一律经这里

@@ -136,8 +136,8 @@
     "checkTitle": "チェックに失敗",
     "checkForce": "それでも印刷しますか？",
     "check": {
-      "filamentLow": "スロット {slot} の残量は約 {left} g、このプレートには {need} g 必要です",
-      "typeMismatch": "スロット {slot} は {have}、スライスは {want} を要求しています",
+      "filamentLow": "{slot} の残量は約 {left} g、このプレートには {need} g 必要です",
+      "typeMismatch": "{slot} は {have}、スライスは {want} を要求しています",
       "nozzleMismatch": "{want} mm ノズル向けのスライスですが、プリンターは {have} mm です",
       "printerBusy": "プリンターは {state} のため新しいジョブを開始できません",
       "noSdCard": "SD カードが検出されません",
@@ -150,7 +150,10 @@
       "toolpath_outside": "ツールパスが造形範囲を超えています",
       "nozzle_hrc_checker": "フィラメントがノズルの耐摩耗性を超えています",
       "filament_is_not_compatible": "このプリンターと互換性のないフィラメントです"
-    }
+    },
+    "externalSlot": "外部スプール · {name}",
+    "externalShort": "外部スプール",
+    "slotShort": "スロット {n}"
   },
   "settings": {
     "serverGroup": "サーバー",
@@ -308,5 +311,12 @@
     "minutes": "{n} 分",
     "hoursMinutes": "{h} 時間 {m} 分",
     "unknownTime": "所要時間不明"
+  },
+  "chart": {
+    "nozzle": "ノズル",
+    "bed": "ベッド",
+    "chamber": "チャンバー",
+    "span": "直近 {n} 分",
+    "empty": "温度データを収集中"
   }
 }

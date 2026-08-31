@@ -344,6 +344,18 @@ export interface HistoryPayload {
   stats: { month: HistoryStatsRow; all: HistoryStatsRow }
 }
 
+export interface TempSample {
+  t: number
+  n: number
+  b: number
+  /** 腔温取不到时为 null */
+  c: number | null
+  p: number
+}
+
+export const fetchTemps = (minutes = 60) =>
+  request<{ samples: TempSample[] }>(`/api/history/temps?minutes=${minutes}`)
+
 export const fetchHistory = (limit = 50) =>
   request<HistoryPayload>(`/api/history?limit=${limit}`)
 
