@@ -374,6 +374,7 @@ description resolved, push notifications, installable PWA, print history and mon
 stats, temperature chart.
 
 Not done yet:
+- [ ] Skip an object mid-print — protocol is mapped ([§2.6](./PROTOCOL.md#26-skipping-an-object-mid-print)); needs a real part sacrificed to verify
 - [ ] Native iOS / Android builds
 - [ ] Drying while printing — needs the separate AMS power adapter, which I don't have,
       so that path is unimplemented rather than untested

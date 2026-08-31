@@ -70,6 +70,7 @@ Publish   device/<SERIAL>/request
 | Raw G-code | `{"print":{"sequence_id":"1","command":"gcode_line","param":"M104 S0\n"}}` |
 | Start a print | `{"print":{"command":"project_file",...}}` — see [§2.3](#23-starting-a-print-the-ams_mapping-trap) |
 | AMS drying | `{"print":{"command":"ams_filament_drying",...}}` — see [§2.4](#24-ams-drying) |
+| Skip objects | `{"print":{"command":"skip_objects","obj_list":[504]}}` — see [§2.6](#26-skipping-an-object-mid-print) |
 | Unload filament | `{"print":{"command":"ams_change_filament","ams_id":0,"curr_temp":210,"tar_temp":210,"target":255,"slot_id":255}}` |
 | Clear an error | `{"system":{"command":"uiop","name":"print_error","action":"close","source":1,"type":"dialog","err":"07004025"}}` — see [§2.5](#25-errors) |
 | AMS resume/reset | `{"print":{"command":"ams_control","param":"resume"}}` (also `reset`, `pause`, `done`, `abort`) |
@@ -208,6 +209,88 @@ Verified on hardware: `print_error` goes to `0` immediately. HMS entries stay �
 BambuStudio has no MQTT command for those either; the printer withdraws them when the
 underlying condition clears.
 
+### 2.6 Skipping an object mid-print
+
+```json
+{"print":{"command":"skip_objects","obj_list":[504, 592]}}
+```
+
+Taken from BambuStudio's `MachineObject::command_task_partskip`. **Not implemented in
+this project yet** — everything below is verified from the printer's own state and from
+BambuStudio's source, except the last line of §2.6.4.
+
+#### 2.6.1 Where the object IDs come from
+
+`Metadata/slice_info.config`, per plate:
+
+```xml
+<object identify_id="504" name="Mündungsbremse R.stp" skipped="false" />
+```
+
+`obj_list` takes those `identify_id` values.
+
+**There is a second, different ID for the same object and it is the wrong one.**
+`Metadata/plate_N.json` carries `bbox_objects[].id` — for one object here that was
+`899` while `slice_info.config` said `identify_id="757"`. The `plate_N.json` id feeds
+BambuStudio's pick-image canvas (the clickable plate map), not the command.
+`PartSkipDialog` builds its list through `ModelSettingHelper`, which parses
+`slice_info.config`, and matches the printer's replies against those same
+`identify_id`s.
+
+#### 2.6.2 What the printer reports back
+
+`print.s_obj` — an array of the object IDs already skipped on the current job.
+Empty when nothing has been skipped. BambuStudio reads it into `m_partskip_ids` and
+paints those entries as already-skipped.
+
+#### 2.6.3 Two gates, both checkable before you offer the feature
+
+**Does the printer support it** — bit 49 of `print.fun`, a hex-string bitfield:
+
+```
+fun = "29FD183FF9CB7"  →  (0x29FD183FF9CB7 >> 49) & 1 = 1     # P2S: supported
+```
+
+Same field carries other capabilities BambuStudio reads: bit 28 internal timelapse,
+bit 39 MQTT bed control, bit 46 cooling filter, bit 48 external change assist,
+bit 60 nozzle rack.
+
+**Was the plate sliced with object labels** — `label_object_enabled` in that plate's
+metadata:
+
+```xml
+<metadata key="label_object_enabled" value="true"/>
+```
+
+Without labels the G-code has no per-object markers and there is nothing to exclude.
+Observed on a 13-plate project: `true` on exactly the plates holding more than one
+object, `false` on every single-object plate. Bambu Studio only emits the labels when
+a plate actually has something to exclude, so this is not a user setting you need to
+chase — a single-object plate simply cannot be part-skipped, and skipping its only
+object is the same thing as stopping the job.
+
+#### 2.6.4 Behaviour to mirror
+
+- **Skipping every object is not a skip.** BambuStudio checks for that case and calls
+  `command_task_abort()` (`print.stop`) instead of `skip_objects`. Sending a full list
+  would leave the machine running a job that prints nothing.
+- **It cannot be undone.** The material is simply never laid down. Studio's own
+  confirmation says so; any client should too.
+- *Unverified:* whether the printer accepts IDs for an object it is currently laying
+  down, and whether it rejects the command outside `RUNNING`. Confirming either costs
+  a real part on a real print.
+
+#### 2.6.5 Sketch of a client implementation
+
+1. Offer the action only when `(fun >> 49) & 1` and the running plate's
+   `label_object_enabled` is `true`.
+2. Resolve the running job to a file and plate: `taskName` is the file name without
+   its extension, and `print.gcode_file` / the state's `file` ends in
+   `Metadata/plate_N.gcode` — the same lookup as §5.4.
+3. List that plate's `<object>` entries, marking the ones already in `s_obj`.
+4. Refuse a selection covering every remaining object; point the user at stop instead.
+5. Publish `skip_objects` with the chosen `identify_id`s, then watch `s_obj` to confirm.
+
 ---
 
 ## 3. State schema (P2S / new generation)
@@ -322,6 +405,25 @@ it has no RFID, so `remain` is meaningless there.
 `humidity_raw` reads `"0"` on this unit at all times, and Bambu Studio shows `0 %` for
 it too, so `0` is a genuine reading rather than a missing value. Treat only a missing
 or non-numeric field as unknown.
+
+### 3.3b Capability bits — `fun`
+
+`print.fun` is a hex string used as a bitfield. BambuStudio reads individual bits out
+of it to decide which UI to offer. The ones it names:
+
+| Bit | Meaning |
+|---|---|
+| 2 | 220 V machine |
+| 6 / 7 | flow / PA calibration |
+| 10 | motor noise calibration |
+| 28 | internal timelapse |
+| 39 | bed control over MQTT |
+| 46 | cooling filter |
+| 48 | external change assist |
+| 49 | **object skipping** — see [§2.6](#26-skipping-an-object-mid-print) |
+| 60 | nozzle rack |
+
+Observed on this P2S: `fun = "29FD183FF9CB7"`.
 
 ### 3.4 Module versions (`get_version`)
 
