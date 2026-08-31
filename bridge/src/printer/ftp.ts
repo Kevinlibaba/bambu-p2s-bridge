@@ -76,15 +76,55 @@ function normalize(path: string): string {
 /** 供路由层在进 FTP 之前就做同一套校验 */
 export { normalize as normalizePath }
 
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun',
+                'jul', 'aug', 'sep', 'oct', 'nov', 'dec']
+
+/**
+ * 解析 Unix LIST 的日期。
+ *
+ * basic-ftp 只有走 MLSD 才会填 modifiedAt；这台打印机走的是 LIST，
+ * 日期只出现在 rawModifiedAt 里，两种形态：
+ *   "Jan 27 2026"    半年以前 —— 带年份，没有时刻
+ *   "Aug 31 17:11"   半年以内 —— 带时刻，没有年份
+ * 后一种得自己补年份：先按当年算，若落在未来（跨年了）就退一年。
+ *
+ * 时区是打印机本地的，报文里没有，这里按 UTC 解析。用来排序足够，
+ * 但不要当成精确时刻展示。
+ */
+export function parseListDate(raw: string | undefined, now = new Date()): Date | null {
+  const m = /^([A-Za-z]{3})\s+(\d{1,2})\s+(?:(\d{4})|(\d{1,2}):(\d{2}))$/.exec((raw ?? '').trim())
+  if (!m) return null
+  const month = MONTHS.indexOf(m[1].toLowerCase())
+  if (month < 0) return null
+  const day = Number(m[2])
+  if (day < 1 || day > 31) return null
+
+  if (m[3]) return new Date(Date.UTC(Number(m[3]), month, day))
+
+  const hh = Number(m[4])
+  const mm = Number(m[5])
+  if (hh > 23 || mm > 59) return null
+  let d = new Date(Date.UTC(now.getUTCFullYear(), month, day, hh, mm))
+  // 允许一天的余量：打印机与本机时区不同，边界上可能显得"稍微未来"
+  if (d.getTime() - now.getTime() > 86400000) {
+    d = new Date(Date.UTC(now.getUTCFullYear() - 1, month, day, hh, mm))
+  }
+  return d
+}
+
 export async function listDir(path = '/'): Promise<RemoteFile[]> {
   const dir = normalize(path)
   const items: FileInfo[] = await withClient((c) => c.list(dir))
-  return items.map((f) => ({
-    name: f.name,
-    size: f.size,
-    isDirectory: f.isDirectory,
-    modifiedAt: f.modifiedAt ? f.modifiedAt.toISOString() : null,
-  }))
+  return items.map((f) => {
+    // MLSD 会填 modifiedAt，LIST 只给 rawModifiedAt，两种都认
+    const at = f.modifiedAt ?? parseListDate(f.rawModifiedAt)
+    return {
+      name: f.name,
+      size: f.size,
+      isDirectory: f.isDirectory,
+      modifiedAt: at ? at.toISOString() : null,
+    }
+  })
 }
 
 /** 只走控制连接的 SIZE，不开数据连接 */
