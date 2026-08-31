@@ -34,6 +34,13 @@ export interface DryStartRequest {
   duration?: number
   filament?: string
   rotateTray?: boolean
+  /**
+   * AMS 没有独立电源适配器时，烘干加热与打印机加热存在功率冲突，
+   * 固件要求客户端先确认。实测：该位为 false 时打印机直接忽略整条命令
+   * （info / dry_time 毫无变化），为 true 才会进入检测阶段。
+   * 默认 true，等价于 BambuStudio 弹窗里点「继续」。
+   */
+  closePowerConflict?: boolean
 }
 
 export function registerAmsRoutes(
@@ -94,7 +101,7 @@ export function registerAmsRoutes(
           humidity: 0,
           rotate_tray: body.rotateTray === true,
           cooling_temp: 40,
-          close_power_conflict: false,
+          close_power_conflict: body.closePowerConflict !== false,
         },
       })
       return { ok: true, sequenceId, amsId, temp, duration }

@@ -212,7 +212,6 @@
     },
     "chamber": "仓温",
     "humidity": "湿度",
-    "humidityLevel": "{n} 级",
     "remain": "剩余 {min} 分钟",
     "tempLabel": "温度",
     "durationLabel": "时长",
@@ -242,13 +241,7 @@
     "empty": "空槽",
     "recommended": "推荐 {t}℃ · {h}h",
     "humidityPct": "{p}%",
-    "humidityUnknown": "{n} 级",
     "custom": "自定义",
-    "humLv1": "干燥",
-    "humLv2": "良好",
-    "humLv3": "一般",
-    "humLv4": "偏潮",
-    "humLv5": "潮湿",
     "statusLabel": "状态"
   }
 }

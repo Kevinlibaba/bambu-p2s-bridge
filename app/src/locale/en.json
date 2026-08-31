@@ -212,7 +212,6 @@
     },
     "chamber": "Chamber",
     "humidity": "Humidity",
-    "humidityLevel": "Level {n}",
     "remain": "{min} min left",
     "tempLabel": "Temperature",
     "durationLabel": "Duration",
@@ -242,13 +241,7 @@
     "empty": "Empty",
     "recommended": "{t}℃ · {h}h recommended",
     "humidityPct": "{p}%",
-    "humidityUnknown": "Level {n}",
     "custom": "Custom",
-    "humLv1": "Dry",
-    "humLv2": "Good",
-    "humLv3": "Fair",
-    "humLv4": "Damp",
-    "humLv5": "Wet",
     "statusLabel": "Status"
   }
 }

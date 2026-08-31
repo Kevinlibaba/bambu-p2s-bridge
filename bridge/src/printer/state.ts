@@ -67,8 +67,9 @@ export interface AmsUnit {
   /** 湿度等级 1–5 */
   humidity: number
   /**
-   * 湿度百分比。Bambu 的解析器把 humidity_raw 读作 m_humidity_percent，
-   * 但这台固件一直上报 0 —— 取不到时为 null，界面回退到显示等级。
+   * 湿度百分比，来自 humidity_raw（Bambu 自己的解析器也读这个字段作
+   * m_humidity_percent，BambuStudio 显示的就是它）。0 是合法读数，
+   * 只有字段缺失或非数字时才为 null。
    */
   humidityPct: number | null
   dryStatus: DryStatus
@@ -192,7 +193,8 @@ export class PrinterState extends EventEmitter {
         id,
         temp: num(u.temp),
         humidity: num(u.humidity),
-        humidityPct: num(u.humidity_raw) > 0 ? num(u.humidity_raw) : null,
+        humidityPct: u.humidity_raw === undefined || u.humidity_raw === null
+          ? null : num(u.humidity_raw),
         dryStatus: this.dryStatusOf(u.info),
         dryRemainMin: num(u.dry_time),
         // tray_now 是全局槽位号（unit * 4 + slot），换算回本单元

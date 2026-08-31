@@ -212,7 +212,6 @@
     },
     "chamber": "艙溫",
     "humidity": "濕度",
-    "humidityLevel": "{n} 級",
     "remain": "剩餘 {min} 分鐘",
     "tempLabel": "溫度",
     "durationLabel": "時長",
@@ -242,13 +241,7 @@
     "empty": "空槽",
     "recommended": "建議 {t}℃ · {h}h",
     "humidityPct": "{p}%",
-    "humidityUnknown": "{n} 級",
     "custom": "自訂",
-    "humLv1": "乾燥",
-    "humLv2": "良好",
-    "humLv3": "一般",
-    "humLv4": "偏潮",
-    "humLv5": "潮濕",
     "statusLabel": "狀態"
   }
 }

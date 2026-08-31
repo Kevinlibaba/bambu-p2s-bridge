@@ -160,21 +160,11 @@ watch(dryTrays, (list) => {
   if (first) pickSlot(first.slot)
 }, { immediate: true })
 
-// 本机 AMS 无百分比传感器（humidity_raw 恒为 0），只报 1–5 级；
-// 有百分比时优先显示百分比，否则显示语义等级 + 点阵。
-const humLevel = computed(() => {
-  const n = unit.value?.humidity ?? 0
-  return n >= 1 && n <= 5 ? n : 0
-})
+// humidity_raw 就是 BambuStudio 显示的那个百分比，0 也是合法读数。
 const humidityText = computed(() => {
-  const u = unit.value
-  if (!u) return '—'
-  if (u.humidityPct !== null) return t('dry.humidityPct', { p: u.humidityPct })
-  return humLevel.value ? t('dry.humLv' + humLevel.value) : '—'
+  const pct = unit.value?.humidityPct
+  return pct === undefined || pct === null ? '—' : t('dry.humidityPct', { p: pct })
 })
-// 1–2 干爽 / 3 一般 / 4–5 需要烘干
-const humTone = computed(() =>
-  humLevel.value >= 4 ? 'bad' : humLevel.value === 3 ? 'mid' : 'ok')
 
 function confirmAsk(title: string, content: string, danger = false): Promise<boolean> {
   return new Promise((r) =>
@@ -372,14 +362,16 @@ async function send(c: Command, confirmText?: string) {
         <!-- 烘干控制 -->
       <Sheet :visible="drySheet" :title="t('dry.title')" @close="drySheet = false">
         <view class="card sheet-card">
-          <view class="line">
-            <text class="k">{{ t('dry.statusLabel') }}</text>
-            <text class="v" :class="{ accent: isDrying }">
-              {{ t('dry.status.' + (unit?.dryStatus ?? 'unknown'))
-              }}{{ unit && unit.dryRemainMin > 0 ? ' · ' + t('dry.remain', { min: unit.dryRemainMin }) : '' }}
-            </text>
-          </view>
-          <view class="hsep" />
+          <template v-if="isDrying">
+            <view class="line">
+              <text class="k">{{ t('dry.statusLabel') }}</text>
+              <text class="v accent">
+                {{ t('dry.status.' + (unit?.dryStatus ?? 'unknown'))
+                }}{{ unit && unit.dryRemainMin > 0 ? ' · ' + t('dry.remain', { min: unit.dryRemainMin }) : '' }}
+              </text>
+            </view>
+            <view class="hsep" />
+          </template>
           <view class="line">
             <text class="k">{{ t('dry.chamber') }}</text>
             <text class="v">{{ unit ? Math.round(unit.temp) : '—' }}℃</text>
@@ -387,13 +379,7 @@ async function send(c: Command, confirmText?: string) {
           <view class="hsep" />
           <view class="line">
             <text class="k">{{ t('dry.humidity') }}</text>
-            <view class="trail">
-              <text class="v">{{ humidityText }}</text>
-              <view v-if="humLevel && unit && unit.humidityPct === null" class="dots">
-                <view v-for="i in 5" :key="i" class="hdot"
-                  :class="[humTone, { on: i <= humLevel }]" />
-              </view>
-            </view>
+            <text class="v">{{ humidityText }}</text>
           </view>
         </view>
 
@@ -683,10 +669,4 @@ async function send(c: Command, confirmText?: string) {
 .cta.fill { width: 100%; padding: 0; }
 .cta.fill[disabled] { opacity: 0.4; }
 .cta.danger { width: 100%; padding: 0; background: var(--surface); color: var(--critical); }
-.dots { display: flex; align-items: center; margin-left: 18rpx; }
-.hdot { width: 10rpx; height: 10rpx; border-radius: 50%; margin-left: 7rpx;
-  background: var(--separator); }
-.hdot.on.ok { background: var(--good); }
-.hdot.on.mid { background: var(--warning); }
-.hdot.on.bad { background: var(--critical); }
 </style>

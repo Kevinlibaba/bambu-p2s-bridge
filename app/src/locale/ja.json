@@ -212,7 +212,6 @@
     },
     "chamber": "庫内温度",
     "humidity": "湿度",
-    "humidityLevel": "レベル {n}",
     "remain": "残り {min} 分",
     "tempLabel": "温度",
     "durationLabel": "時間",
@@ -242,13 +241,7 @@
     "empty": "空",
     "recommended": "推奨 {t}℃ · {h}h",
     "humidityPct": "{p}%",
-    "humidityUnknown": "レベル {n}",
     "custom": "カスタム",
-    "humLv1": "乾燥",
-    "humLv2": "良好",
-    "humLv3": "普通",
-    "humLv4": "やや湿",
-    "humLv5": "湿潤",
     "statusLabel": "状態"
   }
 }
