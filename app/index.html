@@ -10,6 +10,14 @@
         (coverSupport ? ', viewport-fit=cover' : '') + '" />')
     </script>
     <title></title>
+    <!-- PWA：装到主屏后走独立窗口，并且是 iOS Web Push 的前提 -->
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#fbfbfd" media="(prefers-color-scheme: light)" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Bambu P2S" />
+    <link rel="apple-touch-icon" href="./static/icons/icon-180.png" />
     <!--preload-links-->
     <!--app-context-->
   </head>

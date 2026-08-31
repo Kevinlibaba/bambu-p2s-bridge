@@ -297,6 +297,29 @@ export interface PrintPlan {
   trays: PlanTray[]
 }
 
+export interface NotifyStatus {
+  enabled: boolean
+  events: string[]
+  kinds: string[]
+  sinks: Record<string, boolean | number>
+  /** 为 null 表示服务端没配 VAPID 密钥，Web Push 用不了 */
+  vapidPublicKey: string | null
+  recent: { kind: string; title: string; body: string; at: number }[]
+}
+
+export const fetchNotifyStatus = () => request<NotifyStatus>('/api/notify')
+
+export const subscribePush = (sub: unknown) =>
+  request<{ ok: boolean }>('/api/notify/subscribe', { method: 'POST', data: sub })
+
+export const unsubscribePush = (endpoint: string) =>
+  request<{ ok: boolean }>('/api/notify/unsubscribe', { method: 'POST', data: { endpoint } })
+
+export const testNotify = () =>
+  request<{ ok: boolean; results: { name: string; ok: boolean; detail?: string }[] }>(
+    '/api/notify/test', { method: 'POST' },
+  )
+
 export const fetchPrintPlan = (path: string, plate: number) =>
   request<PrintPlan>(`/api/print/plan?path=${encodeURIComponent(path)}&plate=${plate}`)
 

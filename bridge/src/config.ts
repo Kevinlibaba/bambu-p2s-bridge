@@ -27,4 +27,28 @@ export const config = {
   pushallIntervalMs: Number(process.env.PUSHALL_INTERVAL_MS ?? 5 * 60 * 1000),
   /** 允许 gcode_line 这类危险命令 */
   allowRawGcode: process.env.ALLOW_RAW_GCODE === 'true',
+  notify: {
+    enabled: process.env.NOTIFY_ENABLED !== 'false',
+    /** 逗号分隔的事件类型，或 all */
+    events: (process.env.NOTIFY_EVENTS ?? 'all').split(',').map((s) => s.trim()).filter(Boolean),
+    /** 错误码释义用的语言，与 app 的语言包同名 */
+    lang: process.env.NOTIFY_LANG ?? 'zh-Hans',
+    /** Web Push 订阅落盘位置。容器里挂 /data */
+    storePath: process.env.NOTIFY_STORE ?? '/data/push-subscriptions.json',
+    vapid: {
+      publicKey: process.env.VAPID_PUBLIC_KEY ?? '',
+      privateKey: process.env.VAPID_PRIVATE_KEY ?? '',
+      /** RFC 8292 要求的联系方式，浏览器厂商用它联系推送发起方 */
+      subject: process.env.VAPID_SUBJECT ?? 'mailto:admin@example.com',
+    },
+    /** https://api.day.app/<设备key> */
+    bark: process.env.BARK_URL ?? '',
+    /** https://ntfy.sh/<topic>，也可指向自建实例 */
+    ntfy: process.env.NTFY_URL ?? '',
+    telegram: {
+      token: process.env.TELEGRAM_BOT_TOKEN ?? '',
+      chatId: process.env.TELEGRAM_CHAT_ID ?? '',
+    },
+    webhook: process.env.NOTIFY_WEBHOOK ?? '',
+  },
 }

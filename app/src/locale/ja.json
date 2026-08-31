@@ -159,7 +159,21 @@
     "themeDark": "ダーク",
     "themeLight": "ライト",
     "langAuto": "システムに従う",
-    "footer": "Bambu Lab P2S リモートモニター\nTailscale によるエンドツーエンド暗号化。クラウドサービスを経由しません。"
+    "footer": "Bambu Lab P2S リモートモニター\nTailscale によるエンドツーエンド暗号化。クラウドサービスを経由しません。",
+    "notifyGroup": "通知",
+    "pushEnable": "この端末に通知",
+    "pushSinks": "設定済みの送信先",
+    "pushNoSink": "なし",
+    "pushTest": "テスト通知を送る",
+    "pushTestOk": "{names} 経由で送信しました",
+    "pushTestNone": "どの送信先にも届きませんでした。ブリッジの設定を確認してください",
+    "pushInstallTitle": "まずホーム画面に追加してください",
+    "pushInstallDesc": "iOS ではホーム画面に追加したアプリのみ通知できます。Safari の共有 → ホーム画面に追加を実行し、アイコンから開いてください。",
+    "pushUnsupported": "このブラウザはウェブプッシュに対応していません",
+    "pushInsecure": "プッシュには HTTPS が必要です。Tailscale の https アドレスを使ってください",
+    "pushNoVapid": "ブリッジに VAPID 鍵が未設定のため利用できません",
+    "pushDenied": "通知が拒否されています。システム設定で許可してください",
+    "pushFailed": "購読に失敗しました"
   },
   "action": {
     "pause": "一時停止",

@@ -159,7 +159,21 @@
     "themeDark": "深色",
     "themeLight": "浅色",
     "langAuto": "跟随系统",
-    "footer": "Bambu Lab P2S 远程监控\n经 Tailscale 端到端加密，不经任何云服务。"
+    "footer": "Bambu Lab P2S 远程监控\n经 Tailscale 端到端加密，不经任何云服务。",
+    "notifyGroup": "通知",
+    "pushEnable": "推送到这台设备",
+    "pushSinks": "已配置出口",
+    "pushNoSink": "无",
+    "pushTest": "发送测试通知",
+    "pushTestOk": "已通过 {names} 送达",
+    "pushTestNone": "没有出口送达成功，检查桥接的推送配置",
+    "pushInstallTitle": "先把应用添加到主屏",
+    "pushInstallDesc": "iOS 只允许已添加到主屏的应用发送通知。在 Safari 里点分享 → 添加到主屏幕，再从主屏图标打开本页。",
+    "pushUnsupported": "当前浏览器不支持网页推送",
+    "pushInsecure": "需要 HTTPS 才能推送，请用 Tailscale 的 https 地址访问",
+    "pushNoVapid": "桥接未配置 VAPID 密钥，网页推送不可用",
+    "pushDenied": "通知权限被拒绝，请在系统设置里放开",
+    "pushFailed": "订阅失败"
   },
   "action": {
     "pause": "暂停",

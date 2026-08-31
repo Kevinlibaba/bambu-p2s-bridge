@@ -159,7 +159,21 @@
     "themeDark": "深色",
     "themeLight": "淺色",
     "langAuto": "跟隨系統",
-    "footer": "Bambu Lab P2S 遠端監控\n經 Tailscale 端到端加密，不經過任何雲端服務。"
+    "footer": "Bambu Lab P2S 遠端監控\n經 Tailscale 端到端加密，不經過任何雲端服務。",
+    "notifyGroup": "通知",
+    "pushEnable": "推送到這台裝置",
+    "pushSinks": "已設定出口",
+    "pushNoSink": "無",
+    "pushTest": "傳送測試通知",
+    "pushTestOk": "已透過 {names} 送達",
+    "pushTestNone": "沒有出口送達成功，請檢查橋接的推送設定",
+    "pushInstallTitle": "請先將應用加入主畫面",
+    "pushInstallDesc": "iOS 只允許已加入主畫面的應用發送通知。在 Safari 點分享 → 加入主畫面，再從主畫面圖示開啟本頁。",
+    "pushUnsupported": "目前瀏覽器不支援網頁推播",
+    "pushInsecure": "需要 HTTPS 才能推播，請改用 Tailscale 的 https 位址",
+    "pushNoVapid": "橋接未設定 VAPID 金鑰，網頁推播無法使用",
+    "pushDenied": "通知權限被拒絕，請至系統設定開啟",
+    "pushFailed": "訂閱失敗"
   },
   "action": {
     "pause": "暫停",

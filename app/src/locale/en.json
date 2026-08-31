@@ -159,7 +159,21 @@
     "themeDark": "Dark",
     "themeLight": "Light",
     "langAuto": "System",
-    "footer": "Bambu Lab P2S remote monitor\nEnd-to-end encrypted over Tailscale. No cloud service in the path."
+    "footer": "Bambu Lab P2S remote monitor\nEnd-to-end encrypted over Tailscale. No cloud service in the path.",
+    "notifyGroup": "Notifications",
+    "pushEnable": "Push to this device",
+    "pushSinks": "Configured sinks",
+    "pushNoSink": "None",
+    "pushTest": "Send a test notification",
+    "pushTestOk": "Delivered via {names}",
+    "pushTestNone": "No sink delivered — check the bridge push config",
+    "pushInstallTitle": "Add to Home Screen first",
+    "pushInstallDesc": "iOS only allows notifications from apps added to the Home Screen. In Safari tap Share → Add to Home Screen, then open this page from the icon.",
+    "pushUnsupported": "This browser does not support web push",
+    "pushInsecure": "Push requires HTTPS — use the Tailscale https address",
+    "pushNoVapid": "The bridge has no VAPID keys, so web push is unavailable",
+    "pushDenied": "Notification permission denied — allow it in system settings",
+    "pushFailed": "Subscription failed"
   },
   "action": {
     "pause": "Pause",

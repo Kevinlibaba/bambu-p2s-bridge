@@ -2,16 +2,19 @@ import { config } from './config.js'
 import { PrinterState } from './printer/state.js'
 import { PrinterMqtt } from './printer/mqtt.js'
 import { buildServer } from './api/server.js'
+import { Notifier } from './notify/index.js'
 
 const state = new PrinterState()
 const mqtt = new PrinterMqtt(state)
+const notifier = new Notifier(state)
 
 async function main() {
   if (!config.api.token) {
     console.warn('[警告] 未设置 API_TOKEN —— 接口无鉴权，仅限本地调试')
   }
+  await notifier.start()
   mqtt.start()
-  const app = await buildServer(state, mqtt)
+  const app = await buildServer(state, mqtt, notifier)
   await app.listen({ port: config.api.port, host: config.api.host })
   console.log(`[api] 监听 ${config.api.host}:${config.api.port}`)
   console.log(`[api] 打印机 ${config.printer.host} (${config.printer.serial})`)
