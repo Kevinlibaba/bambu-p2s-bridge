@@ -727,6 +727,24 @@ central directory) and one for the entry itself.
 
 ---
 
+### 5.4b The end of a print: `M18`, and what that costs you
+
+The P2S machine end G-code finishes with `M400` then **`M18` — steppers released**. There
+is no `M84` and no `G28` anywhere in it. Two consequences worth knowing before building
+anything that moves the toolhead after a job:
+
+- Once a print ends, **position is gone**. Any later motion command has to be preceded by
+  `G28`, and Z homing on this machine probes by touching the nozzle to the bed — with a
+  finished part still sitting there, that is a collision, not a homing move.
+- Anything that wants to move while the machine is still homed must run **inside the job**,
+  before that `M18`.
+
+`gcode_line` itself is accepted while idle: sending `M140 S30` with `gcode_state = FINISH`
+moves `bed_target_temper` 0 → 30. So the command channel is not the constraint; the homing
+state is.
+
+---
+
 ### 5.5 Slicing an unsliced 3MF yourself
 
 Files downloaded from MakerWorld and other model sites are usually *unsliced* — a mesh
@@ -784,8 +802,25 @@ Output on a 2-core container, 4.5 MB input: **~20 s**, `result.json` reporting
 | `printer_model_id` | `N7` | *(empty)* | `machine/Bambu Lab P2S.json` → `model_id` |
 | `tray_info_idx` | `GFA01` | *(empty)* | the filament profile → `filament_id` (PLA Basic = `GFA00`) |
 
-Both are constants readable from the same profile tree, so filling them in afterwards is
-deterministic. `tray_info_idx` is what makes AMS tray selection a lookup instead of a
+**A third omission is more consequential: the machine end G-code is not applied.** A
+CLI-sliced file ends with a generic three-line block:
+
+```gcode
+M104 S0 ; turn off temperature
+G28 X0  ; home X axis
+M84     ; disable motors
+```
+
+Bambu Studio emits the real P2S block instead — roughly 80 lines that pull the filament
+back to the AMS (`M620 S65535` / `T65535` / `G150.2` / `M621 S65535`), close out a
+timelapse, drop the Z motor current before lowering the bed, run the finish-air-purge,
+play the completion tune, and end on `M18`. Print a CLI-sliced file as-is and **the
+filament is never returned to the AMS**. The machine profile keeps these in sibling
+`... template machine_end_gcode.json` files, which the CLI does not pull in when the
+profile is passed by path.
+
+Both metadata fields are constants readable from the same profile tree, so filling them
+in afterwards is deterministic. `tray_info_idx` is what makes AMS tray selection a lookup instead of a
 guess ([§5.4](#54-inside-a-bambu-sliced-gcode3mf)); an empty one degrades matching to
 filament type alone. **Whether the printer rejects a file with an empty
 `printer_model_id` has not been tested** — verifying it costs a real print.
