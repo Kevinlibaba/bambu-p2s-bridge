@@ -250,3 +250,18 @@ test('自检：切片器告警原样带出，去重后只留一条', () => {
   assert.equal(c[0].level, 'warn')
   assert.equal(c[0].params?.msg, 'bed_temperature_too_high_than_filament')
 })
+
+/*
+ * MakerWorld / Printables 上下载的 .3mf 多半是未切片的原始模型：能上传、
+ * 能存在卡上，但打印机只认已切片的 .gcode.3mf。这一条要单独报出来 ——
+ * 之前会走到配料那步报「读不出耗材信息」，对刚下完模型的人毫无线索。
+ */
+test('自检：未切片的模型单独报 notSliced', () => {
+  const t = [tray({ slot: 0 })]
+  // 完全读不出盘信息
+  assert.ok(codes(preflight(undefined, null, t, state())).includes('notSliced'))
+  // 有盘但没有耗材定义，同样是未切片
+  assert.ok(codes(preflight(plate([], 0), null, t, state())).includes('notSliced'))
+  // 正常切片文件不该误报
+  assert.ok(!codes(preflight(plate([fil({ id: 1 })], 1), [0], t, state())).includes('notSliced'))
+})

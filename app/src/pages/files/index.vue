@@ -214,11 +214,15 @@ async function loadPlan() {
   plan.value = null
   slotOverride.value = {}
   openFil.value = null
-  const p = plate.value
-  if (!p || !selPath.value) return
+  if (!selPath.value) return
+  /*
+   * 没有盘也要问一次 —— 未切片的原始模型正是这种情况，
+   * 自检里的 notSliced 得让它有机会回来，否则界面上什么都不说，
+   * 用户只会看到一个空荡荡的预览。
+   */
   planLoading.value = true
   try {
-    plan.value = await fetchPrintPlan(selPath.value, p.index)
+    plan.value = await fetchPrintPlan(selPath.value, plate.value?.index ?? 1)
   } catch {
     plan.value = null // 预演失败不该挡住看文件，开打时桥接还会再校验一次
   } finally {
@@ -434,11 +438,19 @@ function chosenSlots(): Record<string, number> {
 async function printSelected() {
   const f = sel.value
   if (!f) return
+  const notSliced = checks.value.find((c) => c.code === 'notSliced')
+  if (notSliced) { toast(checkText(notSliced)); return }
   if (!planReady.value) { toast(t('files.pickSlotFirst')); return }
   const plateNo = plate.value?.index ?? 1
 
   // 自检有阻断项时，把问题原样摆出来再问一次，答应了才带 force 下发
   const stop = blockingChecks.value
+  const unsliced = stop.find((c) => c.code === 'notSliced')
+  if (unsliced) {
+    // 这条没有「仍然打印」可言，机器认不了未切片的文件
+    toast(checkText(unsliced))
+    return
+  }
   if (stop.length) {
     const list = stop.map((c) => `· ${checkText(c)}`).join('\n')
     if (!(await confirm(t('files.checkTitle'), `${list}\n\n${t('files.checkForce')}`, true))) return
@@ -618,21 +630,25 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
             <text v-if="planLoading" class="note">{{ t('files.planning') }}</text>
             <text v-else-if="!planReady" class="note warn">{{ plan?.error || t('files.pickSlotFirst') }}</text>
 
-            <!-- 打印前自检：远程开打没人在旁边，问题得在按下之前摆出来 -->
-            <template v-if="checks.length">
-              <text class="grouphead">{{ t('files.checkGroup') }}</text>
-              <view class="card sheet-card">
-                <view v-for="(c, i) in checks" :key="i">
-                  <view v-if="i > 0" class="hsep" />
-                  <view class="line stack">
-                    <view class="chk">
-                      <text class="chk-dot" :class="c.level" />
-                      <text class="chk-t">{{ checkText(c) }}</text>
-                    </view>
+          </template>
+
+          <!--
+            打印前自检。放在耗材分组之外 —— 未切片的模型没有耗材可列，
+            但恰恰是最需要看到「为什么打不了」的情况。
+          -->
+          <template v-if="checks.length">
+            <text class="grouphead">{{ t('files.checkGroup') }}</text>
+            <view class="card sheet-card">
+              <view v-for="(c, i) in checks" :key="i">
+                <view v-if="i > 0" class="hsep" />
+                <view class="line stack">
+                  <view class="chk">
+                    <text class="chk-dot" :class="c.level" />
+                    <text class="chk-t">{{ checkText(c) }}</text>
                   </view>
                 </view>
               </view>
-            </template>
+            </view>
           </template>
 
           <text class="hint">{{ t('files.modelNote') }}</text>

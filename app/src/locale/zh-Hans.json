@@ -142,7 +142,8 @@
       "printerBusy": "打印机当前状态为 {state}，无法开始新任务",
       "noSdCard": "打印机没有检测到 SD 卡",
       "printerError": "打印机当前有 {count} 条未处理的报错",
-      "sliceWarning": "切片器告警：{msg}"
+      "sliceWarning": "切片器告警：{msg}",
+      "notSliced": "这是未切片的原始模型，打印机只能打印已切片的 .gcode.3mf。请先在电脑上用 Bambu Studio 切片。"
     },
     "slice": {
       "bed_temperature_too_high_than_filament": "热床温度高于该耗材的耐受范围",
@@ -158,7 +159,8 @@
     "today": "今天",
     "yesterday": "昨天",
     "prevPlate": "上一盘",
-    "nextPlate": "下一盘"
+    "nextPlate": "下一盘",
+    "unsliced": "未切片"
   },
   "settings": {
     "serverGroup": "服务器",
@@ -222,7 +224,7 @@
     "uploading": "上传中 {pct}%",
     "fetching": "下载中",
     "done": "已导入 {name}",
-    "onlyThreeMf": "只支持已切片的 .gcode.3mf 文件",
+    "onlyThreeMf": "只支持 .3mf 文件",
     "note": "打印机只能打印已切片的 .gcode.3mf。原始 STL/STEP 需要先在电脑上切片。",
     "confirm": "导入",
     "progressTitle": "正在导入",

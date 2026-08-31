@@ -15,6 +15,7 @@ export type CheckLevel = 'error' | 'warn'
 export interface Check {
   /** 前端据此选文案，参数放在 params 里 */
   code:
+    | 'notSliced'
     | 'slotMissing'
     | 'filamentLow'
     | 'typeMismatch'
@@ -54,6 +55,16 @@ export function preflight(
   s: Summary,
 ): Check[] {
   const out: Check[] = []
+
+  /*
+   * 未切片的原始模型。MakerWorld / Printables 上下载的 .3mf 多半是这种 ——
+   * 能上传、能存在卡上，但打印机只认已切片的 .gcode.3mf。
+   * 这一条要单独说清楚，否则后面配料那步会报「读不出耗材信息」，
+   * 对一个刚下完模型的人来说毫无线索。
+   */
+  if (!plate || plate.filamentCount <= 0) {
+    out.push({ code: 'notSliced', level: 'error' })
+  }
 
   if (BUSY.has(s.state)) out.push({ code: 'printerBusy', level: 'error', params: { state: s.state } })
   if (!s.sdcard) out.push({ code: 'noSdCard', level: 'error' })

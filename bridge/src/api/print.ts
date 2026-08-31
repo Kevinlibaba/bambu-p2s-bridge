@@ -183,12 +183,16 @@ export function registerPrintRoutes(
       const { path, plate, plateCount, target } = await locate(q.path, q.plate ?? 1)
       const trays = state.summary().ams
 
+      const sliced = !!target && target.filamentCount > 0
       let mapping: number[] | null = null
       let error: string | null = null
-      try {
-        mapping = buildMapping({}, target, trays)
-      } catch (e) {
-        error = (e as Error).message
+      // 未切片的文件没有耗材信息可配，跳过映射，让自检里的 notSliced 说明原因
+      if (sliced) {
+        try {
+          mapping = buildMapping({}, target, trays)
+        } catch (e) {
+          error = (e as Error).message
+        }
       }
 
       const filaments = (target?.filaments ?? []).map((f) => {
@@ -246,6 +250,15 @@ export function registerPrintRoutes(
       const { path, plate, plateCount, target } = await locate(body.path, body.plate ?? 1)
 
       const trays = state.summary().ams
+
+      // 未切片的文件在这里就要拦下。放到配料之后会报「读不出耗材信息」，
+      // 那句话对一个刚下完原始模型的人来说毫无线索。
+      if (!target || target.filamentCount <= 0) {
+        return reply
+          .code(409)
+          .send({ error: '这是未切片的模型文件', checks: [{ code: 'notSliced', level: 'error' }] })
+      }
+
       const amsMapping = buildMapping(body, target, trays)
       const useAms = body.useAms !== false && amsMapping.some((v) => v >= 0 && v !== EXTERNAL_TRAY)
 

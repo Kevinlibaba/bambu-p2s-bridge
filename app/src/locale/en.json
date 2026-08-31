@@ -142,7 +142,8 @@
       "printerBusy": "The printer is {state} and cannot start a new job",
       "noSdCard": "No SD card detected in the printer",
       "printerError": "The printer has {count} unresolved error(s)",
-      "sliceWarning": "Slicer warning: {msg}"
+      "sliceWarning": "Slicer warning: {msg}",
+      "notSliced": "This is an unsliced model. The printer only accepts sliced .gcode.3mf — slice it in Bambu Studio first."
     },
     "slice": {
       "bed_temperature_too_high_than_filament": "Bed temperature is above what this filament tolerates",
@@ -158,7 +159,8 @@
     "today": "today",
     "yesterday": "yesterday",
     "prevPlate": "Previous plate",
-    "nextPlate": "Next plate"
+    "nextPlate": "Next plate",
+    "unsliced": "Not sliced"
   },
   "settings": {
     "serverGroup": "Server",
@@ -222,7 +224,7 @@
     "uploading": "Uploading {pct}%",
     "fetching": "Downloading",
     "done": "Imported {name}",
-    "onlyThreeMf": "Only sliced .gcode.3mf files are supported",
+    "onlyThreeMf": "Only .3mf files are supported",
     "note": "The printer can only print sliced .gcode.3mf. Raw STL/STEP must be sliced on a computer first.",
     "confirm": "Import",
     "progressTitle": "Importing",
