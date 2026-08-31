@@ -50,7 +50,6 @@
       "saver": "省流"
     },
     "errorTitle": "打印机报错",
-    "errorDesc": "HMS {count} 项 · 错误码 {code}",
     "noTask": "暂无任务",
     "layers": "第 {cur} / {total} 层",
     "remaining": "剩余 {value}",
@@ -68,7 +67,9 @@
     "confirmPause": "确定暂停当前打印？",
     "confirmStop": "停止后无法恢复。确定停止打印？",
     "liveFallback": "实时画面不可用，已切换到抽帧",
-    "fullscreen": "全屏"
+    "fullscreen": "全屏",
+    "errorHms": "HMS {count} 项",
+    "errorCode": "错误码 {code}"
   },
   "ams": {
     "empty": "空槽",
@@ -243,5 +244,15 @@
     "humidityPct": "{p}%",
     "custom": "自定义",
     "statusLabel": "状态"
+  },
+  "err": {
+    "title": "打印机报错",
+    "none": "当前没有报错",
+    "noText": "（错误库中暂无说明）",
+    "detail": "查看详情",
+    "clear": "清除报错",
+    "clearing": "正在清除…",
+    "cleared": "已清除",
+    "hmsNote": "带 HMS 编号的条目反映的是当前仍然成立的状况，不能手动清除；按上面的提示处理后打印机会自己撤下。"
   }
 }

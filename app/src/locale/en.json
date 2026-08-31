@@ -50,7 +50,6 @@
       "saver": "Data saver"
     },
     "errorTitle": "Printer error",
-    "errorDesc": "{count} HMS · code {code}",
     "noTask": "No job",
     "layers": "Layer {cur} of {total}",
     "remaining": "{value} remaining",
@@ -68,7 +67,9 @@
     "confirmPause": "Pause the current print?",
     "confirmStop": "Stopping cannot be undone. Stop the print?",
     "liveFallback": "Live video unavailable — showing stills",
-    "fullscreen": "Fullscreen"
+    "fullscreen": "Fullscreen",
+    "errorHms": "{count} HMS entries",
+    "errorCode": "Error {code}"
   },
   "ams": {
     "empty": "Empty",
@@ -243,5 +244,15 @@
     "humidityPct": "{p}%",
     "custom": "Custom",
     "statusLabel": "Status"
+  },
+  "err": {
+    "title": "Printer errors",
+    "none": "No active errors",
+    "noText": "(No description available)",
+    "detail": "Details",
+    "clear": "Dismiss",
+    "clearing": "Dismissing…",
+    "cleared": "Dismissed",
+    "hmsNote": "HMS entries describe a condition that is still true and cannot be dismissed manually — the printer withdraws them once the condition is resolved."
   }
 }

@@ -50,7 +50,6 @@
       "saver": "低データ"
     },
     "errorTitle": "プリンターエラー",
-    "errorDesc": "HMS {count} 件 · コード {code}",
     "noTask": "ジョブなし",
     "layers": "{cur} / {total} 層",
     "remaining": "残り {value}",
@@ -68,7 +67,9 @@
     "confirmPause": "印刷を一時停止しますか？",
     "confirmStop": "停止すると元に戻せません。印刷を停止しますか？",
     "liveFallback": "リアルタイム映像が利用できないため静止画に切り替えました",
-    "fullscreen": "全画面"
+    "fullscreen": "全画面",
+    "errorHms": "HMS {count} 件",
+    "errorCode": "エラー {code}"
   },
   "ams": {
     "empty": "空きスロット",
@@ -243,5 +244,15 @@
     "humidityPct": "{p}%",
     "custom": "カスタム",
     "statusLabel": "状態"
+  },
+  "err": {
+    "title": "プリンターのエラー",
+    "none": "現在エラーはありません",
+    "noText": "（説明が見つかりません）",
+    "detail": "詳細",
+    "clear": "エラーを消去",
+    "clearing": "消去中…",
+    "cleared": "消去しました",
+    "hmsNote": "HMS 項目は現在も継続している状態を示すため手動では消せません。上記の対処を行えばプリンターが自動的に取り下げます。"
   }
 }

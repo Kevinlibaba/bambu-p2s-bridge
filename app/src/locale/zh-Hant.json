@@ -50,7 +50,6 @@
       "saver": "省流量"
     },
     "errorTitle": "印表機錯誤",
-    "errorDesc": "HMS {count} 項 · 錯誤碼 {code}",
     "noTask": "目前無工作",
     "layers": "第 {cur} / {total} 層",
     "remaining": "剩餘 {value}",
@@ -68,7 +67,9 @@
     "confirmPause": "確定暫停目前列印？",
     "confirmStop": "停止後無法復原。確定停止列印？",
     "liveFallback": "即時畫面不可用，已切換為抽格",
-    "fullscreen": "全螢幕"
+    "fullscreen": "全螢幕",
+    "errorHms": "HMS {count} 項",
+    "errorCode": "錯誤碼 {code}"
   },
   "ams": {
     "empty": "空槽",
@@ -243,5 +244,15 @@
     "humidityPct": "{p}%",
     "custom": "自訂",
     "statusLabel": "狀態"
+  },
+  "err": {
+    "title": "印表機報錯",
+    "none": "目前沒有報錯",
+    "noText": "（錯誤庫中暫無說明）",
+    "detail": "查看詳情",
+    "clear": "清除報錯",
+    "clearing": "正在清除…",
+    "cleared": "已清除",
+    "hmsNote": "帶 HMS 編號的項目反映的是目前仍然成立的狀況，無法手動清除；依上面的提示處理後印表機會自行撤下。"
   }
 }

@@ -14,10 +14,11 @@ import Spinner from '../../components/Spinner.vue'
 import SunIcon from '../../components/SunIcon.vue'
 import {
   startDrying, stopDrying, unloadFilament, DryBlockedError,
-  type AmsUnit, type AmsTray, type DryBlocker,
+  fetchErrors, clearErrors,
+  type AmsUnit, type AmsTray, type DryBlocker, type PrinterErrorItem,
 } from '../../api/client'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const KNOWN_STATES = ['IDLE', 'RUNNING', 'PAUSE', 'FINISH', 'FAILED', 'PREPARE', 'SLICING']
 
@@ -28,6 +29,15 @@ const stateText = computed(() => {
 })
 const running = computed(() => s.value?.state === 'RUNNING')
 const paused = computed(() => s.value?.state === 'PAUSE')
+// 错误码为 0 时不显示「错误码 0」这种废话
+const alertDesc = computed(() => {
+  const n = s.value?.errors?.length ?? 0
+  const code = s.value?.printError ?? 0
+  const parts: string[] = []
+  if (n) parts.push(t('monitor.errorHms', { count: n }))
+  if (code) parts.push(t('monitor.errorCode', { code: code.toString(16).toUpperCase().padStart(8, '0') }))
+  return parts.join(' · ')
+})
 const hasError = computed(
   () => (s.value?.errors?.length ?? 0) > 0 || (s.value?.printError ?? 0) !== 0,
 )
@@ -104,6 +114,54 @@ onPullDownRefresh(() => {
 
 // ---- AMS 烘干 ----
 const drySheet = ref(false)
+
+// —— 错误详情 ——
+const errSheet = ref(false)
+const errItems = ref<PrinterErrorItem[]>([])
+const errClearable = ref(false)
+const errLoading = ref(false)
+const errBusy = ref(false)
+
+async function openErrors() {
+  errSheet.value = true
+  errLoading.value = true
+  try {
+    const r = await fetchErrors(locale.value)
+    errItems.value = r.items
+    errClearable.value = r.clearable
+  } catch (e) {
+    errItems.value = []
+    toast((e as Error).message)
+  } finally {
+    errLoading.value = false
+  }
+}
+
+async function doClearErrors() {
+  errBusy.value = true
+  try {
+    await clearErrors()
+    // 打印机要一两拍才把新状态推上来
+    await new Promise((r) => setTimeout(r, 1500))
+    const r = await fetchErrors(locale.value)
+    errItems.value = r.items
+    errClearable.value = r.clearable
+    toast(t('err.cleared'))
+  } catch (e) {
+    toast((e as Error).message)
+  } finally {
+    errBusy.value = false
+  }
+}
+
+/** HMS 条目清不掉，得等条件消失，界面上要说清楚 */
+const errHasHms = computed(() => errItems.value.some((i) => i.kind === 'hms'))
+
+function openErrorPage(url: string) {
+  // #ifdef H5
+  window.open(url, '_blank')
+  // #endif
+}
 const dryBusy = ref('')
 const unit = computed<AmsUnit | null>(() => s.value?.amsUnits?.[0] ?? null)
 const blockers = computed<readonly DryBlocker[]>(() => s.value?.dryBlockers ?? [])
@@ -284,12 +342,13 @@ async function send(c: Command, confirmText?: string) {
 
       <view class="body">
         <!-- 报错：图标 + 文案，颜色只是佐证 -->
-        <view v-if="hasError" class="alert">
+        <view v-if="hasError" class="alert tappable" @click="openErrors">
           <view class="alert-i"><text class="alert-g">!</text></view>
           <view class="alert-b">
             <text class="alert-t">{{ t('monitor.errorTitle') }}</text>
-            <text class="alert-s">{{ t('monitor.errorDesc', { count: s?.errors?.length || 0, code: s?.printError }) }}</text>
+            <text class="alert-s">{{ alertDesc }}</text>
           </view>
+          <text class="alert-x">›</text>
         </view>
 
         <!-- 主体：整屏唯一的 hero -->
@@ -360,6 +419,37 @@ async function send(c: Command, confirmText?: string) {
         </view>
 
         <!-- 烘干控制 -->
+      <!-- 错误详情：文案来自 Bambu 官方错误库，桥接侧代查 -->
+      <Sheet :visible="errSheet" :title="t('err.title')" @close="errSheet = false">
+        <view v-if="errLoading" class="busy"><Spinner :size="36" /></view>
+
+        <template v-else-if="errItems.length">
+          <view class="card sheet-card">
+            <view v-for="(it, i) in errItems" :key="it.code">
+              <view v-if="i > 0" class="hsep" />
+              <view class="line stack tappable" @click="openErrorPage(it.url)">
+                <text class="err-t">{{ it.text || t('err.noText') }}</text>
+                <view class="err-foot">
+                  <text class="err-code">{{ it.code }}</text>
+                  <text class="err-more">{{ t('err.detail') }} ›</text>
+                </view>
+              </view>
+            </view>
+          </view>
+          <text v-if="errHasHms" class="hint">{{ t('err.hmsNote') }}</text>
+        </template>
+
+        <view v-else class="card sheet-card">
+          <view class="line"><text class="k">{{ t('err.none') }}</text></view>
+        </view>
+
+        <template #footer>
+          <button class="cta fill" :disabled="!errClearable || errBusy" @click="doClearErrors">
+            {{ errBusy ? t('err.clearing') : t('err.clear') }}
+          </button>
+        </template>
+      </Sheet>
+
       <Sheet :visible="drySheet" :title="t('dry.title')" @close="drySheet = false">
         <view class="card sheet-card">
           <template v-if="isDrying">
@@ -669,4 +759,13 @@ async function send(c: Command, confirmText?: string) {
 .cta.fill { width: 100%; padding: 0; }
 .cta.fill[disabled] { opacity: 0.4; }
 .cta.danger { width: 100%; padding: 0; background: var(--surface); color: var(--critical); }
+.alert-x { font-size: 30rpx; color: var(--critical); opacity: 0.55; margin-left: 16rpx; }
+.line.stack { display: block; padding: 26rpx 0; }
+.err-t { display: block; font-size: 28rpx; color: var(--ink); line-height: 1.5;
+  letter-spacing: -0.01em; }
+.err-foot { display: flex; align-items: center; justify-content: space-between;
+  margin-top: 12rpx; }
+.err-code { font-size: 22rpx; color: var(--ink-3); font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em; }
+.err-more { font-size: 23rpx; color: var(--accent); }
 </style>

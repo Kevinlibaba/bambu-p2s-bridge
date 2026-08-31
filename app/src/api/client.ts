@@ -290,6 +290,23 @@ export async function startDrying(req: DryStartRequest) {
   }
 }
 
+export interface PrinterErrorItem {
+  /** 'print' 是可关闭的弹窗类错误；'hms' 是健康管理条目，条件消失才会撤下 */
+  kind: 'print' | 'hms'
+  code: string
+  /** 官方错误库的说明；外网不通时为 null */
+  text: string | null
+  url: string
+}
+
+export const fetchErrors = (lang: string) =>
+  request<{ items: PrinterErrorItem[]; clearable: boolean; state: string }>(
+    `/api/errors?lang=${encodeURIComponent(lang)}`,
+  )
+
+export const clearErrors = () =>
+  request<{ ok: boolean; cleared: number }>('/api/errors/clear', { method: 'POST' })
+
 export const stopDrying = (amsId: number) =>
   request<{ ok: boolean }>('/api/ams/dry/stop', { method: 'POST', data: { amsId } })
 
