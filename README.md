@@ -6,6 +6,13 @@ Remote monitoring and control for a **Bambu Lab P2S** locked to **LAN Mode**, ov
 [Tailscale](https://tailscale.com) — with **zero public exposure** and no cloud service
 in the path.
 
+<p align="center">
+  <img src="docs/carousel.gif" width="300" alt="Monitor, control, files, import, 3MF preview and video playback">
+</p>
+
+<details>
+<summary>Individual screens</summary>
+
 <table>
   <tr>
     <td width="33%"><img src="docs/screenshot-monitor.png" alt="Monitor"></td>
@@ -13,21 +20,23 @@ in the path.
     <td width="33%"><img src="docs/screenshot-files.png" alt="Files"></td>
   </tr>
   <tr>
-    <td align="center"><b>Monitor</b><br>Live camera, progress, temperatures, AMS</td>
+    <td align="center"><b>Monitor</b><br>Live WebRTC video, progress, temperatures, AMS</td>
     <td align="center"><b>Control</b><br>Temperature, speed, lighting</td>
     <td align="center"><b>Files</b><br>Models, timelapse, recordings</td>
   </tr>
   <tr>
+    <td><img src="docs/screenshot-import.png" alt="Import"></td>
     <td><img src="docs/screenshot-model.png" alt="3MF preview"></td>
     <td><img src="docs/screenshot-video.png" alt="Video playback"></td>
-    <td></td>
   </tr>
   <tr>
+    <td align="center"><b>Import</b><br>From the device or a URL</td>
     <td align="center"><b>3MF preview</b><br>Plate render and slicer metadata</td>
     <td align="center"><b>Video playback</b><br>Seekable over ranged FTPS</td>
-    <td></td>
   </tr>
 </table>
+
+</details>
 
 If your printer is region-locked out of Bambu Handy, or you simply don't want your
 printer talking to a cloud, this gives you the phone app back on your own terms.

@@ -7,6 +7,13 @@
 
 [English](./README.md)
 
+<p align="center">
+  <img src="docs/carousel.gif" width="300" alt="监控、控制、文件、导入、3MF 预览与视频播放">
+</p>
+
+<details>
+<summary>逐屏查看</summary>
+
 <table>
   <tr>
     <td width="33%"><img src="docs/screenshot-monitor.png" alt="监控"></td>
@@ -14,21 +21,23 @@
     <td width="33%"><img src="docs/screenshot-files.png" alt="文件"></td>
   </tr>
   <tr>
-    <td align="center"><b>监控</b><br>实时画面、进度、温度、AMS</td>
+    <td align="center"><b>监控</b><br>WebRTC 实时画面、进度、温度、AMS</td>
     <td align="center"><b>控制</b><br>温度、速度、灯光</td>
     <td align="center"><b>文件</b><br>模型、延时摄影、录像</td>
   </tr>
   <tr>
+    <td><img src="docs/screenshot-import.png" alt="导入"></td>
     <td><img src="docs/screenshot-model.png" alt="3MF 预览"></td>
     <td><img src="docs/screenshot-video.png" alt="视频播放"></td>
-    <td></td>
   </tr>
   <tr>
+    <td align="center"><b>导入</b><br>从设备或链接</td>
     <td align="center"><b>3MF 预览</b><br>盘图与切片参数</td>
-    <td align="center"><b>视频播放</b><br>基于 Range 的 FTPS 流式播放，可拖进度条</td>
-    <td></td>
+    <td align="center"><b>视频播放</b><br>基于 Range 的 FTPS 流式播放</td>
   </tr>
 </table>
+
+</details>
 
 如果你的打印机因为锁区用不了 Bambu Handy，或者你单纯不想让打印机连云，
 这个项目让你按自己的方式把手机端拿回来。
