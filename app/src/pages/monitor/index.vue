@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, onUnmounted } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onShow, onHide, onPullDownRefresh } from '@dcloudio/uni-app'
 import { api, isConfigured, type Command } from '../../api/client'
@@ -8,6 +8,7 @@ import { themeClass, applyChrome } from '../../store/prefs'
 import StatTile from '../../components/StatTile.vue'
 import Meter from '../../components/Meter.vue'
 import AmsSlot from '../../components/AmsSlot.vue'
+import CameraView from '../../components/CameraView.vue'
 
 const { t } = useI18n()
 
@@ -58,48 +59,38 @@ const lightOn = computed(
 
 // ---- 摄像头 ----
 const camOn = ref(true)
-const camUrl = ref('')
-const camIntervalMs = ref(3000)
-let camTimer: ReturnType<typeof setInterval> | null = null
+const camMode = ref<'live' | 'saver'>('live')
+/* uni-app 会缓存页面，切走标签页时组件不会卸载 —— 不显式停掉的话
+   WebRTC 会在后台一直跑，白耗流量和电。 */
+const pageActive = ref(true)
+const camActive = computed(() => camOn.value && pageActive.value)
 
-function refreshCam() {
-  if (!isConfigured()) return
-  camUrl.value = api.snapshotUrl() + '&t=' + Date.now()
-}
-function startCam() {
-  if (camTimer || !camOn.value) return
-  refreshCam()
-  camTimer = setInterval(refreshCam, camIntervalMs.value)
-}
-function stopCam() {
-  if (camTimer) { clearInterval(camTimer); camTimer = null }
-}
 function toggleCam() {
   camOn.value = !camOn.value
-  camOn.value ? startCam() : stopCam()
 }
 function cycleRate() {
-  camIntervalMs.value =
-    camIntervalMs.value === 3000 ? 1000 : camIntervalMs.value === 1000 ? 10000 : 3000
-  stopCam(); startCam()
+  camMode.value = camMode.value === 'live' ? 'saver' : 'live'
 }
 const rateLabel = computed(() =>
-  camIntervalMs.value === 1000
-    ? t('monitor.quality.smooth')
-    : camIntervalMs.value === 3000
-      ? t('monitor.quality.standard')
-      : t('monitor.quality.saver'),
+  camMode.value === 'live' ? t('monitor.quality.live') : t('monitor.quality.saver'),
 )
+
+/** WebRTC 起不来时组件会自己退回抽帧，这里只负责把档位显示改对 */
+function onCamFallback() {
+  if (camMode.value === 'live') {
+    camMode.value = 'saver'
+    uni.showToast({ title: t('monitor.liveFallback'), icon: 'none', duration: 2600 })
+  }
+}
 
 function goSettings() {
   uni.switchTab({ url: '/pages/settings/index' })
 }
 
-onShow(() => { applyChrome('tab.monitor'); startCam() })
-onHide(() => stopCam())
-onUnmounted(() => stopCam())
+onShow(() => { pageActive.value = true; applyChrome('tab.monitor') })
+onHide(() => { pageActive.value = false })
 onPullDownRefresh(() => {
-  restart(); refreshCam()
+  restart()
   setTimeout(() => uni.stopPullDownRefresh(), 600)
 })
 
@@ -134,7 +125,7 @@ async function send(c: Command, confirmText?: string) {
     <template v-else>
       <!-- 摄像头：全出血，控件浮在画面上 -->
       <view class="cam">
-        <image v-if="camOn && camUrl" class="cam-img" :src="camUrl" mode="widthFix" />
+        <CameraView v-if="camOn" :active="camActive" :mode="camMode" @fallback="onCamFallback" />
         <view v-else class="cam-off"><text class="cam-off-t">{{ t('monitor.camPaused') }}</text></view>
         <view class="scrim" />
         <view class="cam-ctl">

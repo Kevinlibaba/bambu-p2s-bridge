@@ -104,6 +104,20 @@ tailscale serve --bg --https=443 http://127.0.0.1:8080
 
 ---
 
+## 摄像头
+
+打印机本身输出 H.264，go2rtc 原样转发成 WebRTC，不重新编码：全帧率，带宽仍是源流的
+约 1 Mbps。实测（手机尺寸视口）：**1920×1080、30 fps、零丢帧**。
+
+只有信令经过桥接——`/api/camera/ws` 用同一个 Bearer token 鉴权后中继到 go2rtc 的
+WebSocket；媒体由 go2rtc 直接发给客户端，视频数据完全不进 Node 的事件循环。
+
+WebRTC 8 秒内建立不起来会自动退回抽帧，这也是显式的「省流」档。
+
+> 这里原本列过一个 MJPEG 端点，它从来没工作过：镜像里没有转码器，
+> `H264 => JPEG` 直接失败。选择删除而不是修复——转成 MJPEG 同画质要花
+> WebRTC 5–10 倍的带宽。
+
 ## 导入与打印
 
 `POST /api/files/upload` 把 multipart 流直接转给打印机的 FTPS，35MB 的切片文件全程不进内存。

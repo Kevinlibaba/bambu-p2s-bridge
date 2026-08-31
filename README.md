@@ -182,7 +182,7 @@ Bearer token on everything except `/api/health` and `/app/**`.
 | `GET` | `/api/files/3mf?path=…` | `.gcode.3mf` metadata — per-plate time, filament, objects |
 | `GET` | `/api/files/3mf/plate.png?path=…&plate=1` | Plate preview extracted from inside the 3MF |
 | `GET` | `/api/camera/snapshot.jpg` | Single frame (authenticated proxy) |
-| `GET` | `/api/camera/stream.mjpeg` | MJPEG — **triggers transcoding, use sparingly** |
+| `WS` | `/api/camera/ws` | WebRTC signalling, proxied to go2rtc with auth |
 | `POST` | `/api/files/upload` | Import a sliced 3MF (streamed multipart) |
 | `POST` | `/api/files/import` | Import from a URL — the bridge fetches it |
 | `DELETE` | `/api/files?path=…` | Delete a file |
@@ -214,6 +214,24 @@ Commands are a closed whitelist with range validation:
 ```
 
 ---
+
+### Camera
+
+The printer emits H.264 already, so go2rtc republishes it over WebRTC without
+re-encoding: full frame rate at the same ~1 Mbps the source uses. Measured on a
+phone-sized viewport: **1920×1080 at 30 fps, no dropped frames**.
+
+Only signalling passes through the bridge — `/api/camera/ws` relays to go2rtc's
+WebSocket behind the same bearer token. Media goes straight from go2rtc to the
+client over the tailnet, so video never touches Node's event loop.
+
+If WebRTC cannot establish within 8 seconds the app falls back to polling single
+frames, which is also the explicit "data saver" mode.
+
+> An MJPEG endpoint used to be listed here. It never worked: go2rtc has no
+> transcoder in this image, so `H264 => JPEG` fails outright. Removed rather
+> than fixed — transcoding to MJPEG would cost 5–10× the bandwidth of the
+> WebRTC path for worse quality.
 
 ### Importing and printing
 

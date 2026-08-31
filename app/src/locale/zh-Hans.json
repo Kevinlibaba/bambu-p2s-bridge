@@ -46,8 +46,7 @@
     "camPlay": "播放",
     "camPaused": "画面已暂停",
     "quality": {
-      "smooth": "流畅",
-      "standard": "标准",
+      "live": "实时",
       "saver": "省流"
     },
     "errorTitle": "打印机报错",
@@ -67,7 +66,8 @@
     "amsGroup": "耗材",
     "updatedAt": "更新于 {time}",
     "confirmPause": "确定暂停当前打印？",
-    "confirmStop": "停止后无法恢复。确定停止打印？"
+    "confirmStop": "停止后无法恢复。确定停止打印？",
+    "liveFallback": "实时画面不可用，已切换到抽帧"
   },
   "ams": {
     "empty": "空槽",

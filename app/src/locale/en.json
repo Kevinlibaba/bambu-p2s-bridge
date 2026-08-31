@@ -46,8 +46,7 @@
     "camPlay": "Play",
     "camPaused": "Feed paused",
     "quality": {
-      "smooth": "Smooth",
-      "standard": "Standard",
+      "live": "Live",
       "saver": "Data saver"
     },
     "errorTitle": "Printer error",
@@ -67,7 +66,8 @@
     "amsGroup": "Filament",
     "updatedAt": "Updated {time}",
     "confirmPause": "Pause the current print?",
-    "confirmStop": "Stopping cannot be undone. Stop the print?"
+    "confirmStop": "Stopping cannot be undone. Stop the print?",
+    "liveFallback": "Live video unavailable — showing stills"
   },
   "ams": {
     "empty": "Empty",

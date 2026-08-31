@@ -46,8 +46,7 @@
     "camPlay": "再生",
     "camPaused": "映像を停止中",
     "quality": {
-      "smooth": "高フレーム",
-      "standard": "標準",
+      "live": "リアルタイム",
       "saver": "低データ"
     },
     "errorTitle": "プリンターエラー",
@@ -67,7 +66,8 @@
     "amsGroup": "フィラメント",
     "updatedAt": "更新 {time}",
     "confirmPause": "印刷を一時停止しますか？",
-    "confirmStop": "停止すると元に戻せません。印刷を停止しますか？"
+    "confirmStop": "停止すると元に戻せません。印刷を停止しますか？",
+    "liveFallback": "リアルタイム映像が利用できないため静止画に切り替えました"
   },
   "ams": {
     "empty": "空きスロット",

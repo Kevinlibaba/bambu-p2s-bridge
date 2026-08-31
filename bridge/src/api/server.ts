@@ -2,6 +2,7 @@ import Fastify, { type FastifyRequest, type FastifyReply } from 'fastify'
 import websocket from '@fastify/websocket'
 import fastifyStatic from '@fastify/static'
 import multipart from '@fastify/multipart'
+import { WebSocket as UpstreamSocket } from 'ws'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
 import { config } from '../config.js'
@@ -87,8 +88,43 @@ export async function buildServer(state: PrinterState, mqtt: PrinterMqtt) {
   app.get('/api/camera/snapshot.jpg', async (_req, reply) =>
     proxyCamera(`/api/frame.jpeg?src=${config.camera.stream}`, reply))
 
-  app.get('/api/camera/stream.mjpeg', async (_req, reply) =>
-    proxyCamera(`/api/stream.mjpeg?src=${config.camera.stream}`, reply))
+  /**
+   * WebRTC / MSE 的信令通道。
+   *
+   * go2rtc 没有任何鉴权，所以它只监听 127.0.0.1，这里做带 token 的中继。
+   * 走的是信令，不是媒体 —— 媒体由 go2rtc 的 WebRTC 直接发给客户端，
+   * 不经过这条连接，也就不会把视频流塞进 Node 的事件循环。
+   */
+  app.get('/api/camera/ws', { websocket: true }, (socket, req) => {
+    if (config.api.token && tokenOf(req as FastifyRequest) !== config.api.token) {
+      socket.close(4401, '未授权')
+      return
+    }
+
+    const url = `${config.camera.go2rtc.replace(/^http/, 'ws')}/api/ws?src=${encodeURIComponent(config.camera.stream)}`
+    const upstream = new UpstreamSocket(url)
+    const pending: (string | Buffer)[] = []
+
+    upstream.on('open', () => {
+      for (const m of pending) upstream.send(m)
+      pending.length = 0
+    })
+    upstream.on('message', (data, isBinary) => {
+      if (socket.readyState === socket.OPEN) socket.send(data as Buffer, { binary: isBinary })
+    })
+    upstream.on('close', () => socket.close())
+    upstream.on('error', (e) => {
+      console.error('[camera] go2rtc 信令错误:', (e as Error).message)
+      socket.close(1011, 'upstream error')
+    })
+
+    socket.on('message', (data: Buffer, isBinary: boolean) => {
+      // 客户端往往在上游握手完成前就发出 offer，先缓存
+      if (upstream.readyState === UpstreamSocket.OPEN) upstream.send(data, { binary: isBinary })
+      else if (upstream.readyState === UpstreamSocket.CONNECTING) pending.push(data)
+    })
+    socket.on('close', () => upstream.close())
+  })
 
   // ---- WebSocket：状态实时推送 ----
   app.get('/api/events', { websocket: true }, (socket, req) => {

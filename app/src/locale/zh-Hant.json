@@ -46,8 +46,7 @@
     "camPlay": "播放",
     "camPaused": "畫面已暫停",
     "quality": {
-      "smooth": "流暢",
-      "standard": "標準",
+      "live": "即時",
       "saver": "省流量"
     },
     "errorTitle": "印表機錯誤",
@@ -67,7 +66,8 @@
     "amsGroup": "耗材",
     "updatedAt": "更新於 {time}",
     "confirmPause": "確定暫停目前列印？",
-    "confirmStop": "停止後無法復原。確定停止列印？"
+    "confirmStop": "停止後無法復原。確定停止列印？",
+    "liveFallback": "即時畫面不可用，已切換為抽格"
   },
   "ams": {
     "empty": "空槽",
