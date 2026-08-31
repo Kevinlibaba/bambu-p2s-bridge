@@ -192,6 +192,12 @@ function confirm(title: string, content: string, danger = false): Promise<boolea
  */
 type ImportStep = '' | 'choose' | 'link' | 'progress'
 const importStep = ref<ImportStep>('')
+const canImport = computed(() => path.value === '/')
+
+function onAdd() {
+  if (!canImport.value) return toast(t('import.rootOnly'))
+  importStep.value = 'choose'
+}
 const linkText = ref('')
 const progressName = ref('')
 const progressPct = ref(0)
@@ -307,20 +313,14 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
           @click="load(q.path)"><text class="seg-t">{{ q.label }}</text></view>
       </view>
 
-      <!-- 只在模型目录提供导入：延时摄影与录像是打印机自己写的 -->
-      <view v-if="path === '/'" class="card import-card">
-        <view class="row tappable" @click="importStep = 'choose'">
-          <view class="ic add"><text class="ic-t">+</text></view>
-          <view class="meta">
-            <text class="name accent">{{ t('import.action') }}</text>
-            <text class="sub">{{ t('import.entryHint') }}</text>
-          </view>
-        </view>
-      </view>
-
       <view class="crumb">
         <text v-if="path !== '/'" class="up" @click="up">‹ {{ t('files.up') }}</text>
         <text class="path">{{ path }}</text>
+        <!-- 导入作用于当前所在目录，所以入口跟着面包屑走；
+             导入只能落在模型根目录，其他目录置灰而不是消失，免得像功能没了 -->
+        <view class="add-btn" :class="{ off: !canImport }" @click="onAdd">
+          <text class="add-t">+</text>
+        </view>
       </view>
 
       <view v-if="loading" class="empty"><text class="empty-s">{{ t('common.loading') }}</text></view>
@@ -532,7 +532,7 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 .plates { background: var(--surface); margin-bottom: 24rpx; }
 .plates .seg.on { background: var(--surface-2); }
 
-.crumb { display: flex; align-items: center; margin: 32rpx 8rpx 16rpx; }
+.crumb { display: flex; align-items: center; margin: 28rpx 8rpx 16rpx; min-height: 56rpx; }
 .up { font-size: 26rpx; color: var(--accent); margin-right: 20rpx; letter-spacing: -0.01em; }
 .path { font-size: 24rpx; color: var(--ink-3); flex: 1; letter-spacing: -0.01em; }
 
@@ -551,11 +551,17 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 .sub { display: block; font-size: 23rpx; color: var(--ink-2); margin-top: 6rpx; letter-spacing: -0.01em; }
 .tag { font-size: 21rpx; color: var(--accent); margin-left: 20rpx; flex-shrink: 0;
   padding: 4rpx 16rpx; border-radius: 999rpx; background: var(--accent-dim); letter-spacing: -0.01em; }
-.import-card { margin-bottom: 24rpx; }
-/* 入口用蓝色着色的图标块，一眼看出是动作而不是文件 */
-.ic.add { background: var(--accent-dim); }
-.ic.add .ic-t { color: var(--accent); font-size: 32rpx; font-weight: 500; line-height: 1; }
-.name.accent { color: var(--accent); }
+/* 面包屑右侧的导入按钮：着色圆形，和列表里的方形图标块区分开 */
+.add-btn {
+  width: 56rpx; height: 56rpx; border-radius: 50%;
+  background: var(--accent-dim);
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-left: 16rpx;
+  transition: opacity 0.25s ease;
+}
+.add-btn:active { opacity: 0.55; }
+.add-btn.off { opacity: 0.32; }
+.add-t { font-size: 34rpx; font-weight: 500; color: var(--accent); line-height: 1; }
 
 /* 选项行：标题 + 说明纵向排列，比系统 actionSheet 能承载更多信息 */
 .line.stack { display: block; padding: 26rpx 0; min-height: 0; }

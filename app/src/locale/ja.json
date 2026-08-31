@@ -180,7 +180,8 @@
     "entryHint": "端末またはリンクからスライス済みファイルを追加",
     "confirm": "読み込む",
     "progressTitle": "読み込み中",
-    "verifying": "検証中"
+    "verifying": "検証中",
+    "rootOnly": "読み込み先はモデルのルートフォルダのみです"
   },
   "del": {
     "action": "削除",

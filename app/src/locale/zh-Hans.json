@@ -180,7 +180,8 @@
     "entryHint": "从设备或链接添加已切片文件",
     "confirm": "导入",
     "progressTitle": "正在导入",
-    "verifying": "校验中"
+    "verifying": "校验中",
+    "rootOnly": "只能导入到模型根目录"
   },
   "del": {
     "action": "删除",
