@@ -36,6 +36,21 @@ export async function buildServer(
   const app = Fastify({ logger: { level: 'warn' } })
   await app.register(websocket)
 
+  /*
+   * 一些接口（/api/notify/test、/api/errors/clear）不需要请求体。
+   * Fastify 默认会把「声明了 application/json 却空 body」判成 400，
+   * 客户端只看到一句 Bad Request，排查起来毫无线索。这里当成 {}。
+   */
+  app.addContentTypeParser('application/json', { parseAs: 'string' },
+    (_req, body: string, done) => {
+      if (!body || !body.trim()) return done(null, {})
+      try {
+        done(null, JSON.parse(body))
+      } catch (e) {
+        done(e as Error, undefined)
+      }
+    })
+
   // 切片文件几十 MB 起步；只允许单文件，且必须流式读取，不能落进内存
   await app.register(multipart, {
     limits: { files: 1, fileSize: 512 * 1024 * 1024 },

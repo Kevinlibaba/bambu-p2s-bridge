@@ -102,6 +102,24 @@ export function vapidReady(): boolean {
   return !!(config.notify.vapid.publicKey && config.notify.vapid.privateKey)
 }
 
+/**
+ * RFC 8292 要求 VAPID 的 sub 是 mailto: 或 https: URL，
+ * Apple 还会额外拒绝不可路由的域名（.local / localhost 之类），
+ * 回 403 BadJwtToken。这类问题只在真机推送时才暴露，
+ * 所以启动时就先检出来。返回问题描述，无问题时为 null。
+ */
+export function vapidSubjectProblem(): string | null {
+  const sub = config.notify.vapid.subject.trim()
+  if (!sub) return 'VAPID_SUBJECT 为空'
+  if (!/^(mailto:\S+@\S+|https:\/\/\S+)$/i.test(sub)) {
+    return `VAPID_SUBJECT 必须是 mailto: 或 https:// 开头的地址，当前是 "${sub}"`
+  }
+  if (/\.local$|localhost|\.internal$|\.test$|\.invalid$/i.test(sub)) {
+    return `VAPID_SUBJECT 的域名不可路由（${sub}），Apple 会以 403 BadJwtToken 拒绝推送`
+  }
+  return null
+}
+
 let vapidSet = false
 function ensureVapid() {
   if (vapidSet || !vapidReady()) return
@@ -132,19 +150,34 @@ async function push(e: NotifyEvent, store: PushStore): Promise<SinkResult> {
 
   let sent = 0
   const dead: string[] = []
+  const failures: string[] = []
   await Promise.all(
     subs.map(async (s) => {
       try {
         await webpush.sendNotification(s, payload, { TTL: 3600 })
         sent += 1
       } catch (err) {
-        const status = (err as { statusCode?: number }).statusCode
-        if (status === 404 || status === 410) dead.push(s.endpoint)
+        const fail = err as { statusCode?: number; body?: string; message?: string }
+        // 订阅已失效，摘掉；否则每次推送都要为死订阅等一次超时
+        if (fail.statusCode === 404 || fail.statusCode === 410) {
+          dead.push(s.endpoint)
+          return
+        }
+        /*
+         * 其余错误必须原样带出来。推送服务的拒绝原因是排查的唯一线索 ——
+         * 例如 Apple 对 VAPID subject 很严格，用 .local 这类不可路由的域名
+         * 会回 403 BadJwtToken；早先这里把异常整个吞掉，界面上只看得到
+         * 「没有出口送达成功」，查不出所以然。
+         */
+        const why = (fail.body ?? fail.message ?? '').trim().slice(0, 200)
+        failures.push(fail.statusCode ? `${fail.statusCode} ${why}` : why || 'unknown')
       }
     }),
   )
   if (dead.length) await store.removeMany(dead)
-  return { name: 'webpush', ok: sent > 0, detail: `sent=${sent} dead=${dead.length}` }
+  const detail = [`sent=${sent}`, dead.length ? `dead=${dead.length}` : '', ...failures]
+    .filter(Boolean).join(' ')
+  return { name: 'webpush', ok: sent > 0, detail }
 }
 
 /** 把一条事件投给所有已配置的出口。任一成功即算送达。 */

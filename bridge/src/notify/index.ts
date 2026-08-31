@@ -10,7 +10,7 @@ import { config } from '../config.js'
 import type { PrinterState, Summary } from '../printer/state.js'
 import { describe, toErrorLang } from '../printer/errors.js'
 import { detect, NOTIFY_KINDS, type NotifyEvent, type NotifyKind } from './events.js'
-import { configuredSinks, deliver } from './sinks.js'
+import { configuredSinks, deliver, vapidReady, vapidSubjectProblem } from './sinks.js'
 import { PushStore } from './store.js'
 
 /** 同一件事的冷却时间。打印机报错时会每秒重复上报同一个码 */
@@ -35,6 +35,11 @@ export class Notifier {
 
   async start(): Promise<void> {
     await this.store.load()
+    // 配了 VAPID 才检查 —— 没配的话本来就不走 Web Push
+    if (vapidReady()) {
+      const problem = vapidSubjectProblem()
+      if (problem) console.warn(`[notify] ${problem}`)
+    }
     this.state.on('update', (s: Summary) => {
       void this.onUpdate(s)
     })
@@ -95,6 +100,7 @@ export class Notifier {
       kinds: NOTIFY_KINDS,
       sinks: configuredSinks(this.store),
       vapidPublicKey: config.notify.vapid.publicKey || null,
+      vapidProblem: vapidReady() ? vapidSubjectProblem() : null,
       recent: this.history.slice(0, 20),
     }
   }

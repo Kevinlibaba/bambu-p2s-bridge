@@ -72,10 +72,11 @@ export function request<T>(
       method: opts.method ?? 'GET',
       data: opts.data as any,
       timeout: opts.timeout ?? 20000,
-      header: {
-        Authorization: 'Bearer ' + token,
-        'Content-Type': 'application/json',
-      },
+      // 无 body 的 POST 不能声明 application/json —— Fastify 会以
+      // FST_ERR_CTP_EMPTY_JSON_BODY 回 400，界面上只看到一句 Bad Request
+      header: opts.data === undefined
+        ? { Authorization: 'Bearer ' + token }
+        : { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
       success: (res) => {
         const code = res.statusCode
         if (code >= 200 && code < 300) return resolve(res.data as T)

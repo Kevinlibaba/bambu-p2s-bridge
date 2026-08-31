@@ -115,3 +115,38 @@ test('开始打印会通知', () => {
   // PREPARE → RUNNING 属于同一单的内部流转，不该再响一次
   assert.deepEqual(detect(sum({ state: 'PREPARE' }), sum({ state: 'RUNNING' })), [])
 })
+
+// ---- VAPID subject ----
+import { vapidSubjectProblem } from '../src/notify/sinks.js'
+import { config } from '../src/config.js'
+
+function withSubject<T>(sub: string, fn: () => T): T {
+  const prev = config.notify.vapid.subject
+  config.notify.vapid.subject = sub
+  try { return fn() } finally { config.notify.vapid.subject = prev }
+}
+
+test('合法的 VAPID subject 不报问题', () => {
+  for (const s of ['mailto:me@example.com', 'https://bridge.example.com',
+                   'https://bridge.example.ts.net', '  mailto:a@b.co  ']) {
+    assert.equal(withSubject(s, vapidSubjectProblem), null, s)
+  }
+})
+
+/*
+ * 这条是真机踩出来的：subject 写成 mailto:admin@bambu-bridge.local 时
+ * Apple 回 403 BadJwtToken，而当时错误被吞掉，界面上只显示
+ * 「没有出口送达成功」，完全无从查起。
+ */
+test('不可路由的域名会被判为问题', () => {
+  for (const s of ['mailto:admin@bambu-bridge.local', 'https://localhost:8080',
+                   'mailto:a@x.internal', 'mailto:a@x.test', 'mailto:a@x.invalid']) {
+    assert.match(withSubject(s, vapidSubjectProblem) ?? '', /不可路由/, s)
+  }
+})
+
+test('格式不对或为空同样报问题', () => {
+  for (const s of ['', '   ', 'admin@example.com', 'http://example.com', 'mailto:nope']) {
+    assert.ok(withSubject(s, vapidSubjectProblem), s)
+  }
+})
