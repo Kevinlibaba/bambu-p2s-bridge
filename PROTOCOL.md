@@ -703,6 +703,71 @@ central directory) and one for the entry itself.
 
 ---
 
+### 5.5 Slicing an unsliced 3MF yourself
+
+Files downloaded from MakerWorld and other model sites are usually *unsliced* — a mesh
+with no `Metadata/plate_N.gcode`. The printer cannot start one, and `slice_info.config`
+reports no filaments, so [§2.3](#23-starting-a-print-the-ams_mapping-trap)'s mapping has
+nothing to size itself against.
+
+Bambu Studio can slice these headlessly. This needs no cloud service: the Linux AppImage
+runs on any always-on box you already have.
+
+```
+BambuStudio_ubuntu22.04-v02.08.02.61-*.AppImage   219 MB, 540 MB extracted
+```
+
+**Run it through `AppRun`, not `bin/bambu-studio`.** The AppImage bundles its own FFmpeg
+libraries in `squashfs-root/bin/`, and only `AppRun` exports the `LD_LIBRARY_PATH` that
+finds them. Calling the binary directly fails with `libavcodec.so.61: cannot open shared
+object file` even though the library is sitting right next to it.
+
+Headless is by design, not a workaround — `BambuStudio.cpp` decides with
+`bool start_gui = m_actions.empty() && !downward_check;`, so passing `--slice` never
+opens a window. No X server, no Xvfb.
+
+System dependencies beyond the bundle: `libwebkit2gtk-4.1-0` (Debian 12 has it).
+`LC_ALL=C` is required — `AppRun` sets it, and the CLI mis-parses numbers without it.
+
+```sh
+P=squashfs-root/resources/profiles/BBL
+./squashfs-root/AppRun --slice 0   --load-settings "$P/machine/Bambu Lab P2S 0.4 nozzle.json;$P/process/0.20mm Standard @BBL P2S.json"   --load-filaments "$P/filament/Bambu PLA Basic @BBL P2S.json"   --outputdir out --export-3mf sliced.gcode.3mf model.3mf
+```
+
+**`--export-3mf` is relative to `--outputdir`, not to the cwd.** Passing `out/sliced.3mf`
+alongside `--outputdir out` makes it write to `out/out/sliced.3mf`, which fails with
+`Unable to open the file` — the directory is not created. Pass a bare filename.
+
+P2S profiles ship in the AppImage: 4 machine files (0.2/0.4/0.6/0.8 nozzle) and 16
+process files.
+
+**Profile inheritance is resolved**, which is the part worth verifying rather than
+assuming. The machine profile is only a diff — it carries `inherits:
+fdm_bbl_3dp_001_common` and defines almost nothing itself. If the CLI ignored that, the
+slice would silently use default bed dimensions and temperatures and produce a file that
+prints but wrecks the machine. It does not; `project_settings.config` in the output has
+`printable_area` 256×256, `printable_height` 256, PLA nozzle 220 °C, bed 55 °C.
+
+Output on a 2-core container, 4.5 MB input: **~20 s**, `result.json` reporting
+`"return_code": 0`. The `.gcode.3mf` is structurally complete — `plate_1.gcode` plus its
+`.md5`, `plate_1.json`, the preview PNGs, and a `slice_info.config` carrying
+`identify_id` per object (so [§2.6](#26-skipping-an-object-mid-print)'s metadata survives).
+
+**Two fields the CLI leaves empty that Bambu Studio fills:**
+
+| Field in `slice_info.config` | Studio | CLI | Where the value lives |
+|---|---|---|---|
+| `printer_model_id` | `N7` | *(empty)* | `machine/Bambu Lab P2S.json` → `model_id` |
+| `tray_info_idx` | `GFA01` | *(empty)* | the filament profile → `filament_id` (PLA Basic = `GFA00`) |
+
+Both are constants readable from the same profile tree, so filling them in afterwards is
+deterministic. `tray_info_idx` is what makes AMS tray selection a lookup instead of a
+guess ([§5.4](#54-inside-a-bambu-sliced-gcode3mf)); an empty one degrades matching to
+filament type alone. **Whether the printer rejects a file with an empty
+`printer_model_id` has not been tested** — verifying it costs a real print.
+
+---
+
 ## 6. Probe scripts
 
 Pure-stdlib Python, no dependencies. Run them against your own printer:
