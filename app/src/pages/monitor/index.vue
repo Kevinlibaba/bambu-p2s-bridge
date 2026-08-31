@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onShow, onHide, onPullDownRefresh } from '@dcloudio/uni-app'
 import { api, isConfigured, type Command } from '../../api/client'
@@ -9,6 +9,12 @@ import StatTile from '../../components/StatTile.vue'
 import Meter from '../../components/Meter.vue'
 import AmsSlot from '../../components/AmsSlot.vue'
 import CameraView from '../../components/CameraView.vue'
+import Sheet from '../../components/Sheet.vue'
+import Spinner from '../../components/Spinner.vue'
+import {
+  startDrying, stopDrying, unloadFilament, DryBlockedError,
+  type AmsUnit, type DryBlocker,
+} from '../../api/client'
 
 const { t } = useI18n()
 
@@ -94,6 +100,88 @@ onPullDownRefresh(() => {
   restart()
   setTimeout(() => uni.stopPullDownRefresh(), 600)
 })
+
+// ---- AMS 烘干 ----
+const drySheet = ref(false)
+const dryBusy = ref('')
+const unit = computed<AmsUnit | null>(() => s.value?.amsUnits?.[0] ?? null)
+const blockers = computed<readonly DryBlocker[]>(() => s.value?.dryBlockers ?? [])
+const isDrying = computed(
+  () => unit.value?.dryStatus === 'drying' || unit.value?.dryStatus === 'checking',
+)
+
+/* 默认值取该槽耗材 RFID 里的推荐参数，取不到再退回一个保守值 */
+const dryTemp = ref(55)
+const dryHours = ref(8)
+let dryTouched = false
+watch(unit, (u) => {
+  if (dryTouched || !u) return
+  const tray = s.value?.ams?.find((t) => t.unit === u.id && !t.empty)
+  if (tray) dryTemp.value = Math.min(65, Math.max(45, tray.nozzleTempMin ? 55 : 55))
+}, { immediate: true })
+
+function confirmAsk(title: string, content: string, danger = false): Promise<boolean> {
+  return new Promise((r) =>
+    uni.showModal({
+      title, content, confirmColor: danger ? '#ff453a' : '#2997ff',
+      success: (m) => r(!!m.confirm), fail: () => r(false),
+    }),
+  )
+}
+const toast = (msg: string) => uni.showToast({ title: msg, icon: 'none', duration: 2600 })
+
+async function doStartDry() {
+  if (!unit.value) return
+  const ok = await confirmAsk(
+    t('dry.title'),
+    t('dry.confirmStart', { t: dryTemp.value, h: dryHours.value }),
+    true,
+  )
+  if (!ok) return
+  const tray = s.value?.ams?.find((x) => x.unit === unit.value!.id && !x.empty)
+  try {
+    await startDrying({
+      amsId: unit.value.id, temp: dryTemp.value, duration: dryHours.value,
+      filament: tray?.type ?? '',
+    })
+    toast(t('dry.started'))
+  } catch (e) {
+    // 服务端拦下时会带回具体原因，这里不做二次判断，直接照它说的展示
+    if (e instanceof DryBlockedError) toast(t('dry.blocked'))
+    else toast((e as Error).message)
+  }
+}
+
+async function doStopDry() {
+  if (!unit.value) return
+  if (!(await confirmAsk(t('dry.title'), t('dry.confirmStop')))) return
+  try { await stopDrying(unit.value.id); toast(t('dry.stopped')) }
+  catch (e) { toast((e as Error).message) }
+}
+
+/** 逐条解除阻塞：停任务 / 退料。每步都要用户确认，且写明后果 */
+async function resolveBlocker(b: DryBlocker) {
+  if (b === 'printing') {
+    if (!(await confirmAsk(t('dry.doStopPrint'), t('dry.confirmStopPrint'), true))) return
+    try { await api.command({ type: 'stop' }); toast(t('common.sent')) }
+    catch (e) { toast((e as Error).message) }
+    return
+  }
+  if (b === 'filamentLoaded') {
+    if (!(await confirmAsk(t('dry.doUnload'), t('dry.confirmUnload'), true))) return
+    if (!unit.value) return
+    dryBusy.value = t('dry.unloading')
+    try { await unloadFilament(unit.value.id) }
+    catch (e) { toast((e as Error).message) }
+    finally {
+      // 退料要一分钟左右，状态由 WebSocket 推送更新，这里只是收掉忙碌态
+      setTimeout(() => { dryBusy.value = '' }, 3000)
+    }
+  }
+}
+
+const stepTemp = (d: number) => { dryTouched = true; dryTemp.value = Math.max(45, Math.min(65, dryTemp.value + d)) }
+const stepHours = (d: number) => { dryTouched = true; dryHours.value = Math.max(1, Math.min(24, dryHours.value + d)) }
 
 async function send(c: Command, confirmText?: string) {
   if (confirmText) {
@@ -214,13 +302,98 @@ async function send(c: Command, confirmText?: string) {
         <!-- 耗材 -->
         <text class="grouphead">{{ t('monitor.amsGroup') }}</text>
         <view class="card list">
+          <!-- 烘干状态行：常显状态，点进去控制 -->
+          <view v-if="unit" class="row dry-row tappable" @click="drySheet = true">
+            <view class="ic" :class="{ hot: isDrying }">
+              <text class="ic-t">{{ isDrying ? '≈' : '·' }}</text>
+            </view>
+            <view class="meta">
+              <text class="name">{{ t('dry.entry') }}</text>
+              <text class="sub">
+                {{ t('dry.status.' + unit.dryStatus) }}
+                <text v-if="unit.dryRemainMin > 0"> · {{ t('dry.remain', { min: unit.dryRemainMin }) }}</text>
+                <text> · {{ Math.round(unit.temp) }}℃ · {{ t('dry.humidityLevel', { n: unit.humidity }) }}</text>
+              </text>
+            </view>
+            <text class="v">›</text>
+          </view>
+          <view v-if="unit" class="hsep" />
           <view v-for="(t, i) in s?.ams ?? []" :key="`${t.unit}-${t.slot}`">
             <view v-if="i > 0" class="hsep" />
             <AmsSlot :tray="t" />
           </view>
         </view>
 
-        <text class="foot">{{ s?.wifi }} · {{ t('monitor.updatedAt', { time: printer.lastAt ? new Date(printer.lastAt).toLocaleTimeString() : t('common.none') }) }}</text>
+        <!-- 烘干控制 -->
+      <Sheet :visible="drySheet" :title="t('dry.title')" @close="drySheet = false">
+        <view class="card sheet-card">
+          <view class="line">
+            <text class="k">{{ t('dry.status.' + (unit?.dryStatus ?? 'unknown')) }}</text>
+            <text class="v">{{ unit && unit.dryRemainMin > 0 ? t('dry.remain', { min: unit.dryRemainMin }) : '' }}</text>
+          </view>
+          <view class="hsep" />
+          <view class="line">
+            <text class="k">{{ t('dry.chamber') }}</text>
+            <text class="v">{{ unit ? Math.round(unit.temp) : '—' }}℃</text>
+          </view>
+          <view class="hsep" />
+          <view class="line">
+            <text class="k">{{ t('dry.humidity') }}</text>
+            <text class="v">{{ unit ? t('dry.humidityLevel', { n: unit.humidity }) : '—' }}</text>
+          </view>
+        </view>
+
+        <!-- 阻塞原因与补救 -->
+        <template v-if="!isDrying && blockers.length">
+          <text class="grouphead">{{ t('dry.blocked') }}</text>
+          <view class="card sheet-card">
+            <view v-for="(b, i) in blockers" :key="b">
+              <view v-if="i > 0" class="hsep" />
+              <view class="line" :class="{ tappable: b !== 'alreadyDrying' }"
+                @click="b !== 'alreadyDrying' && resolveBlocker(b)">
+                <text class="k">{{ t('dry.blocker.' + b) }}</text>
+                <text v-if="b === 'printing'" class="v accent">{{ t('dry.doStopPrint') }} ›</text>
+                <text v-else-if="b === 'filamentLoaded'" class="v accent">{{ t('dry.doUnload') }} ›</text>
+              </view>
+            </view>
+          </view>
+          <view v-if="dryBusy" class="busy"><Spinner :size="36" /><text class="busy-t">{{ dryBusy }}</text></view>
+          <text class="hint">{{ t('dry.note') }}</text>
+        </template>
+
+        <!-- 参数设置 -->
+        <template v-else-if="!isDrying">
+          <view class="card sheet-card">
+            <view class="line">
+              <text class="k">{{ t('dry.tempLabel') }}</text>
+              <view class="stepper">
+                <text class="sbtn" @click="stepTemp(-5)">−</text>
+                <text class="sval">{{ dryTemp }}℃</text>
+                <text class="sbtn" @click="stepTemp(5)">＋</text>
+              </view>
+            </view>
+            <view class="hsep" />
+            <view class="line">
+              <text class="k">{{ t('dry.durationLabel') }}</text>
+              <view class="stepper">
+                <text class="sbtn" @click="stepHours(-1)">−</text>
+                <text class="sval">{{ dryHours }} {{ t('dry.hours') }}</text>
+                <text class="sbtn" @click="stepHours(1)">＋</text>
+              </view>
+            </view>
+          </view>
+          <text class="hint">{{ t('dry.note') }}</text>
+        </template>
+
+        <template #footer>
+          <button v-if="isDrying" class="cta danger" @click="doStopDry">{{ t('dry.stop') }}</button>
+          <button v-else class="cta fill" :disabled="blockers.length > 0" @click="doStartDry">
+            {{ t('dry.start') }}
+          </button>
+        </template>
+      </Sheet>
+
+      <text class="foot">{{ s?.wifi }} · {{ t('monitor.updatedAt', { time: printer.lastAt ? new Date(printer.lastAt).toLocaleTimeString() : t('common.none') }) }}</text>
       </view>
     </template>
   </view>

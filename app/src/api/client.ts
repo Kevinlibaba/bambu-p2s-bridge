@@ -66,8 +66,14 @@ export function request<T>(
       success: (res) => {
         const code = res.statusCode
         if (code >= 200 && code < 300) return resolve(res.data as T)
-        const msg = (res.data as any)?.error ?? `HTTP ${code}`
-        reject(new ApiError(code === 401 ? 'Token 无效或未授权' : msg, code))
+        const payload = res.data as { error?: string; blockers?: unknown } | undefined
+        const msg = payload?.error ?? `HTTP ${code}`
+        const err = new ApiError(code === 401 ? 'Token 无效或未授权' : msg, code) as ApiError & {
+          blockers?: unknown
+        }
+        // 409 时服务端会附带 blockers，调用方要靠它决定给出哪种补救操作
+        if (payload?.blockers) err.blockers = payload.blockers
+        reject(err)
       },
       fail: (e) => reject(new ApiError(e.errMsg || '网络请求失败')),
     })
@@ -97,7 +103,21 @@ export interface Summary {
   wifi: string
   sdcard: boolean
   ams: AmsTray[]
+  amsUnits: AmsUnit[]
+  dryBlockers: DryBlocker[]
   updatedAt: number
+}
+
+export type DryStatus = 'off' | 'checking' | 'drying' | 'cooling' | 'unknown'
+export type DryBlocker = 'printing' | 'filamentLoaded' | 'alreadyDrying'
+
+export interface AmsUnit {
+  id: number
+  temp: number
+  humidity: number
+  dryStatus: DryStatus
+  dryRemainMin: number
+  loadedSlot: number | null
 }
 
 export interface AmsTray {
@@ -240,3 +260,35 @@ export interface PrintRequest {
 export const startPrint = (req: PrintRequest) =>
   request<{ ok: boolean; plate: number }>('/api/print/start', { method: 'POST', data: req, timeout: 60000 })
 
+// ---------- AMS 烘干 ----------
+
+export interface DryStartRequest {
+  amsId: number
+  temp: number
+  duration: number
+  filament?: string
+  rotateTray?: boolean
+}
+
+/** 被前置条件拦下时服务端会带回 blockers，让界面能给出具体的处理方式 */
+export class DryBlockedError extends ApiError {
+  constructor(message: string, readonly blockers: DryBlocker[]) {
+    super(message, 409)
+  }
+}
+
+export async function startDrying(req: DryStartRequest) {
+  try {
+    return await request<{ ok: boolean }>('/api/ams/dry/start', { method: 'POST', data: req })
+  } catch (e) {
+    const err = e as ApiError & { blockers?: DryBlocker[] }
+    if (err.status === 409 && err.blockers) throw new DryBlockedError(err.message, err.blockers)
+    throw e
+  }
+}
+
+export const stopDrying = (amsId: number) =>
+  request<{ ok: boolean }>('/api/ams/dry/stop', { method: 'POST', data: { amsId } })
+
+export const unloadFilament = (amsId: number) =>
+  request<{ ok: boolean }>('/api/ams/unload', { method: 'POST', data: { amsId }, timeout: 60000 })

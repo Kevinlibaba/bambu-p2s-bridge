@@ -198,5 +198,43 @@
     "useAms": "使用 AMS",
     "busy": "印表機忙碌中，無法開始新任務",
     "risk": "遠端開始列印屬於無人看管操作，請自行評估風險。"
+  },
+  "dry": {
+    "title": "耗材烘乾",
+    "entry": "烘乾",
+    "open": "檢視烘乾",
+    "status": {
+      "off": "未烘乾",
+      "checking": "自檢中",
+      "drying": "烘乾中",
+      "cooling": "冷卻中",
+      "unknown": "未知"
+    },
+    "chamber": "艙溫",
+    "humidity": "濕度",
+    "humidityLevel": "{n} 級",
+    "remain": "剩餘 {min} 分鐘",
+    "tempLabel": "溫度",
+    "durationLabel": "時長",
+    "hours": "小時",
+    "start": "開始烘乾",
+    "stop": "停止烘乾",
+    "started": "已開始",
+    "stopped": "已停止",
+    "confirmStart": "將以 {t}℃ 烘乾 {h} 小時。\n\nAMS 會持續通電加熱，請確認艙內只有需要烘乾的耗材。",
+    "confirmStop": "停止烘乾？",
+    "blocked": "目前無法烘乾",
+    "fix": "去處理",
+    "blocker": {
+      "printing": "印表機有工作進行中",
+      "filamentLoaded": "耗材還在擠出機裡",
+      "alreadyDrying": "已經在烘乾"
+    },
+    "doUnload": "退料",
+    "doStopPrint": "停止列印工作",
+    "confirmUnload": "將把耗材從擠出機退回 AMS。噴嘴會先升溫到 210℃，約需 1 分鐘。",
+    "confirmStopPrint": "停止目前的列印工作？停止後無法復原。",
+    "unloading": "退料中，請稍候",
+    "note": "沒有 AMS 電源轉接器時，烘乾只能在印表機閒置且已退料的狀態下進行。"
   }
 }

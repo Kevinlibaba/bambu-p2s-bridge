@@ -45,7 +45,32 @@ export interface Summary {
   wifi: string
   sdcard: boolean
   ams: AmsTray[]
+  amsUnits: AmsUnit[]
+  /** 阻止启动烘干的原因，空数组表示可以开始 */
+  dryBlockers: DryBlocker[]
   updatedAt: number
+}
+
+/** 与 Bambu 自己的 DevAms::DryStatus 枚举对齐 */
+export type DryStatus = 'off' | 'checking' | 'drying' | 'cooling' | 'unknown'
+
+/**
+ * 没有 AMS 独立电源适配器时，烘干只能在打印机空闲且已退料的状态下进行。
+ * 有适配器时可与打印并行 —— 手头没有适配器，暂不实现那条路径。
+ */
+export type DryBlocker = 'printing' | 'filamentLoaded' | 'alreadyDrying'
+
+export interface AmsUnit {
+  id: number
+  /** 仓内温度 ℃ */
+  temp: number
+  /** 湿度等级 1–5，5 最干 */
+  humidity: number
+  dryStatus: DryStatus
+  /** 烘干剩余分钟，未烘干为 0 */
+  dryRemainMin: number
+  /** 当前进料的槽位号，未进料为 null */
+  loadedSlot: number | null
 }
 
 export interface AmsTray {
@@ -120,8 +145,62 @@ export class PrinterState extends EventEmitter {
       wifi: r.wifi_signal ?? '',
       sdcard: !!r.sdcard,
       ams: this.amsTrays(),
+      amsUnits: this.amsUnits(),
+      dryBlockers: this.dryBlockers(),
       updatedAt: this.lastReportAt,
     }
+  }
+
+  /**
+   * AMS 的 info 是十六进制位域。位段取法来自 BambuStudio 的
+   * DevFilaSystemParser：dry_status = get_flag_bits(info, 4, 4)。
+   * 实测 0x1003=未烘干 / 0x1013=自检 / 0x1023=烘干中，与枚举一致。
+   */
+  private dryStatusOf(info: unknown): DryStatus {
+    const v = parseInt(String(info ?? ''), 16)
+    if (!Number.isFinite(v)) return 'unknown'
+    switch ((v >> 4) & 0xf) {
+      case 0: return 'off'
+      case 1: return 'checking'
+      case 2: return 'drying'
+      case 3: return 'cooling'
+      default: return 'unknown'
+    }
+  }
+
+  /** tray_now 为 255 表示没有耗材进到挤出机 */
+  private loadedSlot(): number | null {
+    const n = num(this.raw.ams?.tray_now, 255)
+    return n === 255 ? null : n
+  }
+
+  private amsUnits(): AmsUnit[] {
+    const units = this.raw.ams?.ams
+    if (!Array.isArray(units)) return []
+    const loaded = this.loadedSlot()
+    return units.map((u: Json) => {
+      const id = num(u.id)
+      return {
+        id,
+        temp: num(u.temp),
+        humidity: num(u.humidity),
+        dryStatus: this.dryStatusOf(u.info),
+        dryRemainMin: num(u.dry_time),
+        // tray_now 是全局槽位号（unit * 4 + slot），换算回本单元
+        loadedSlot: loaded !== null && Math.floor(loaded / 4) === id ? loaded % 4 : null,
+      }
+    })
+  }
+
+  private dryBlockers(): DryBlocker[] {
+    const out: DryBlocker[] = []
+    const st = String(this.raw.gcode_state ?? '')
+    if (['RUNNING', 'PAUSE', 'PREPARE', 'SLICING'].includes(st)) out.push('printing')
+    if (this.loadedSlot() !== null) out.push('filamentLoaded')
+    if (this.amsUnits().some((u) => u.dryStatus === 'drying' || u.dryStatus === 'checking')) {
+      out.push('alreadyDrying')
+    }
+    return out
   }
 
   private amsTrays(): AmsTray[] {

@@ -198,5 +198,43 @@
     "useAms": "使用 AMS",
     "busy": "打印机正忙，无法开始新任务",
     "risk": "远程开打属于无人值守操作，请自行评估风险。"
+  },
+  "dry": {
+    "title": "耗材烘干",
+    "entry": "烘干",
+    "open": "查看烘干",
+    "status": {
+      "off": "未烘干",
+      "checking": "自检中",
+      "drying": "烘干中",
+      "cooling": "冷却中",
+      "unknown": "未知"
+    },
+    "chamber": "仓温",
+    "humidity": "湿度",
+    "humidityLevel": "{n} 级",
+    "remain": "剩余 {min} 分钟",
+    "tempLabel": "温度",
+    "durationLabel": "时长",
+    "hours": "小时",
+    "start": "开始烘干",
+    "stop": "停止烘干",
+    "started": "已开始",
+    "stopped": "已停止",
+    "confirmStart": "将以 {t}℃ 烘干 {h} 小时。\n\nAMS 会持续通电加热，请确认仓内只有需要烘干的耗材。",
+    "confirmStop": "停止烘干？",
+    "blocked": "当前无法烘干",
+    "fix": "去处理",
+    "blocker": {
+      "printing": "打印机有任务在进行",
+      "filamentLoaded": "耗材还在挤出机里",
+      "alreadyDrying": "已经在烘干"
+    },
+    "doUnload": "退料",
+    "doStopPrint": "停止打印任务",
+    "confirmUnload": "将把耗材从挤出机退回 AMS。喷嘴会先升温到 210℃，约需 1 分钟。",
+    "confirmStopPrint": "停止当前打印任务？停止后无法恢复。",
+    "unloading": "退料中，请稍候",
+    "note": "没有 AMS 电源适配器时，烘干只能在打印机空闲且已退料的状态下进行。"
   }
 }

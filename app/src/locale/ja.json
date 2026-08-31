@@ -198,5 +198,43 @@
     "useAms": "AMS を使用",
     "busy": "プリンターが動作中のため新しいジョブを開始できません",
     "risk": "遠隔での印刷開始は無人運転になります。リスクはご自身で判断してください。"
+  },
+  "dry": {
+    "title": "フィラメント乾燥",
+    "entry": "乾燥",
+    "open": "乾燥を見る",
+    "status": {
+      "off": "停止中",
+      "checking": "確認中",
+      "drying": "乾燥中",
+      "cooling": "冷却中",
+      "unknown": "不明"
+    },
+    "chamber": "庫内温度",
+    "humidity": "湿度",
+    "humidityLevel": "レベル {n}",
+    "remain": "残り {min} 分",
+    "tempLabel": "温度",
+    "durationLabel": "時間",
+    "hours": "時間",
+    "start": "乾燥を開始",
+    "stop": "乾燥を停止",
+    "started": "開始しました",
+    "stopped": "停止しました",
+    "confirmStart": "{t}℃ で {h} 時間乾燥します。\n\nAMS は連続して加熱します。庫内に乾燥させたいフィラメントだけがあることを確認してください。",
+    "confirmStop": "乾燥を停止しますか？",
+    "blocked": "今は乾燥できません",
+    "fix": "対処する",
+    "blocker": {
+      "printing": "印刷ジョブが進行中です",
+      "filamentLoaded": "フィラメントがエクストルーダーに残っています",
+      "alreadyDrying": "すでに乾燥中です"
+    },
+    "doUnload": "フィラメントを取り出す",
+    "doStopPrint": "印刷ジョブを停止",
+    "confirmUnload": "フィラメントをエクストルーダーから AMS に戻します。先にノズルを 210℃ まで加熱するため約 1 分かかります。",
+    "confirmStopPrint": "現在の印刷を停止しますか？再開はできません。",
+    "unloading": "取り出し中です",
+    "note": "AMS 用電源アダプターがない場合、乾燥はプリンターが待機中かつフィラメント未装填のときのみ実行できます。"
   }
 }

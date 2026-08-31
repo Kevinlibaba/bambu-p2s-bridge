@@ -198,5 +198,43 @@
     "useAms": "Use AMS",
     "busy": "The printer is busy and cannot start a new job",
     "risk": "Starting a print remotely means it runs unattended. Judge the risk yourself."
+  },
+  "dry": {
+    "title": "Filament drying",
+    "entry": "Drying",
+    "open": "View drying",
+    "status": {
+      "off": "Not drying",
+      "checking": "Checking",
+      "drying": "Drying",
+      "cooling": "Cooling",
+      "unknown": "Unknown"
+    },
+    "chamber": "Chamber",
+    "humidity": "Humidity",
+    "humidityLevel": "Level {n}",
+    "remain": "{min} min left",
+    "tempLabel": "Temperature",
+    "durationLabel": "Duration",
+    "hours": "hours",
+    "start": "Start drying",
+    "stop": "Stop drying",
+    "started": "Started",
+    "stopped": "Stopped",
+    "confirmStart": "Dry at {t}℃ for {h} hours.\n\nThe AMS will heat continuously. Check that only filament you want dried is inside.",
+    "confirmStop": "Stop drying?",
+    "blocked": "Cannot dry right now",
+    "fix": "Resolve",
+    "blocker": {
+      "printing": "A print job is in progress",
+      "filamentLoaded": "Filament is still in the extruder",
+      "alreadyDrying": "Already drying"
+    },
+    "doUnload": "Unload filament",
+    "doStopPrint": "Stop the print job",
+    "confirmUnload": "This retracts the filament from the extruder back into the AMS. The nozzle heats to 210℃ first, which takes about a minute.",
+    "confirmStopPrint": "Stop the current print? It cannot be resumed.",
+    "unloading": "Unloading, please wait",
+    "note": "Without the AMS power adapter, drying only runs when the printer is idle and no filament is loaded."
   }
 }
