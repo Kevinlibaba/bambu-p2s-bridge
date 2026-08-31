@@ -7,7 +7,7 @@ Remote monitoring and control for a **Bambu Lab P2S** locked to **LAN Mode**, ov
 in the path.
 
 <p align="center">
-  <img src="docs/carousel.gif" width="300" alt="Monitor, control, files, import, 3MF preview and video playback">
+  <img src="docs/carousel.gif" width="300" alt="Live monitor feed, then control, files, import, 3MF preview and video playback">
 </p>
 
 <details>

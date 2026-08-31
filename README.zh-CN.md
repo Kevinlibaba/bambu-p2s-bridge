@@ -8,7 +8,7 @@
 [English](./README.md)
 
 <p align="center">
-  <img src="docs/carousel.gif" width="300" alt="监控、控制、文件、导入、3MF 预览与视频播放">
+  <img src="docs/carousel.gif" width="300" alt="实时监控画面，随后是控制、文件、导入、3MF 预览与视频播放">
 </p>
 
 <details>
