@@ -128,6 +128,16 @@ async function send(c: Command, confirmText?: string) {
       <view class="cam">
         <CameraView v-if="camOn" ref="cam" :active="camActive" :mode="camMode" @fallback="onCamFallback" />
         <view v-else class="cam-off"><text class="cam-off-t">{{ t('monitor.camPaused') }}</text></view>
+
+        <!-- 全屏：右上角图标按钮，形状同播放器里的那个 -->
+        <view
+          v-if="camOn"
+          class="fs-btn"
+          :aria-label="t('monitor.fullscreen')"
+          @click="cam?.enterFullscreen()"
+        >
+          <view class="fs-ico" />
+        </view>
         <view class="scrim" />
         <view class="cam-ctl">
           <view class="glass" @click="toggleCam">
@@ -135,9 +145,6 @@ async function send(c: Command, confirmText?: string) {
           </view>
           <view class="glass" @click="cycleRate">
             <text class="glass-t">{{ rateLabel }}</text>
-          </view>
-          <view class="glass" @click="cam?.enterFullscreen()">
-            <text class="glass-t">{{ t('monitor.fullscreen') }}</text>
           </view>
         </view>
       </view>
@@ -253,6 +260,52 @@ async function send(c: Command, confirmText?: string) {
   border: 1rpx solid rgba(255, 255, 255, 0.14);
 }
 .glass-t { font-size: 24rpx; color: #fff; letter-spacing: -0.01em; }
+
+/* 全屏按钮。图标用 CSS 画的对角折角，比 Unicode 的 ⛶/⤢ 可靠 ——
+   那些字形在不同系统上缺字或粗细不一。 */
+.fs-btn {
+  position: absolute;
+  top: 24rpx;
+  right: 24rpx;
+  width: 68rpx;
+  height: 68rpx;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(30rpx) saturate(180%);
+  -webkit-backdrop-filter: blur(24rpx) saturate(180%);
+  border: 1rpx solid rgba(255, 255, 255, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.25s ease;
+}
+.fs-btn:active { opacity: 0.6; }
+
+.fs-ico {
+  position: relative;
+  width: 28rpx;
+  height: 28rpx;
+}
+/* 左上折角 */
+.fs-ico::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 11rpx; height: 11rpx;
+  border-top: 3rpx solid #fff;
+  border-left: 3rpx solid #fff;
+  border-top-left-radius: 2rpx;
+}
+/* 右下折角 */
+.fs-ico::after {
+  content: '';
+  position: absolute;
+  right: 0; bottom: 0;
+  width: 11rpx; height: 11rpx;
+  border-bottom: 3rpx solid #fff;
+  border-right: 3rpx solid #fff;
+  border-bottom-right-radius: 2rpx;
+}
 
 .body { padding: 44rpx 36rpx 140rpx; }
 

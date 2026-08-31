@@ -46,7 +46,7 @@
     "camPlay": "Play",
     "camPaused": "Feed paused",
     "quality": {
-      "live": "Live",
+      "live": "HD",
       "saver": "Data saver"
     },
     "errorTitle": "Printer error",

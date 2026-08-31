@@ -46,7 +46,7 @@
     "camPlay": "再生",
     "camPaused": "映像を停止中",
     "quality": {
-      "live": "リアルタイム",
+      "live": "高画質",
       "saver": "低データ"
     },
     "errorTitle": "プリンターエラー",

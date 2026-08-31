@@ -86,6 +86,10 @@ function mountVideo(): HTMLVideoElement | null {
   v.setAttribute('webkit-playsinline', '')
   v.style.cssText = 'width:100%;height:100%;display:block;background:#000;object-fit:contain'
   v.addEventListener('click', toggleFullscreen)
+  /* iOS 退出原生全屏后会暂停播放，MediaStream 源有时还会被断开。
+     这些监听负责把它拉回来；真断了则由下面的卡顿看门狗重建连接。 */
+  v.addEventListener('pause', resumeIfLive)
+  v.addEventListener('webkitendfullscreen', resumeIfLive)
   el.appendChild(v)
   return v
 }
@@ -98,6 +102,43 @@ function mountVideo(): HTMLVideoElement | null {
 type IOSVideo = HTMLVideoElement & {
   webkitEnterFullscreen?: () => void
   webkitDisplayingFullscreen?: boolean
+}
+
+function resumeIfLive() {
+  if (!props.active || props.mode !== 'live' || !video) return
+  void video.play().catch(() => { /* 自动播放被拦时交给看门狗 */ })
+}
+
+/*
+ * 卡顿看门狗。
+ * 退出全屏后画面冻住的成因在 iOS 上不止一种（暂停、轨道被结束、解码器被回收），
+ * 与其逐个猜，不如直接盯住 currentTime：连续几个周期不前进就整条重建。
+ */
+let lastTime = -1
+let stalls = 0
+let stallTimer: ReturnType<typeof setInterval> | null = null
+
+function startStallWatch() {
+  stopStallWatch()
+  lastTime = -1
+  stalls = 0
+  stallTimer = setInterval(() => {
+    if (!props.active || props.mode !== 'live' || fullscreen.value || !video) return
+    const t = video.currentTime
+    if (t === lastTime) {
+      stalls++
+      if (stalls === 1) resumeIfLive()      // 先试着直接恢复播放
+      // 必须走 start()：它先 stopAll() 拆掉旧的 pc/ws/video，
+      // 直接调 startRtc() 会再挂一个 video 元素，旧连接也不释放
+      if (stalls >= 3) { stalls = 0; start() }
+    } else {
+      stalls = 0
+    }
+    lastTime = t
+  }, 2000)
+}
+function stopStallWatch() {
+  if (stallTimer) { clearInterval(stallTimer); stallTimer = null }
 }
 
 function toggleFullscreen() {
@@ -233,12 +274,14 @@ async function startRtc() {
 
   // 起不来就别干等着，先用抽帧顶上，出画后自动切回
   startSnapshots(props.saverIntervalMs)
+  startStallWatch()
   watchdog = setTimeout(() => { if (!video?.srcObject) fallback() }, 8000)
 }
 // #endif
 
 // ---------- 调度 ----------
 function stopAll() {
+  stopStallWatch()
   teardownRtc()
   stopSnapshots()
 }
@@ -260,7 +303,10 @@ onMounted(() => {
   void nextTick(start)
   // #ifdef H5
   document.addEventListener('fullscreenchange', () => {
-    if (!document.fullscreenElement) fullscreen.value = false
+    if (!document.fullscreenElement) {
+      fullscreen.value = false
+      resumeIfLive()
+    }
   })
   // #endif
 })
