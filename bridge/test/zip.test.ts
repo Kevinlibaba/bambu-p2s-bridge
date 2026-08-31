@@ -124,8 +124,12 @@ test('parseSliceInfo 抽出逐盘信息', () => {
   assert.equal(p1.supportUsed, false)
   assert.deepEqual(p1.objects, ['bracket.stl', 'cap.stl'])
   assert.deepEqual(p1.filaments, [
-    { id: 1, type: 'PLA', color: '#2C2C2E', usedM: 14.31, usedG: 42.75 },
+    { id: 1, trayInfoIdx: 'GFA00', type: 'PLA', color: '#2C2C2E', usedM: 14.31, usedG: 42.75 },
   ])
+  // filament_maps 的元素个数 = 项目耗材数，ams_mapping 的长度得跟着它
+  assert.equal(p1.filamentCount, 4)
+  // 第二个盘没有 filament_maps，退回按最大耗材序号
+  assert.equal(p2.filamentCount, 2)
 
   assert.equal(p2.index, 2)
   assert.equal(p2.supportUsed, true)

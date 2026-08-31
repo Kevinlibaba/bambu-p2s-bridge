@@ -84,6 +84,8 @@ export interface AmsTray {
   slot: number
   type: string
   subBrand: string
+  /** 耗材型号 ID，如 GFA01。切片文件里的 tray_info_idx 与之同名同义，用于自动配料 */
+  trayInfoIdx: string
   color: string
   remainPct: number
   nozzleTempMin: number
@@ -227,6 +229,7 @@ export class PrinterState extends EventEmitter {
           slot: num(t.id),
           type,
           subBrand: t.tray_sub_brands ?? '',
+          trayInfoIdx: t.tray_info_idx ?? '',
           color: t.tray_color ?? '',
           remainPct: num(t.remain, -1),
           nozzleTempMin: num(t.nozzle_temp_min),

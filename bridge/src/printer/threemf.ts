@@ -22,7 +22,10 @@ const SLICE_INFO = 'Metadata/slice_info.config'
 const MODEL = '3D/3dmodel.model'
 
 export interface ThreeMfFilament {
+  /** 切片项目里的耗材序号，1 起。ams_mapping 的下标就是 id - 1 */
   id: number | null
+  /** 耗材型号 ID，如 GFA01，用来和 AMS 里的料盘自动配对 */
+  trayInfoIdx: string
   type: string
   /** #RRGGBB，直接给前端当色块 */
   color: string
@@ -41,6 +44,12 @@ export interface ThreeMfPlate {
   supportUsed: boolean | null
   objects: string[]
   filaments: ThreeMfFilament[]
+  /**
+   * 切片项目里一共定义了几种耗材 —— 不是这个盘用了几种。
+   * ams_mapping 的长度必须等于它，缺项打印机会报「获取 AMS 映射表失败」。
+   * 取自 slice_info.config 里的 filament_maps（形如 "1 1 1 1"）。
+   */
+  filamentCount: number
   /** 有没有可取的预览图。有则调用 /api/files/3mf/plate.png */
   hasThumbnail: boolean
 }
@@ -96,6 +105,17 @@ function normalizeColor(v: string | undefined): string {
  *     <filament id="1" type="PLA" color="#000000" used_m="6.21" used_g="18.62"/>
  *   </plate>
  */
+/**
+ * 项目耗材数。首选 filament_maps —— 它的元素个数就是项目里定义的耗材数；
+ * 老文件没有这个字段时退回「这个盘用到的最大耗材序号」，至少保证
+ * ams_mapping 覆盖得到被引用的那一个。
+ */
+function filamentCountOf(maps: string | undefined, filaments: ThreeMfFilament[]): number {
+  const n = (maps ?? '').trim().split(/\s+/).filter(Boolean).length
+  if (n > 0) return n
+  return filaments.reduce((max, f) => Math.max(max, f.id ?? 0), 0)
+}
+
 export function parseSliceInfo(xml: string): ThreeMfPlate[] {
   const plates: ThreeMfPlate[] = []
   const blocks = xml.matchAll(/<plate\b[^>]*>([\s\S]*?)<\/plate>/gi)
@@ -122,6 +142,7 @@ export function parseSliceInfo(xml: string): ThreeMfPlate[] {
       const a = attrs(m[1])
       filaments.push({
         id: num(a.id),
+        trayInfoIdx: a.tray_info_idx ?? '',
         type: a.type ?? '',
         color: normalizeColor(a.color),
         usedM: num(a.used_m),
@@ -138,6 +159,7 @@ export function parseSliceInfo(xml: string): ThreeMfPlate[] {
       supportUsed: bool(meta.support_used),
       objects,
       filaments,
+      filamentCount: filamentCountOf(meta.filament_maps, filaments),
       hasThumbnail: false,
     })
   }
@@ -183,6 +205,7 @@ export async function describeThreeMf(src: ZipSource, entries: ZipEntry[]): Prom
       supportUsed: null,
       objects: [],
       filaments: [],
+      filamentCount: 0,
       hasThumbnail: false,
     }))
   }

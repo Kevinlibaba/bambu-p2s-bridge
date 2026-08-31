@@ -119,7 +119,7 @@
     "noPreview": "No preview in this file",
     "plate": "Plate {n}",
     "printTime": "Print time",
-    "filamentUsed": "Filament",
+    "filamentUsed": "Filament & slots",
     "nozzleDiameter": "Nozzle",
     "printerModel": "Printer",
     "objects": "Objects",
@@ -127,7 +127,11 @@
     "grams": "{v} g",
     "meters": "{v} m",
     "millimetres": "{v} mm",
-    "modelNote": "Preview and figures come from the sliced file. The mesh itself is not loaded."
+    "modelNote": "Preview and figures come from the sliced file. The mesh itself is not loaded.",
+    "slotName": "Slot {n} · {name}",
+    "noSlot": "Not set",
+    "planning": "Matching slots…",
+    "pickSlotFirst": "Assign a slot to every filament first"
   },
   "settings": {
     "serverGroup": "Server",

@@ -111,6 +111,7 @@ export const SLICE_INFO_XML = `<?xml version="1.0" encoding="UTF-8"?>
     <metadata key="prediction" value="8130"/>
     <metadata key="weight" value="42.75"/>
     <metadata key="support_used" value="false"/>
+    <metadata key="filament_maps" value="1 1 1 1"/>
     <object identify_id="102" name="bracket.stl" skipped="false"/>
     <object identify_id="118" name="cap.stl" skipped="false"/>
     <filament id="1" tray_info_idx="GFA00" type="PLA" color="#2C2C2E" used_m="14.31" used_g="42.75"/>

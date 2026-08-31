@@ -257,8 +257,48 @@ export interface PrintRequest {
   plate?: number
   useAms?: boolean
   amsMapping?: number[]
+  /** 只点名「哪号耗材用哪个料盘」，其余由桥接自动配 */
+  slots?: Record<string, number>
   timelapse?: boolean
 }
+
+export interface PlanFilament {
+  id: number | null
+  type: string
+  color: string
+  trayInfoIdx: string
+  usedG: number | null
+  usedM: number | null
+  /** 自动配到的料盘全局序号，-1 表示没配上 */
+  slot: number
+  trayType: string
+}
+
+export interface PlanTray {
+  /** 全局序号 = unit * 4 + index，就是 ams_mapping 里填的值 */
+  slot: number
+  unit: number
+  index: number
+  type: string
+  subBrand: string
+  color: string
+  empty: boolean
+}
+
+export interface PrintPlan {
+  path: string
+  plate: number
+  plateCount: number
+  filamentCount: number
+  filaments: PlanFilament[]
+  mapping: number[] | null
+  /** 配不出来时的原因，界面据此拦住「开始打印」 */
+  error: string | null
+  trays: PlanTray[]
+}
+
+export const fetchPrintPlan = (path: string, plate: number) =>
+  request<PrintPlan>(`/api/print/plan?path=${encodeURIComponent(path)}&plate=${plate}`)
 
 export const startPrint = (req: PrintRequest) =>
   request<{ ok: boolean; plate: number }>('/api/print/start', { method: 'POST', data: req, timeout: 60000 })

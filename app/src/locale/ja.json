@@ -119,7 +119,7 @@
     "noPreview": "このファイルにプレビュー画像はありません",
     "plate": "プレート {n}",
     "printTime": "印刷時間",
-    "filamentUsed": "フィラメント",
+    "filamentUsed": "フィラメントとスロット",
     "nozzleDiameter": "ノズル",
     "printerModel": "プリンター",
     "objects": "オブジェクト",
@@ -127,7 +127,11 @@
     "grams": "{v} g",
     "meters": "{v} m",
     "millimetres": "{v} mm",
-    "modelNote": "プレビューと数値はスライス済みファイル自体から取得します。メッシュは読み込みません。"
+    "modelNote": "プレビューと数値はスライス済みファイル自体から取得します。メッシュは読み込みません。",
+    "slotName": "スロット {n} · {name}",
+    "noSlot": "未設定",
+    "planning": "スロットを照合中…",
+    "pickSlotFirst": "各フィラメントにスロットを指定してください"
   },
   "settings": {
     "serverGroup": "サーバー",

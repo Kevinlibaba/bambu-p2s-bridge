@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
 import {
-  api, isConfigured, uploadFile, importUrl, deleteFile, startPrint,
-  type RemoteFile, type ThreeMfInfo,
+  api, isConfigured, uploadFile, importUrl, deleteFile, startPrint, fetchPrintPlan,
+  type RemoteFile, type ThreeMfInfo, type PrintPlan, type PlanTray,
 } from '../../api/client'
 import { themeClass, applyChrome } from '../../store/prefs'
 import Sheet from '../../components/Sheet.vue'
@@ -136,6 +136,73 @@ const posterUrl = computed(() => {
 const plate = computed(() => model.value?.plates[plateIdx.value] ?? null)
 const plateUrl = computed(() =>
   plate.value?.hasThumbnail ? api.plateUrl(selPath.value, plate.value.index) : '')
+
+// ---- 配料 ----
+/*
+ * ams_mapping 的下标是「切片项目里的耗材序号 - 1」，长度必须等于项目耗材数。
+ * 这套匹配逻辑放在桥接里，前端只负责展示预演结果和记录用户的覆盖，
+ * 避免同一份规则在两端各写一遍。
+ */
+const plan = ref<PrintPlan | null>(null)
+const planLoading = ref(false)
+/** 用户手动指定的「耗材序号 → 料盘全局序号」，没指定的交给桥接自动配 */
+const slotOverride = ref<Record<string, number>>({})
+/** 当前展开选择器的那一号耗材 */
+const openFil = ref<number | null>(null)
+
+async function loadPlan() {
+  plan.value = null
+  slotOverride.value = {}
+  openFil.value = null
+  const p = plate.value
+  if (!p || !selPath.value) return
+  planLoading.value = true
+  try {
+    plan.value = await fetchPrintPlan(selPath.value, p.index)
+  } catch {
+    plan.value = null // 预演失败不该挡住看文件，开打时桥接还会再校验一次
+  } finally {
+    planLoading.value = false
+  }
+}
+
+watch([selPath, () => plate.value?.index], () => void loadPlan())
+
+const usableTrays = computed(() => (plan.value?.trays ?? []).filter((t) => !t.empty))
+
+/** 某一号耗材最终会用的料盘序号：用户指定优先，否则用预演结果 */
+function slotOf(id: number | null): number {
+  if (id === null) return -1
+  const ov = slotOverride.value[String(id)]
+  if (ov !== undefined) return ov
+  return plan.value?.filaments.find((f) => f.id === id)?.slot ?? -1
+}
+
+function trayOf(id: number | null): PlanTray | null {
+  const s = slotOf(id)
+  return usableTrays.value.find((t) => t.slot === s) ?? null
+}
+
+function trayLabel(tr: PlanTray): string {
+  return t('files.slotName', { n: tr.index + 1, name: tr.subBrand || tr.type })
+}
+
+function slotText(id: number | null): string {
+  const tr = trayOf(id)
+  return tr ? trayLabel(tr) : t('files.noSlot')
+}
+
+function assign(id: number | null, tr: PlanTray) {
+  if (id === null) return
+  slotOverride.value = { ...slotOverride.value, [String(id)]: tr.slot }
+  openFil.value = null
+}
+
+/** 每一号耗材都得有料盘，缺一个就不让开打 */
+const planReady = computed(() => {
+  const f = plan.value?.filaments ?? []
+  return f.length > 0 && f.every((x) => slotOf(x.id) >= 0)
+})
 
 function open(f: RemoteFile) {
   if (f.isDirectory) { load(join(path.value, f.name)); return }
@@ -281,13 +348,24 @@ async function removeSelected() {
 
 // ---- 开始打印 ----
 /** 二次确认里必须写清后果：远程开打意味着首层无人看管 */
+/** 把最终的选择整理成 { 耗材序号: 料盘序号 }，全部显式发出去，不留给默认值 */
+function chosenSlots(): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const x of plan.value?.filaments ?? []) {
+    const s = slotOf(x.id)
+    if (x.id !== null && s >= 0) out[String(x.id)] = s
+  }
+  return out
+}
+
 async function printSelected() {
   const f = sel.value
   if (!f) return
+  if (!planReady.value) { toast(t('files.pickSlotFirst')); return }
   const plateNo = plate.value?.index ?? 1
   if (!(await confirm(t('print.title'), t('print.desc', { name: f.name, plate: plateNo }), true))) return
   try {
-    await startPrint({ path: selPath.value, plate: plateNo })
+    await startPrint({ path: selPath.value, plate: plateNo, slots: chosenSlots() })
     toast(t('print.started'))
     close()
   } catch (e) {
@@ -406,23 +484,44 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
             </view>
           </view>
 
+          <!-- 耗材与料盘：每一号耗材都要落到一个具体料盘，否则打印机拼不出 AMS 映射表 -->
           <template v-if="plate && plate.filaments.length">
             <text class="grouphead">{{ t('files.filamentUsed') }}</text>
             <view class="card sheet-card">
               <view v-for="(f, i) in plate.filaments" :key="i">
                 <view v-if="i > 0" class="hsep" />
-                <view class="line">
+                <view class="line tappable" @click="openFil = openFil === f.id ? null : f.id">
                   <view class="fil">
                     <view class="swatch" :style="{ background: f.color || 'transparent' }" />
-                    <text class="k">{{ f.type || t('common.none') }}</text>
+                    <view class="pick-meta">
+                      <text class="k">{{ f.type || t('common.none') }}</text>
+                      <text class="pick-sub">
+                        {{ f.usedG != null ? t('files.grams', { v: f.usedG.toFixed(1) }) : t('common.none') }}
+                        <text v-if="f.usedM != null"> · {{ t('files.meters', { v: f.usedM.toFixed(1) }) }}</text>
+                      </text>
+                    </view>
                   </view>
-                  <text class="v">
-                    {{ f.usedG != null ? t('files.grams', { v: f.usedG.toFixed(1) }) : t('common.none') }}
-                    <text v-if="f.usedM != null"> · {{ t('files.meters', { v: f.usedM.toFixed(1) }) }}</text>
-                  </text>
+                  <view class="trail">
+                    <text class="v" :class="{ warn: slotOf(f.id) < 0 }">{{ slotText(f.id) }}</text>
+                    <text class="caret" :class="{ open: openFil === f.id }">⌄</text>
+                  </view>
                 </view>
+                <template v-if="openFil === f.id">
+                  <view v-for="tr in usableTrays" :key="tr.slot" class="mat">
+                    <view class="hsep" />
+                    <view class="line tappable" @click="assign(f.id, tr)">
+                      <view class="fil">
+                        <view class="swatch" :style="{ background: '#' + tr.color.slice(0, 6) }" />
+                        <text class="k">{{ trayLabel(tr) }}</text>
+                      </view>
+                      <text v-if="slotOf(f.id) === tr.slot" class="tick">✓</text>
+                    </view>
+                  </view>
+                </template>
               </view>
             </view>
+            <text v-if="planLoading" class="note">{{ t('files.planning') }}</text>
+            <text v-else-if="!planReady" class="note warn">{{ plan?.error || t('files.pickSlotFirst') }}</text>
           </template>
 
           <text class="hint">{{ t('files.modelNote') }}</text>
@@ -607,8 +706,8 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 
 .fil { display: flex; align-items: center; }
 .swatch { width: 30rpx; height: 30rpx; border-radius: 10rpx; margin-right: 18rpx; flex-shrink: 0;
-  /* 深色耗材在深色底上需要一圈微光才有边界 */
-  box-shadow: inset 0 0 0 1rpx rgba(255, 255, 255, 0.18); }
+  /* 纯黑/纯白耗材在同色底上需要一圈描边才有边界，明暗两套主题各取一个方向 */
+  box-shadow: inset 0 0 0 1rpx var(--swatch-ring); }
 
 .hint { display: block; font-size: 22rpx; color: var(--ink-3);
   margin: 20rpx 8rpx 0; line-height: 1.6; letter-spacing: -0.01em; }
@@ -617,4 +716,16 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
   height: 96rpx; line-height: 96rpx; background: var(--surface); color: var(--accent);
   border: none; border-radius: 999rpx; letter-spacing: -0.02em; padding: 0; }
 .cta::after { border: none; }
+.pick-meta { margin-left: 18rpx; min-width: 0; }
+.pick-meta .k { display: block; }
+.pick-sub { display: block; font-size: 22rpx; color: var(--ink-3); margin-top: 6rpx;
+  letter-spacing: -0.01em; }
+.trail { display: flex; align-items: center; margin-left: 24rpx; flex-shrink: 0; }
+.trail .v { margin-left: 0; }
+.caret { font-size: 26rpx; color: var(--ink-3); margin-left: 10rpx; line-height: 1;
+  transition: transform 0.2s ease; }
+.caret.open { transform: rotate(180deg); }
+.mat .line { padding-left: 24rpx; }
+.tick { font-size: 30rpx; color: var(--accent); margin-left: 20rpx; flex-shrink: 0; }
+.v.warn, .note.warn { color: var(--critical); }
 </style>

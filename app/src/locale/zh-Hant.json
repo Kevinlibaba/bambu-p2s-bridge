@@ -119,7 +119,7 @@
     "noPreview": "此檔案沒有內建預覽圖",
     "plate": "第 {n} 盤",
     "printTime": "列印時長",
-    "filamentUsed": "耗材",
+    "filamentUsed": "耗材與料盤",
     "nozzleDiameter": "噴嘴",
     "printerModel": "機型",
     "objects": "模型",
@@ -127,7 +127,11 @@
     "grams": "{v} 克",
     "meters": "{v} 米",
     "millimetres": "{v} mm",
-    "modelNote": "預覽圖與數據取自切片檔案本身，網格未載入。"
+    "modelNote": "預覽圖與數據取自切片檔案本身，網格未載入。",
+    "slotName": "槽 {n} · {name}",
+    "noSlot": "未指定",
+    "planning": "正在比對料盤…",
+    "pickSlotFirst": "請先為每種耗材指定料盤"
   },
   "settings": {
     "serverGroup": "伺服器",
