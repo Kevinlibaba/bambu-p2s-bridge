@@ -192,7 +192,8 @@
     "pushInsecure": "Push requires HTTPS — use the Tailscale https address",
     "pushNoVapid": "The bridge has no VAPID keys, so web push is unavailable",
     "pushDenied": "Notification permission denied — allow it in system settings",
-    "pushFailed": "Subscription failed"
+    "pushFailed": "Subscription failed",
+    "openHistory": "Open print history"
   },
   "action": {
     "pause": "Pause",
@@ -288,5 +289,24 @@
     "clearing": "Dismissing…",
     "cleared": "Dismissed",
     "hmsNote": "HMS entries describe a condition that is still true and cannot be dismissed manually — the printer withdraws them once the condition is resolved."
+  },
+  "history": {
+    "title": "Print history",
+    "jobs": "jobs",
+    "hours": "hours",
+    "gramsUnit": "grams",
+    "monthCap": "This month: {ok} finished · {bad} failed",
+    "rate": "{p}% success",
+    "unweighed": "{n} job(s) had no filament figure and are not counted",
+    "recent": "Recent",
+    "none": "Nothing recorded yet",
+    "unnamed": "Untitled",
+    "running": "In progress",
+    "plate": "Plate {n}",
+    "grams": "{v} g",
+    "stoppedAt": "stopped at {p}%",
+    "minutes": "{n} min",
+    "hoursMinutes": "{h} h {m} min",
+    "unknownTime": "duration unknown"
   }
 }

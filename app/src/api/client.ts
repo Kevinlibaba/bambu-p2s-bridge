@@ -308,6 +308,45 @@ export interface PrintPlan {
   trays: PlanTray[]
 }
 
+export interface JobRecord {
+  id: string
+  name: string
+  file: string
+  plate: number | null
+  startedAt: number
+  endedAt: number
+  minutes: number
+  result: 'finished' | 'failed'
+  progress: number
+  layer: number
+  totalLayers: number
+  printError: number
+  /** 切片文件里的预估克重，查不到为 null */
+  weightG: number | null
+  estimateMin: number | null
+  /** 桥接是在打印中途起来的，耗时无从得知 */
+  partial: boolean
+}
+
+export interface HistoryStatsRow {
+  count: number
+  finished: number
+  failed: number
+  minutes: number
+  grams: number
+  /** 有几单能查到克重 —— 用量是否完整，界面要说清楚 */
+  weighed: number
+}
+
+export interface HistoryPayload {
+  jobs: JobRecord[]
+  running: { name: string; startedAt: number } | null
+  stats: { month: HistoryStatsRow; all: HistoryStatsRow }
+}
+
+export const fetchHistory = (limit = 50) =>
+  request<HistoryPayload>(`/api/history?limit=${limit}`)
+
 export interface NotifyStatus {
   enabled: boolean
   events: string[]

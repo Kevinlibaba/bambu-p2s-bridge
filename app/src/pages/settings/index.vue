@@ -84,6 +84,10 @@ async function togglePush() {
   }
 }
 
+function goHistory() {
+  uni.navigateTo({ url: '/pages/history/index' })
+}
+
 async function sendTest() {
   pushBusy.value = true
   pushNote.value = ''
@@ -240,6 +244,14 @@ function pickLocale() {
         </view>
       </view>
       <text v-if="pushNote" class="note">{{ pushNote }}</text>
+
+      <text class="grouphead">{{ t('history.title') }}</text>
+      <view class="card">
+        <view class="line tappable" @click="goHistory">
+          <text class="k accent">{{ t('settings.openHistory') }}</text>
+          <text class="v">›</text>
+        </view>
+      </view>
 
       <text class="grouphead">{{ t('settings.statusGroup') }}</text>
       <view class="card">

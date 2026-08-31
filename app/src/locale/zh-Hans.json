@@ -192,7 +192,8 @@
     "pushInsecure": "需要 HTTPS 才能推送，请用 Tailscale 的 https 地址访问",
     "pushNoVapid": "桥接未配置 VAPID 密钥，网页推送不可用",
     "pushDenied": "通知权限被拒绝，请在系统设置里放开",
-    "pushFailed": "订阅失败"
+    "pushFailed": "订阅失败",
+    "openHistory": "查看打印历史"
   },
   "action": {
     "pause": "暂停",
@@ -288,5 +289,24 @@
     "clearing": "正在清除…",
     "cleared": "已清除",
     "hmsNote": "带 HMS 编号的条目反映的是当前仍然成立的状况，不能手动清除；按上面的提示处理后打印机会自己撤下。"
+  },
+  "history": {
+    "title": "打印历史",
+    "jobs": "次",
+    "hours": "小时",
+    "gramsUnit": "克",
+    "monthCap": "本月 成功 {ok} · 失败 {bad}",
+    "rate": "成功率 {p}%",
+    "unweighed": "其中 {n} 单查不到耗材用量，未计入",
+    "recent": "最近",
+    "none": "还没有记录",
+    "unnamed": "未命名",
+    "running": "进行中",
+    "plate": "第 {n} 盘",
+    "grams": "{v} 克",
+    "stoppedAt": "停在 {p}%",
+    "minutes": "{n} 分钟",
+    "hoursMinutes": "{h} 小时 {m} 分",
+    "unknownTime": "耗时未知"
   }
 }

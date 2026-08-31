@@ -27,6 +27,10 @@ export const config = {
   pushallIntervalMs: Number(process.env.PUSHALL_INTERVAL_MS ?? 5 * 60 * 1000),
   /** 允许 gcode_line 这类危险命令 */
   allowRawGcode: process.env.ALLOW_RAW_GCODE === 'true',
+  history: {
+    /** 打印历史（JSONL）落盘位置。容器里挂 /data */
+    path: process.env.HISTORY_PATH ?? '/data/jobs.jsonl',
+  },
   notify: {
     enabled: process.env.NOTIFY_ENABLED !== 'false',
     /** 逗号分隔的事件类型，或 all */

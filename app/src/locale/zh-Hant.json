@@ -192,7 +192,8 @@
     "pushInsecure": "需要 HTTPS 才能推播，請改用 Tailscale 的 https 位址",
     "pushNoVapid": "橋接未設定 VAPID 金鑰，網頁推播無法使用",
     "pushDenied": "通知權限被拒絕，請至系統設定開啟",
-    "pushFailed": "訂閱失敗"
+    "pushFailed": "訂閱失敗",
+    "openHistory": "查看列印歷史"
   },
   "action": {
     "pause": "暫停",
@@ -288,5 +289,24 @@
     "clearing": "正在清除…",
     "cleared": "已清除",
     "hmsNote": "帶 HMS 編號的項目反映的是目前仍然成立的狀況，無法手動清除；依上面的提示處理後印表機會自行撤下。"
+  },
+  "history": {
+    "title": "列印歷史",
+    "jobs": "次",
+    "hours": "小時",
+    "gramsUnit": "克",
+    "monthCap": "本月 成功 {ok} · 失敗 {bad}",
+    "rate": "成功率 {p}%",
+    "unweighed": "其中 {n} 單查不到耗材用量，未計入",
+    "recent": "最近",
+    "none": "還沒有記錄",
+    "unnamed": "未命名",
+    "running": "進行中",
+    "plate": "第 {n} 盤",
+    "grams": "{v} 克",
+    "stoppedAt": "停在 {p}%",
+    "minutes": "{n} 分鐘",
+    "hoursMinutes": "{h} 小時 {m} 分",
+    "unknownTime": "耗時未知"
   }
 }

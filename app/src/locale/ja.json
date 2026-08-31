@@ -192,7 +192,8 @@
     "pushInsecure": "プッシュには HTTPS が必要です。Tailscale の https アドレスを使ってください",
     "pushNoVapid": "ブリッジに VAPID 鍵が未設定のため利用できません",
     "pushDenied": "通知が拒否されています。システム設定で許可してください",
-    "pushFailed": "購読に失敗しました"
+    "pushFailed": "購読に失敗しました",
+    "openHistory": "印刷履歴を見る"
   },
   "action": {
     "pause": "一時停止",
@@ -288,5 +289,24 @@
     "clearing": "消去中…",
     "cleared": "消去しました",
     "hmsNote": "HMS 項目は現在も継続している状態を示すため手動では消せません。上記の対処を行えばプリンターが自動的に取り下げます。"
+  },
+  "history": {
+    "title": "印刷履歴",
+    "jobs": "件",
+    "hours": "時間",
+    "gramsUnit": "グラム",
+    "monthCap": "今月 成功 {ok} · 失敗 {bad}",
+    "rate": "成功率 {p}%",
+    "unweighed": "うち {n} 件は使用量が取得できず未集計",
+    "recent": "最近",
+    "none": "まだ記録がありません",
+    "unnamed": "名称なし",
+    "running": "進行中",
+    "plate": "プレート {n}",
+    "grams": "{v} g",
+    "stoppedAt": "{p}% で停止",
+    "minutes": "{n} 分",
+    "hoursMinutes": "{h} 時間 {m} 分",
+    "unknownTime": "所要時間不明"
   }
 }

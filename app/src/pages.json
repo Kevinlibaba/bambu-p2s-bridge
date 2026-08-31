@@ -23,6 +23,12 @@
       "style": {
         "navigationBarTitleText": "%tab.settings%"
       }
+    },
+    {
+      "path": "pages/history/index",
+      "style": {
+        "navigationBarTitleText": "%history.title%"
+      }
     }
   ],
   "globalStyle": {
