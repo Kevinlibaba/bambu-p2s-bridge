@@ -68,6 +68,11 @@ Publish   device/<SERIAL>/request
 | Chamber light | `{"system":{"sequence_id":"1","command":"ledctrl","led_node":"chamber_light","led_mode":"on"}}` |
 | Speed profile | `{"print":{"sequence_id":"1","command":"print_speed","param":"2"}}` (1 silent, 2 standard, 3 sport, 4 ludicrous) |
 | Raw G-code | `{"print":{"sequence_id":"1","command":"gcode_line","param":"M104 S0\n"}}` |
+| Start a print | `{"print":{"command":"project_file",...}}` — see [§2.3](#23-starting-a-print-the-ams_mapping-trap) |
+| AMS drying | `{"print":{"command":"ams_filament_drying",...}}` — see [§2.4](#24-ams-drying) |
+| Unload filament | `{"print":{"command":"ams_change_filament","ams_id":0,"curr_temp":210,"tar_temp":210,"target":255,"slot_id":255}}` |
+| Clear an error | `{"system":{"command":"uiop","name":"print_error","action":"close","source":1,"type":"dialog","err":"07004025"}}` — see [§2.5](#25-errors) |
+| AMS resume/reset | `{"print":{"command":"ams_control","param":"resume"}}` (also `reset`, `pause`, `done`, `abort`) |
 
 ### 2.2 Three gotchas that will cost you a day
 
@@ -82,6 +87,126 @@ Publish   device/<SERIAL>/request
 
 3. **Concurrent MQTT connections are limited.** A persistent bridge holds one
    connection; running Bambu Studio at the same time can knock either one off.
+
+### 2.3 Starting a print: the `ams_mapping` trap
+
+```json
+{"print":{
+  "command":"project_file",
+  "param":"Metadata/plate_8.gcode",
+  "url":"ftp:///M82.gcode.3mf",        // three slashes = SD card root, LAN mode
+  "subtask_name":"M82",
+  "use_ams":true,
+  "ams_mapping":[-1,-1,-1,0],
+  "bed_type":"auto","bed_leveling":true,"flow_cali":true,
+  "vibration_cali":true,"layer_inspect":false,"timelapse":false,
+  "profile_id":"0","project_id":"0","subtask_id":"0","task_id":"0"
+}}
+```
+
+**`ams_mapping` is indexed by the slicing project's filament number, not by the
+filaments this plate happens to use, and its length must equal the number of
+filaments defined in the project.** Get this wrong and the printer retries the
+mapping lookup a few times, then pauses at 0 % with
+`print_error 0x07008012` — *"Failed to obtain the AMS mapping table"*.
+
+Worked example. A project defines 4 filaments; plate 8 uses only filament #4:
+
+```xml
+<!-- Metadata/slice_info.config, plate 8 -->
+<metadata key="filament_maps" value="1 1 1 1"/>     <!-- 4 entries = 4 project filaments -->
+<filament id="4" tray_info_idx="GFA01" type="PLA" used_g="59.13"/>
+```
+
+The correct mapping is `[-1,-1,-1,0]` — length 4, only index 3 set. Sending `[0]`
+(length 1) is what triggers 0x07008012.
+
+- **Length** — take it from `filament_maps` in `slice_info.config`; the number of
+  space-separated entries *is* the project filament count. Older files without that
+  key: fall back to the highest `<filament id>` on the plate.
+- **Value** — the global tray index, `ams_id * 4 + slot`. `-1` means "this filament
+  number is unused on this plate". The external spool (`vir_slot`) is **254**, and it
+  does *not* follow the `*4 +` formula.
+- **Matching** — `tray_info_idx` in `slice_info.config` and in `ams.ams[n].tray[]` are
+  the same namespace (`GFA01` etc.), so an exact match on that field is the most
+  reliable way to pick a tray automatically.
+
+### 2.4 AMS drying
+
+```json
+{"print":{
+  "command":"ams_filament_drying",
+  "ams_id":0,
+  "mode":1,                    // DryCtrlMode: 0 = off, 1 = on-time
+  "filament":"GFA01",
+  "temp":55,
+  "duration":8,                // HOURS — the firmware reports dry_time in minutes
+  "humidity":0,
+  "rotate_tray":false,
+  "cooling_temp":40,
+  "close_power_conflict":true
+}}
+```
+
+- **`close_power_conflict` must be `true`.** With `false` the printer **silently
+  ignores the entire command** — no error, no state change, `info` and `dry_time`
+  untouched. It is the acknowledgement of the power-conflict dialog Bambu Studio
+  shows when the AMS has no separate power supply.
+- **`duration` is in hours.** `8` comes back as `dry_time: 480`.
+- Stopping: this project sends the same command with `mode: 0`. BambuStudio instead
+  has a dedicated `{"print":{"command":"auto_stop_ams_dry"}}` — both appear to work.
+- Progress lives in the **`info` bitfield** of `ams.ams[n]` (hex string):
+  `dryStatus = (parseInt(info,16) >> 4) & 0xF` → `0` off, `1` checking, `2` drying,
+  `3` cooling. Observed: `1003` idle → `1013` checking → `1023` drying.
+- Starting runs a filament-identification pass first (`checking`). If any tray's RFID
+  cannot be read the pass fails and drying aborts after ~5 s — see §2.5 for how that
+  surfaces.
+- Per-spool recommended parameters ship in the RFID tag as
+  `tray[].drying_temp` / `drying_time`. For spools without RFID, the authoritative
+  defaults are in BambuStudio's filament profiles
+  (`resources/profiles/BBL/filament/fdm_filament_*.json`), keys
+  `filament_dev_ams_drying_temperature` / `_time`. **The first element of those
+  arrays is the built-in AMS / AMS 2 Pro tier** and matches what the printer's own
+  screen offers: PLA 45 °C/12 h, PETG 65 °C/12 h, PP 60 °C/12 h, PE 45 °C/12 h,
+  everything else 65 °C/12 h.
+
+### 2.5 Errors
+
+Two separate channels, cleared in different ways:
+
+| | Field | Meaning | Clearable over MQTT |
+|---|---|---|---|
+| Print error | `print_error` (int) | The single current dialog-style error | **Yes** |
+| HMS | `hms[]` (`{attr, code}`) | Health entries — a condition that is *still true* | **No** |
+
+**Hex codes.** `print_error` is 8 hex digits: `117456933` → `07004025`. An HMS entry is
+16: the two halves of `attr` followed by the two halves of `code`, so
+`{attr: 0x07002100, code: 0x00010086}` → `0700210000010086`.
+
+**Human-readable text** comes from Bambu's own error database — the same endpoint
+BambuStudio uses:
+
+```
+https://e.bambulab.com/query.php?lang=zh-cn&e=07004025
+→ {"result":0,"data":{"device_error":{"zh-cn":[{"ecode":"07004025",
+   "intro":"读取耗材信息失败"}]}}}
+```
+
+8-digit codes come back under `device_error`, 16-digit ones under `device_hms`.
+**The `lang` value must be the hyphenated lowercase form** — `zh-cn`, `zh-tw`, `en`,
+`ja`, `de`, `fr`. `zh`, `zh_cn` and `zh_CN` all return an empty result.
+
+**Clearing.** `clean_print_error` did **not** work here. What does is the `system.uiop`
+channel — BambuStudio's `command_clean_print_error_uiop`:
+
+```json
+{"system":{"command":"uiop","name":"print_error","action":"close",
+           "source":1,"type":"dialog","err":"07004025"}}
+```
+
+Verified on hardware: `print_error` goes to `0` immediately. HMS entries stay —
+BambuStudio has no MQTT command for those either; the printer withdraws them when the
+underlying condition clears.
 
 ---
 
@@ -165,9 +290,10 @@ Camera configuration — **the printer tells you its own stream URL**:
   "tray_info_idx": "GFA01",
   "tray_color": "000000FF",        // RRGGBBAA
   "remain": 21,                    // percent remaining, -1 if unknown
+  "tray_weight": "1000",           // grams when full — remain% * this = grams left
   "nozzle_temp_min": "190",
   "nozzle_temp_max": "230",
-  "drying_temp": "55",
+  "drying_temp": "55",             // recommended, from the RFID tag
   "drying_time": "8",
   "tray_uuid": "...",
   "tag_uid": "..."
@@ -175,6 +301,27 @@ Camera configuration — **the printer tells you its own stream URL**:
 ```
 
 An empty slot reports an empty `tray_type`.
+
+`remain` alone is not enough to answer "is there enough filament for this plate" —
+pair it with `tray_weight` (1000 g for a standard spool, 250 g for the small ones) and
+compare against `used_g` from `slice_info.config`.
+
+**The external spool** is a separate one-element array, `vir_slot`, with the same
+shape and `id: "255"`. It is a valid print target — `ams_mapping` value **254** — but
+it has no RFID, so `remain` is meaningless there.
+
+#### Humidity
+
+`ams.ams[n]` carries two humidity fields and they are *not* the same scale:
+
+| Field | Meaning |
+|---|---|
+| `humidity` | Level 1–5 (BambuStudio's `m_humidity_level`) |
+| `humidity_raw` | Percentage (`m_humidity_percent`) — this is what Studio displays |
+
+`humidity_raw` reads `"0"` on this unit at all times, and Bambu Studio shows `0 %` for
+it too, so `0` is a genuine reading rather than a missing value. Treat only a missing
+or non-numeric field as unknown.
 
 ### 3.4 Module versions (`get_version`)
 
@@ -367,11 +514,27 @@ A 3MF is an ordinary ZIP. A file sliced by Bambu Studio / Orca contains:
     <metadata key="weight" value="42.75"/>          <!-- grams -->
     <metadata key="nozzle_diameters" value="0.4"/>
     <metadata key="support_used" value="false"/>
+    <metadata key="filament_maps" value="1 1 1 1"/>  <!-- project filament count -->
     <object identify_id="102" name="bracket.stl" skipped="false"/>
-    <filament id="1" type="PLA" color="#2C2C2E" used_m="14.31" used_g="42.75"/>
+    <filament id="1" tray_info_idx="GFA00" type="PLA" color="#2C2C2E"
+              used_m="14.31" used_g="42.75"/>
+    <warning msg="bed_temperature_too_high_than_filament" level="3"
+             error_code="1000C001"/>
   </plate>
 </config>
 ```
+
+Three fields here are easy to miss and worth reading:
+
+- **`filament_maps`** — the element count is the project's filament count, which is
+  what `ams_mapping` must be sized to. See [§2.3](#23-starting-a-print-the-ams_mapping-trap).
+- **`filament id` / `tray_info_idx`** — `id` is the project filament number (the
+  `ams_mapping` index is `id - 1`); `tray_info_idx` matches the same field on AMS trays,
+  which makes automatic tray selection a lookup rather than a guess.
+- **`<warning>`** — the slicer's own warnings travel inside the file. Level 3 is what
+  Bambu Studio shows in red. The same warning repeats once per object, so de-duplicate
+  by `msg`. Surfacing these before a remote start is nearly free and catches things
+  like a bed temperature above what the filament tolerates.
 
 The plate PNG plus this file is everything a phone needs to identify a job. Reading it
 costs two ranged FTP reads: one for the ZIP tail (which normally contains the whole

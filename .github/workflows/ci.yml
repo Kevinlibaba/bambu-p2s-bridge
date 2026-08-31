@@ -26,7 +26,8 @@ jobs:
       - run: npm ci
         working-directory: bridge
       - name: tsc --noEmit
-        run: npx tsc -p tsconfig.json --noEmit
+        # npm run typecheck 同时检查源码与测试工程，后者只跑 tsc -p tsconfig.json 查不到
+        run: npm run typecheck
         working-directory: bridge
       - name: Unit tests
         run: npm test

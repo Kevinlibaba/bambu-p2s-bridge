@@ -85,6 +85,11 @@ Printer (LAN only)                Bridge host                    Phone
 - **MQTT reports are deltas** and must be deep-merged, with arrays replaced wholesale.
 - **FTPS requires TLS session reuse** (`522 SSL connection failed` otherwise).
   Node's `basic-ftp` handles it; Python's `ftplib` needs a subclass.
+- **`ams_mapping` is indexed by the slicing project's filament number**, and its length
+  must equal the project's filament count — not the number of filaments the plate uses.
+  Get it wrong and the printer pauses at 0 % with `0x07008012`.
+- **`close_power_conflict` must be `true`** to start AMS drying. With `false` the
+  printer silently ignores the whole command: no error, no state change.
 
 ---
 
@@ -195,7 +200,17 @@ Bearer token on everything except `/api/health` and `/app/**`.
 | `POST` | `/api/files/upload` | Import a sliced 3MF (streamed multipart) |
 | `POST` | `/api/files/import` | Import from a URL — the bridge fetches it |
 | `DELETE` | `/api/files?path=…` | Delete a file |
+| `GET` | `/api/print/plan?path=…&plate=1` | Dry run: which tray each filament resolves to, plus pre-flight checks |
 | `POST` | `/api/print/start` | Start a print from a file already on the card |
+| `GET` | `/api/errors?lang=zh-Hans` | Active errors with the official description resolved |
+| `POST` | `/api/errors/clear` | Dismiss the current `print_error` |
+| `POST` | `/api/ams/dry/start` \| `/stop` | AMS filament drying |
+| `POST` | `/api/ams/unload` | Unload filament back into the AMS |
+| `GET` | `/api/history?limit=50` | Job log and monthly stats |
+| `GET` | `/api/history/temps?minutes=60` | Temperature samples for the chart |
+| `GET` | `/api/notify` | Push status, configured sinks, recent notifications |
+| `POST` | `/api/notify/subscribe` \| `/unsubscribe` | Web Push subscription |
+| `POST` | `/api/notify/test` | Fire a test notification through every sink |
 | `WS` | `/api/events` | Live state push |
 
 `/api/files/stream` and `/api/files/download` both honour `Range` and answer `206
@@ -223,6 +238,60 @@ Commands are a closed whitelist with range validation:
 ```
 
 ---
+
+### Notifications
+
+Remote access is only half useful if you have to keep the app open to learn anything.
+The bridge watches state transitions and pushes: print started / finished / paused /
+failed, a new printer error, drying finished, printer offline / back.
+
+Sinks are pluggable and fire in parallel — **Web Push** (no third party involved; the
+PWA receives it even when closed), **Bark**, **ntfy**, **Telegram**, and a generic
+webhook. Configure whichever you want in `.env`; everything left blank is skipped.
+Error notifications resolve the code against Bambu's error database first, so the
+message is a sentence rather than a hex string.
+
+Noise control matters more than delivery here: events fire only on transitions, the
+same event key is suppressed for 10 minutes (the printer re-reports an active error
+every second), and a pause/failure that already carries an error code doesn't also
+fire a separate error notification.
+
+```bash
+# Web Push — no third-party service, works on iOS once installed to the home screen
+npx web-push generate-vapid-keys     # → VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY
+```
+
+> **iOS:** Safari only grants notification permission to a PWA that has been added to
+> the Home Screen. Open the app, Share → Add to Home Screen, then launch it from the
+> icon — the settings page shows this hint automatically when it detects otherwise.
+
+### Pre-flight checks
+
+Starting a print remotely means nobody is standing next to the machine. Before the
+command goes out, `/api/print/plan` reports — and `/api/print/start` refuses on —
+whatever it can determine from the sliced file plus printer state:
+
+| Check | Source |
+|---|---|
+| Enough filament | `remain %` × `tray_weight` from the RFID tag, against the plate's `used_g` |
+| Filament type matches | tray `tray_type` vs the slice, compared by family (PLA Matte counts as PLA) |
+| Nozzle diameter matches | `nozzle_diameters` in the 3MF vs `nozzle.diameter` |
+| Printer idle, SD card present | state |
+| Slicer warnings | the `<warning>` elements already sitting inside `slice_info.config` |
+
+Blocking findings return `409` with the list; the client can retry with
+`{"force": true}` after showing them to a human. The busy-state guard sits in front of
+that and cannot be forced.
+
+### Print history
+
+LAN mode gives you no job history at all — close the app and the run is gone. The
+bridge keeps its own log (JSONL, appended, one line per job) with name, plate, start
+and end, duration, result, layers, and the estimated filament weight looked up from the
+sliced file. From that it derives monthly totals and a success rate.
+
+Jobs the bridge did not observe the start of (it was restarted mid-print) are recorded
+with `partial: true` and no duration, rather than a fabricated one.
 
 ### Camera
 
@@ -287,17 +356,23 @@ are not shipped until they have been validated on real devices.
 
 ## Status and roadmap
 
-Working: live state, camera, pause/resume/stop, lights, temperature, speed, file browsing,
-in-app timelapse/recording playback, 3MF plate preview, dark/light themes.
+Working: live state, WebRTC camera, pause/resume/stop, lights, temperature, speed,
+file browsing, in-app timelapse/recording playback, 3MF plate preview, dark/light
+themes, importing sliced `.gcode.3mf` from the phone or from a URL, deleting files.
 
-Also working: importing sliced `.gcode.3mf` from the phone or from a URL, deleting
-files, and starting a print remotely (gated — see below).
+Also working: remote print start with per-filament tray selection and pre-flight
+checks, AMS filament drying, reading and dismissing printer errors with the official
+description resolved, push notifications, installable PWA, print history and monthly
+stats, temperature chart.
 
 Not done yet:
 - [ ] Native iOS / Android builds
-- [ ] Push notifications (print complete / HMS error / offline)
-- [ ] WebRTC signalling proxy — the true zero-transcode camera path
+- [ ] Drying while printing — needs the separate AMS power adapter, which I don't have,
+      so that path is unimplemented rather than untested
 - [ ] 3D mesh viewer for `3D/3dmodel.model` — deliberately skipped, see below
+
+Verified on hardware except: Web Push delivery to a real device (the bridge-side
+pipeline is verified end to end; only the browser → push-service leg is untested).
 
 ### Why there is no mesh viewer
 
