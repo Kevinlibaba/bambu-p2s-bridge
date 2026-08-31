@@ -28,6 +28,27 @@ const stateText = computed(() => {
   const v = s.value?.state
   return t(`state.${v && KNOWN_STATES.includes(v) ? v : 'UNKNOWN'}`)
 })
+/*
+ * 过渡阶段。打印机在 stg_cur 里报当前处于哪个阶段（调平、换料、擦嘴……），
+ * -1 表示不在任何阶段。0 是「正在打印」，与上面的状态行重复，不再单列。
+ * 对照表 0–77 取自 BambuStudio 的 get_stage_string。
+ */
+const stage = computed(() => s.value?.stage ?? -1)
+const inStage = computed(() => stage.value > 0)
+const stageText = computed(() => {
+  const n = stage.value
+  const key = `stage.${n}`
+  const txt = t(key)
+  // 固件报了对照表里没有的编号时，给出编号而不是空白
+  return txt === key ? t('stage.unknown', { n }) : txt
+})
+/** 这一单的阶段序列里，当前走到第几个 —— 让等待有个尽头 */
+const stageStep = computed(() => {
+  const list = s.value?.stageList ?? []
+  const i = list.indexOf(stage.value)
+  return i >= 0 && list.length > 1 ? { cur: i + 1, total: list.length } : null
+})
+
 const running = computed(() => s.value?.state === 'RUNNING')
 const paused = computed(() => s.value?.state === 'PAUSE')
 // 错误码为 0 时不显示「错误码 0」这种废话
@@ -395,6 +416,14 @@ async function send(c: Command, confirmText?: string) {
           <Meter :pct="s?.progress ?? 0" :tone="meterTone" />
 
           <text class="task">{{ s?.taskName || t('monitor.noTask') }}</text>
+
+          <!-- 过渡阶段：调平、换料这些，比干等着看进度条有用得多 -->
+          <view v-if="inStage" class="stage">
+            <Spinner :size="26" />
+            <text class="stage-t">{{ stageText }}</text>
+            <text v-if="stageStep" class="stage-n">{{ stageStep.cur }}/{{ stageStep.total }}</text>
+          </view>
+
           <view class="facts">
             <text class="fact">{{ t('monitor.layers', { cur: s?.layer ?? 0, total: s?.totalLayers ?? 0 }) }}</text>
             <text class="sep">·</text>
@@ -800,4 +829,9 @@ async function send(c: Command, confirmText?: string) {
 .caret.open { transform: rotate(180deg); }
 .mat .line { padding-left: 24rpx; }
 .chart { margin-top: 24rpx; }
+.stage { display: flex; align-items: center; margin-top: 16rpx; }
+.stage-t { font-size: 25rpx; color: var(--accent); margin-left: 14rpx;
+  letter-spacing: -0.01em; }
+.stage-n { font-size: 22rpx; color: var(--ink-3); margin-left: auto;
+  font-variant-numeric: tabular-nums; }
 </style>

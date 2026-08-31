@@ -42,6 +42,13 @@ export interface Summary {
   lights: { node: string; mode: string }[]
   errors: any[]
   printError: number
+  /**
+   * 当前处于哪个过渡阶段（调平、换料、擦嘴……），-1 表示不在任何阶段。
+   * 对照表见 PROTOCOL.md §3.3c；文案在前端本地化。
+   */
+  stage: number
+  /** 这一单计划要经过的阶段序列，打印机在开始时一次性给出 */
+  stageList: number[]
   wifi: string
   sdcard: boolean
   ams: AmsTray[]
@@ -159,6 +166,9 @@ export class PrinterState extends EventEmitter {
       lights: r.lights_report ?? [],
       errors: r.hms ?? [],
       printError: num(r.print_error),
+      // stg_cur 为 -1 表示当前没有处在任何过渡阶段
+      stage: Number.isFinite(Number(r.stg_cur)) ? Number(r.stg_cur) : -1,
+      stageList: Array.isArray(r.stg) ? (r.stg as number[]).filter((n) => Number.isFinite(n)) : [],
       wifi: r.wifi_signal ?? '',
       sdcard: !!r.sdcard,
       ams: this.amsTrays(),

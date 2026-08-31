@@ -425,6 +425,60 @@ of it to decide which UI to offer. The ones it names:
 
 Observed on this P2S: `fun = "29FD183FF9CB7"`.
 
+### 3.3c Print stages — `stg_cur` and `stg`
+
+Everything the machine does that is not "laying down plastic" is a numbered stage.
+
+| Field | Meaning |
+|---|---|
+| `stg_cur` | The stage happening right now. **`-1` means no stage** (idle, or plain printing). |
+| `stg` | The stages this job plans to go through, in order — sent once when the job starts. |
+
+Observed on a normal P2S job:
+`stg = [29, 2, 13, 11, 4, 8, 14, 3, 54, 1, 255, 51]` — cool chamber, preheat bed, home,
+identify the plate, change filament, calibrate flow, wipe the nozzle, vibration
+compensation, wait for bed temperature, bed level, (255), print calibration lines.
+Values in `stg` that are not in the table below (`255` here) appear to be padding;
+treat anything unmapped as unknown rather than dropping it.
+
+`stg_cur` is worth surfacing because these stages are where the minutes go before the
+first layer, and where a job sits when something needs a human — a progress bar alone
+tells you nothing during them.
+
+Numbering from BambuStudio's `Slic3r::get_stage_string`:
+
+| # | Stage | # | Stage | # | Stage |
+|--:|---|--:|---|--:|---|
+| 0 | Printing | 26 | Paused — AMS offline | 52 | Auto check: material |
+| 1 | Auto bed leveling | 27 | Paused — heatbreak fan slow | 53 | Live view camera calibration |
+| 2 | Heatbed preheating | 28 | Paused — chamber temperature control fault | 54 | Waiting for heatbed to reach target temperature |
+| 3 | Vibration compensation | 29 | Cooling chamber | 55 | Auto check: material position |
+| 4 | Changing filament | 30 | Paused — G-code inserted by user | 56 | Cutting module offset calibration |
+| 5 | M400 pause | 31 | Motor noise showoff | 57 | Measuring surface |
+| 6 | Paused — filament ran out | 32 | Paused — nozzle clumping | 58 | Thermal preconditioning for first layer |
+| 7 | Heating nozzle | 33 | Paused — cutter error | 59 | Homing blade holder |
+| 8 | Calibrating dynamic flow | 34 | Paused — first layer error | 60 | Calibrating camera offset |
+| 9 | Scanning bed surface | 35 | Paused — nozzle clog | 61 | Calibrating blade holder position |
+| 10 | Inspecting first layer | 36 | Measuring motion precision | 62 | Hotend pick and place test |
+| 11 | Identifying build plate type | 37 | Enhancing motion precision | 63 | Waiting for chamber temperature to equalize |
+| 12 | Calibrating micro lidar | 38 | Measuring motion accuracy | 64 | Preparing hotend |
+| 13 | Homing toolhead | 39 | Nozzle offset calibration | 65 | Calibrating nozzle-clumping detection position |
+| 14 | Cleaning nozzle tip | 40 | High-temperature auto bed leveling | 66 | Purifying chamber air |
+| 15 | Checking extruder temperature | 41 | Auto check: quick-release lever | 67 | Measuring rotary attachment |
+| 16 | Paused by the user | 42 | Auto check: door and upper cover | 68 | Toolhead moves above the purge chute |
+| 17 | Paused — front cover fell off | 43 | Laser calibration | 69 | Cooling down the nozzle |
+| 18 | Calibrating micro lidar | 44 | Auto check: platform | 70 | Toolhead moves to the centre of the heatbed |
+| 19 | Calibrating flow ratio | 45 | Confirming BirdsEye camera location | 71 | Active arc fitting |
+| 20 | Paused — nozzle temperature fault | 46 | Calibrating BirdsEye camera | 72 | Hotend type detection |
+| 21 | Paused — heatbed temperature fault | 47 | Auto bed leveling — phase 1 | 73 | Build plate alignment detection |
+| 22 | Filament unloading | 48 | Auto bed leveling — phase 2 | 74 | Heatbed surface foreign object detection |
+| 23 | Paused — step loss | 49 | Heating chamber | 75 | Heatbed underside foreign object detection |
+| 24 | Filament loading | 50 | Adjusting heatbed temperature | 76 | Pre-extrusion before printing |
+| 25 | Motor noise cancellation | 51 | Printing calibration lines | 77 | Preparing AMS |
+
+Note 12 and 18 are both "calibrating micro lidar", and 36/38 are near-duplicates —
+that is how the upstream table reads, not a transcription slip.
+
 ### 3.4 Module versions (`get_version`)
 
 ```

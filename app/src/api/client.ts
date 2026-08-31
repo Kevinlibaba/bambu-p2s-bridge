@@ -114,6 +114,10 @@ export interface Summary {
   lights: { node: string; mode: string }[]
   errors: unknown[]
   printError: number
+  /** 当前过渡阶段（调平、换料、擦嘴…），-1 表示不在任何阶段。文案见 locale 的 stage.* */
+  stage: number
+  /** 这一单计划要经过的阶段序列 */
+  stageList: number[]
   wifi: string
   sdcard: boolean
   ams: AmsTray[]
