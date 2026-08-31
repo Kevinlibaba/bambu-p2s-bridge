@@ -95,7 +95,12 @@ interface ZipCacheItem {
   at: number
 }
 
-export function registerFileRoutes(app: FastifyInstance, backend: FileBackend = ftp): void {
+export function registerFileRoutes(
+  app: FastifyInstance,
+  backend: FileBackend = ftp,
+  /** 查某个文件上次打印的时间。只传一个函数，不把整个 History 拖进来。 */
+  lastPrintedAt?: (name: string) => number | null,
+): void {
   const zipCache = new Map<string, ZipCacheItem>()
 
   function queryPath(req: FastifyRequest): string {
@@ -127,7 +132,15 @@ export function registerFileRoutes(app: FastifyInstance, backend: FileBackend = 
       return fail(reply, new BadRequest('非法路径'))
     }
     try {
-      return { path, files: await backend.listDir(path) }
+      const files = await backend.listDir(path)
+      // 给切片文件补上「上次打印时间」，界面据此排序。
+      // 这是个只读的内存查表，不额外访问打印机。
+      return {
+        path,
+        files: files.map((f) =>
+          f.isDirectory ? f : { ...f, lastPrintedAt: lastPrintedAt?.(f.name) ?? null },
+        ),
+      }
     } catch (e) {
       return fail(reply, e)
     }

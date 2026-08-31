@@ -118,3 +118,44 @@ test('查不到切片文件时仍然记账，克重留空', async () => {
   assert.equal(j.weightG, null)
   assert.equal(j.result, 'finished')
 })
+
+// ---- 文件名 ↔ 任务名 匹配 ----
+import { normalizeJobName } from '../src/history/index.js'
+
+/*
+ * 打印机上报的 taskName 会把下划线换成空格：文件叫
+ * M107_Barret_Sniper_rifle.gcode.3mf，任务名却是 "M107 Barret Sniper rifle"。
+ * 这是实测数据，直接比字符串永远对不上。
+ */
+test('归一化后文件名与任务名能对上', () => {
+  assert.equal(
+    normalizeJobName('M107_Barret_Sniper_rifle.gcode.3mf'),
+    normalizeJobName('M107 Barret Sniper rifle'),
+  )
+  // 中文名本来就一致
+  assert.equal(normalizeJobName('M82 巴雷特.gcode.3mf'), normalizeJobName('M82 巴雷特'))
+  // 三种扩展名都要剥掉
+  for (const ext of ['.gcode.3mf', '.3mf', '.gcode']) {
+    assert.equal(normalizeJobName('foo bar' + ext), 'foo bar')
+  }
+  // 名字相近的不能混为一谈
+  assert.notEqual(
+    normalizeJobName('M107_Barret_Sniper_rifle.gcode.3mf'),
+    normalizeJobName('M107_Barret_V3_.gcode.3mf'),
+  )
+})
+
+test('上次打印时间取最近一次，正在打印的那单也算', async () => {
+  const h = make()
+  await h.feed(sum())
+  await h.feed(run({ taskName: 'A' }))
+  await h.feed(sum({ state: 'FINISH', taskName: 'A' }))
+  const first = h.lastPrintedAt('A.gcode.3mf')
+  assert.ok(first && first > 0)
+  assert.equal(h.lastPrintedAt('没打过的.3mf'), null)
+
+  // 又开了一单，正在打印中也要能查到
+  await h.feed(run({ taskName: 'B_two' }))
+  await h.feed(run({ taskName: 'B_two', progress: 5 }))
+  assert.ok(h.lastPrintedAt('B two.gcode.3mf'), '下划线与空格要能对上')
+})

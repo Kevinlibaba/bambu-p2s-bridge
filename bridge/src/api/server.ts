@@ -97,7 +97,7 @@ export async function buildServer(
   })
 
   // ---- 文件（FTPS）：列目录、Range 流式读取、3MF 预览 ----
-  registerFileRoutes(app)
+  registerFileRoutes(app, undefined, (name) => history.lastPrintedAt(name))
   registerPrintRoutes(app, mqtt, state)
   registerAmsRoutes(app, mqtt, state)
   registerErrorRoutes(app, mqtt, state)

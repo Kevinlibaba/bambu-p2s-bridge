@@ -153,7 +153,10 @@
     "externalSlot": "External spool · {name}",
     "externalShort": "the external spool",
     "slotShort": "slot {n}",
-    "plateGroup": "Plate"
+    "plateGroup": "Plate",
+    "lastPrinted": "printed {d}",
+    "today": "today",
+    "yesterday": "yesterday"
   },
   "settings": {
     "serverGroup": "Server",

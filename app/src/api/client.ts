@@ -158,6 +158,8 @@ export interface RemoteFile {
   size: number
   isDirectory: boolean
   modifiedAt: string | null
+  /** 上次打印的时间戳；没打过或不是切片文件时为 null/缺省 */
+  lastPrintedAt?: number | null
 }
 
 /** .gcode.3mf 预览：桥接侧从包里抽出来的信息，整包永远不下发到手机 */

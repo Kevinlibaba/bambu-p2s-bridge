@@ -153,7 +153,10 @@
     "externalSlot": "外置料盘 · {name}",
     "externalShort": "外置料盘",
     "slotShort": "槽 {n}",
-    "plateGroup": "打印盘"
+    "plateGroup": "打印盘",
+    "lastPrinted": "打印于 {d}",
+    "today": "今天",
+    "yesterday": "昨天"
   },
   "settings": {
     "serverGroup": "服务器",

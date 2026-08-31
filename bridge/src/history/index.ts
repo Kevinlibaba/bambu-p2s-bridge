@@ -54,6 +54,19 @@ function plateOf(file: string): number | null {
   return m ? Number(m[1]) : null
 }
 
+/**
+ * 归一化任务名/文件名后再比。打印机上报的 taskName 会把下划线换成空格 ——
+ * 文件叫 M107_Barret_Sniper_rifle.gcode.3mf，任务名却是
+ * "M107 Barret Sniper rifle"，直接比字符串永远对不上。
+ */
+export function normalizeJobName(s: string): string {
+  return s
+    .replace(/\.gcode\.3mf$|\.3mf$|\.gcode$/i, '')
+    .replace(/[_\s]+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
 export class History {
   private jobs: JobRecord[] = []
   private open: { started: number; snap: Summary; partial: boolean } | null = null
@@ -164,6 +177,25 @@ export class History {
       partial,
     })
     this.open = null
+  }
+
+  /**
+   * 某个文件最近一次打印的时间。正在打印的那一单也算 —— 否则刚开打的文件
+   * 会排到最后，与直觉相反。查不到返回 null。
+   */
+  lastPrintedAt(fileName: string): number | null {
+    const key = normalizeJobName(fileName)
+    if (!key) return null
+    let best: number | null = null
+    for (const j of this.jobs) {
+      if (normalizeJobName(j.name) !== key) continue
+      if (best === null || j.endedAt > best) best = j.endedAt
+    }
+    const open = this.open
+    if (open && normalizeJobName(open.snap.taskName) === key) {
+      best = Math.max(best ?? 0, open.started)
+    }
+    return best
   }
 
   list(limit = 50): JobRecord[] {

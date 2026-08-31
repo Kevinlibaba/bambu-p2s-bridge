@@ -96,14 +96,34 @@ function isUserFile(f: RemoteFile): boolean {
   return !f.name.startsWith('.') && !JUNK_DIRS.has(name) && !JUNK_PATTERN.test(name)
 }
 
+/** 上次打印时间。今天/昨天说人话，再往前给日期 —— 精确到分钟没有意义 */
+function fmtDay(ts: number): string {
+  const d = new Date(ts)
+  const midnight = new Date()
+  midnight.setHours(0, 0, 0, 0)
+  const days = Math.floor((midnight.getTime() - d.getTime()) / 86400000) + 1
+  if (days <= 0) return t('files.today')
+  if (days === 1) return t('files.yesterday')
+  return `${d.getMonth() + 1}/${String(d.getDate()).padStart(2, '0')}`
+}
+
 async function load(p = path.value) {
   if (!configured.value) return
   loading.value = true; error.value = ''
   try {
     const r = await api.files(p)
     path.value = r.path
-    files.value = r.files.filter(isUserFile).sort((a, b) =>
-      a.isDirectory !== b.isDirectory ? (a.isDirectory ? -1 : 1) : a.name.localeCompare(b.name))
+    /*
+     * 排序：目录在前；然后按上次打印时间倒序 —— 想再打一遍的多半是刚打过的。
+     * 没打过的排在打过的之后，内部按名字，保证顺序稳定。
+     */
+    files.value = r.files.filter(isUserFile).sort((a, b) => {
+      if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
+      const pa = a.lastPrintedAt ?? 0
+      const pb = b.lastPrintedAt ?? 0
+      if (pa !== pb) return pb - pa
+      return a.name.localeCompare(b.name)
+    })
     void loadThumbs(r.path)
   } catch (e) {
     error.value = (e as Error).message; files.value = []
@@ -449,6 +469,10 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
               <text class="sub">
                 {{ f.isDirectory ? t('files.dir') : fmtSize(f.size) }}
                 <text v-if="f.modifiedAt"> · {{ f.modifiedAt.slice(0, 10) }}</text>
+                <!-- 标出上次打印时间，排序才看得懂为什么是这个顺序 -->
+                <text v-if="f.lastPrintedAt" class="printed">
+                  · {{ t('files.lastPrinted', { d: fmtDay(f.lastPrintedAt) }) }}
+                </text>
               </text>
             </view>
             <text v-if="!f.isDirectory && kindOf(f.name) !== 'other'" class="tag">
@@ -819,4 +843,5 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 .chk-dot.warn { background: var(--warning); }
 .chk-t { flex: 1; font-size: 27rpx; color: var(--ink); line-height: 1.5;
   letter-spacing: -0.01em; }
+.printed { color: var(--accent); }
 </style>
