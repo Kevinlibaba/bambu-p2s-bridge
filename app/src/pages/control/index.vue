@@ -5,6 +5,7 @@ import { onShow } from '@dcloudio/uni-app'
 import { api, configured, type Command } from '../../api/client'
 import { printer } from '../../store/printer'
 import { themeClass, applyChrome } from '../../store/prefs'
+import { confirm, toast } from '../../util/dialog'
 
 const { t } = useI18n()
 const s = computed(() => printer.summary)
@@ -28,13 +29,11 @@ onShow(() => applyChrome('tab.control'))
 
 async function send(c: Command, confirmText?: string) {
   if (confirmText) {
-    const ok = await new Promise<boolean>((r) =>
-      uni.showModal({ title: t('common.confirmTitle'), content: confirmText, confirmColor: '#2997ff',
-        success: (m) => r(!!m.confirm), fail: () => r(false) }))
+    const ok = await confirm(t('common.confirmTitle'), confirmText)
     if (!ok) return
   }
-  try { await api.command(c); uni.showToast({ title: t('common.sent'), icon: 'none' }) }
-  catch (e) { uni.showToast({ title: (e as Error).message, icon: 'none', duration: 2500 }) }
+  try { await api.command(c); toast(t('common.sent')) }
+  catch (e) { toast((e as Error).message) }
 }
 
 const step = (which: 'n' | 'b', d: number) => {

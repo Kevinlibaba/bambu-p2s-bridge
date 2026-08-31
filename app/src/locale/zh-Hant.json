@@ -31,12 +31,13 @@
     "on": "開",
     "off": "關",
     "none": "—",
-    "loading": "載入中",
     "notConfigured": "請先在設定中設定伺服器",
     "online": "線上",
     "offline": "離線",
     "yes": "是",
-    "no": "否"
+    "no": "否",
+    "confirm": "確定",
+    "cancel": "取消"
   },
   "monitor": {
     "emptyTitle": "尚未連線。",
@@ -211,7 +212,6 @@
     "lightOff": "關燈"
   },
   "import": {
-    "action": "匯入模型",
     "sheetTitle": "匯入模型",
     "fromFile": "從檔案選擇",
     "fromFileHint": "選擇電腦上切好的 .gcode.3mf",
@@ -219,13 +219,11 @@
     "fromLinkHint": "由橋接服務下載，不佔用手機流量",
     "linkTitle": "貼上連結",
     "linkPlaceholder": "https://…/model.gcode.3mf",
-    "nameTitle": "儲存為",
     "uploading": "上傳中 {pct}%",
     "fetching": "下載中",
     "done": "已匯入 {name}",
     "onlyThreeMf": "只支援已切片的 .gcode.3mf 檔案",
     "note": "印表機只能列印已切片的 .gcode.3mf。原始 STL/STEP 需先在電腦上切片。",
-    "entryHint": "從裝置或連結加入已切片檔案",
     "confirm": "匯入",
     "progressTitle": "正在匯入",
     "verifying": "驗證中"
@@ -241,15 +239,11 @@
     "title": "確認開始列印",
     "desc": "即將列印「{name}」第 {plate} 盤。\n\n印表機會立即加熱並開始運動。請確認耗材已裝好、熱床已清理、首層有人看管。",
     "started": "已送出列印指令",
-    "plate": "列印盤",
-    "useAms": "使用 AMS",
-    "busy": "印表機忙碌中，無法開始新任務",
     "risk": "遠端開始列印屬於無人看管操作，請自行評估風險。"
   },
   "dry": {
     "title": "耗材烘乾",
     "entry": "烘乾",
-    "open": "檢視烘乾",
     "status": {
       "off": "未烘乾",
       "checking": "自檢中",
@@ -270,7 +264,6 @@
     "confirmStart": "將以 {t}℃ 烘乾 {h} 小時。\n\nAMS 會持續通電加熱，請確認艙內只有需要烘乾的耗材。",
     "confirmStop": "停止烘乾？",
     "blocked": "目前無法烘乾",
-    "fix": "去處理",
     "blocker": {
       "printing": "印表機有工作進行中",
       "filamentLoaded": "耗材還在擠出機裡",

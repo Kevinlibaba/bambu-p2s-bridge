@@ -7,6 +7,7 @@ import {
   type RemoteFile, type ThreeMfInfo, type PrintPlan, type PlanTray, type PreflightCheck,
 } from '../../api/client'
 import { themeClass, applyChrome } from '../../store/prefs'
+import { confirm, toast } from '../../util/dialog'
 import Sheet from '../../components/Sheet.vue'
 import Meter from '../../components/Meter.vue'
 import Spinner from '../../components/Spinner.vue'
@@ -316,24 +317,13 @@ function save() {
   uni.downloadFile({
     url,
     success: (r) => uni.openDocument({ filePath: r.tempFilePath, fail: () => {} }),
-    fail: () => uni.showToast({ title: t('files.previewFailed'), icon: 'none' }),
+    fail: () => toast(t('files.previewFailed')),
   })
   // #endif
 }
 
 const busy = ref('')
 
-function toast(msg: string) {
-  uni.showToast({ title: msg, icon: 'none', duration: 2200 })
-}
-function confirm(title: string, content: string, danger = false): Promise<boolean> {
-  return new Promise((r) =>
-    uni.showModal({
-      title, content, confirmColor: danger ? '#ff453a' : '#2997ff',
-      success: (m) => r(!!m.confirm), fail: () => r(false),
-    }),
-  )
-}
 
 // ---- 导入 ----
 /**

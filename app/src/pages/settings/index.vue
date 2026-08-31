@@ -15,6 +15,7 @@ import {
   type ThemePref, type LocalePref,
 } from '../../store/prefs'
 import { LOCALES } from '../../locale'
+import { confirm } from '../../util/dialog'
 
 const { t } = useI18n()
 const form = ref<Settings>({ baseUrl: '', token: '' })
@@ -151,13 +152,10 @@ async function testAndSave() {
 }
 
 function clearAll() {
-  uni.showModal({
-    title: t('settings.clearTitle'), content: t('settings.clearDesc'), confirmColor: '#ff453a',
-    success: (r) => {
-      if (!r.confirm) return
-      stop(); saveSettings({ baseUrl: '', token: '' })
-      form.value = { baseUrl: '', token: '' }; result.value = ''
-    },
+  void confirm(t('settings.clearTitle'), t('settings.clearDesc'), true).then((ok) => {
+    if (!ok) return
+    stop(); saveSettings({ baseUrl: '', token: '' })
+    form.value = { baseUrl: '', token: '' }; result.value = ''
   })
 }
 

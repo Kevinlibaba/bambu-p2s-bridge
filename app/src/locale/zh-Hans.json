@@ -31,12 +31,13 @@
     "on": "开",
     "off": "关",
     "none": "—",
-    "loading": "载入中",
     "notConfigured": "请先在设置中配置服务器",
     "online": "在线",
     "offline": "离线",
     "yes": "是",
-    "no": "否"
+    "no": "否",
+    "confirm": "确定",
+    "cancel": "取消"
   },
   "monitor": {
     "emptyTitle": "还没连上。",
@@ -211,7 +212,6 @@
     "lightOff": "关灯"
   },
   "import": {
-    "action": "导入模型",
     "sheetTitle": "导入模型",
     "fromFile": "从文件选择",
     "fromFileHint": "选择电脑上切好的 .gcode.3mf",
@@ -219,13 +219,11 @@
     "fromLinkHint": "由桥接服务下载，不占用手机流量",
     "linkTitle": "粘贴链接",
     "linkPlaceholder": "https://…/model.gcode.3mf",
-    "nameTitle": "保存为",
     "uploading": "上传中 {pct}%",
     "fetching": "下载中",
     "done": "已导入 {name}",
     "onlyThreeMf": "只支持已切片的 .gcode.3mf 文件",
     "note": "打印机只能打印已切片的 .gcode.3mf。原始 STL/STEP 需要先在电脑上切片。",
-    "entryHint": "从设备或链接添加已切片文件",
     "confirm": "导入",
     "progressTitle": "正在导入",
     "verifying": "校验中"
@@ -241,15 +239,11 @@
     "title": "确认开始打印",
     "desc": "即将打印「{name}」第 {plate} 盘。\n\n打印机会立即加热并开始运动。请确认耗材已装好、热床已清理、首层有人看管。",
     "started": "已下发打印指令",
-    "plate": "打印盘",
-    "useAms": "使用 AMS",
-    "busy": "打印机正忙，无法开始新任务",
     "risk": "远程开打属于无人值守操作，请自行评估风险。"
   },
   "dry": {
     "title": "耗材烘干",
     "entry": "烘干",
-    "open": "查看烘干",
     "status": {
       "off": "未烘干",
       "checking": "自检中",
@@ -270,7 +264,6 @@
     "confirmStart": "将以 {t}℃ 烘干 {h} 小时。\n\nAMS 会持续通电加热，请确认仓内只有需要烘干的耗材。",
     "confirmStop": "停止烘干？",
     "blocked": "当前无法烘干",
-    "fix": "去处理",
     "blocker": {
       "printing": "打印机有任务在进行",
       "filamentLoaded": "耗材还在挤出机里",

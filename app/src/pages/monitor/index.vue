@@ -5,6 +5,7 @@ import { onShow, onHide, onPullDownRefresh } from '@dcloudio/uni-app'
 import { api, configured, type Command } from '../../api/client'
 import { printer, restart } from '../../store/printer'
 import { themeClass, applyChrome } from '../../store/prefs'
+import { confirm as confirmAsk, toast } from '../../util/dialog'
 import StatTile from '../../components/StatTile.vue'
 import Meter from '../../components/Meter.vue'
 import AmsSlot from '../../components/AmsSlot.vue'
@@ -119,7 +120,7 @@ const rateLabel = computed(() =>
 function onCamFallback() {
   if (camMode.value === 'live') {
     camMode.value = 'saver'
-    uni.showToast({ title: t('monitor.liveFallback'), icon: 'none', duration: 2600 })
+    toast(t('monitor.liveFallback'))
   }
 }
 
@@ -273,15 +274,6 @@ const humidityText = computed(() => {
   return pct === undefined || pct === null ? '—' : t('dry.humidityPct', { p: pct })
 })
 
-function confirmAsk(title: string, content: string, danger = false): Promise<boolean> {
-  return new Promise((r) =>
-    uni.showModal({
-      title, content, confirmColor: danger ? '#ff453a' : '#2997ff',
-      success: (m) => r(!!m.confirm), fail: () => r(false),
-    }),
-  )
-}
-const toast = (msg: string) => uni.showToast({ title: msg, icon: 'none', duration: 2600 })
 
 async function doStartDry() {
   if (!unit.value) return
@@ -337,19 +329,14 @@ const stepHours = (d: number) => { dryHours.value = clampH(dryHours.value + d) }
 
 async function send(c: Command, confirmText?: string) {
   if (confirmText) {
-    const ok = await new Promise<boolean>((resolve) =>
-      uni.showModal({
-        title: t('common.confirmTitle'), content: confirmText, confirmColor: '#2997ff',
-        success: (r) => resolve(!!r.confirm), fail: () => resolve(false),
-      }),
-    )
+    const ok = await confirmAsk(t('common.confirmTitle'), confirmText)
     if (!ok) return
   }
   try {
     await api.command(c)
-    uni.showToast({ title: t('common.sent'), icon: 'none' })
+    toast(t('common.sent'))
   } catch (e) {
-    uni.showToast({ title: (e as Error).message, icon: 'none', duration: 2500 })
+    toast((e as Error).message)
   }
 }
 </script>

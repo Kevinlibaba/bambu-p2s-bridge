@@ -31,12 +31,13 @@
     "on": "On",
     "off": "Off",
     "none": "—",
-    "loading": "Loading",
     "notConfigured": "Configure the server in Settings first",
     "online": "online",
     "offline": "offline",
     "yes": "Yes",
-    "no": "No"
+    "no": "No",
+    "confirm": "OK",
+    "cancel": "Cancel"
   },
   "monitor": {
     "emptyTitle": "Not connected.",
@@ -211,7 +212,6 @@
     "lightOff": "Light off"
   },
   "import": {
-    "action": "Import model",
     "sheetTitle": "Import model",
     "fromFile": "Choose a file",
     "fromFileHint": "Pick a sliced .gcode.3mf from this device",
@@ -219,13 +219,11 @@
     "fromLinkHint": "The bridge downloads it — no mobile data used",
     "linkTitle": "Paste a link",
     "linkPlaceholder": "https://…/model.gcode.3mf",
-    "nameTitle": "Save as",
     "uploading": "Uploading {pct}%",
     "fetching": "Downloading",
     "done": "Imported {name}",
     "onlyThreeMf": "Only sliced .gcode.3mf files are supported",
     "note": "The printer can only print sliced .gcode.3mf. Raw STL/STEP must be sliced on a computer first.",
-    "entryHint": "Add a sliced file from this device or a link",
     "confirm": "Import",
     "progressTitle": "Importing",
     "verifying": "Verifying"
@@ -241,15 +239,11 @@
     "title": "Start printing?",
     "desc": "About to print “{name}”, plate {plate}.\n\nThe printer will start heating and moving immediately. Check that filament is loaded, the bed is clear, and someone can watch the first layer.",
     "started": "Print command sent",
-    "plate": "Plate",
-    "useAms": "Use AMS",
-    "busy": "The printer is busy and cannot start a new job",
     "risk": "Starting a print remotely means it runs unattended. Judge the risk yourself."
   },
   "dry": {
     "title": "Filament drying",
     "entry": "Drying",
-    "open": "View drying",
     "status": {
       "off": "Not drying",
       "checking": "Checking",
@@ -270,7 +264,6 @@
     "confirmStart": "Dry at {t}℃ for {h} hours.\n\nThe AMS will heat continuously. Check that only filament you want dried is inside.",
     "confirmStop": "Stop drying?",
     "blocked": "Cannot dry right now",
-    "fix": "Resolve",
     "blocker": {
       "printing": "A print job is in progress",
       "filamentLoaded": "Filament is still in the extruder",
