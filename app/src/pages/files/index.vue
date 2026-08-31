@@ -9,6 +9,7 @@ import {
 import { themeClass, applyChrome } from '../../store/prefs'
 import Sheet from '../../components/Sheet.vue'
 import Meter from '../../components/Meter.vue'
+import Spinner from '../../components/Spinner.vue'
 
 const { t } = useI18n()
 const path = ref('/')
@@ -318,7 +319,7 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
         </view>
       </view>
 
-      <view v-if="loading" class="empty"><text class="empty-s">{{ t('common.loading') }}</text></view>
+      <view v-if="loading" class="empty"><Spinner /></view>
       <view v-else-if="error" class="empty"><text class="empty-s err">{{ error }}</text></view>
       <view v-else-if="!files.length" class="empty"><text class="empty-s">{{ t('files.emptyDir') }}</text></view>
 
@@ -357,8 +358,8 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 
       <!-- 3MF：包内渲染图 + slice_info.config -->
       <template v-else-if="selKind === 'model'">
-        <view v-if="modelLoading" class="ph"><text class="ph-t">{{ t('common.loading') }}</text></view>
-        <view v-else-if="modelError" class="ph"><text class="ph-t err">{{ modelError }}</text></view>
+        <view v-if="modelLoading" class="ph-box"><Spinner :size="40" /></view>
+        <view v-else-if="modelError" class="ph-box"><text class="ph-t err">{{ modelError }}</text></view>
         <template v-else-if="model">
           <view v-if="model.plates.length > 1" class="segs plates">
             <view v-for="(p, i) in model.plates" :key="p.index" class="seg"
@@ -368,7 +369,7 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
           </view>
 
           <image v-if="plateUrl" class="plate" :src="plateUrl" mode="aspectFit" />
-          <view v-else class="ph"><text class="ph-t">{{ t('files.noPreview') }}</text></view>
+          <view v-else class="ph-box"><text class="ph-t">{{ t('files.noPreview') }}</text></view>
 
           <view v-if="plate" class="card sheet-card">
             <view v-if="plate.prediction" class="line">
@@ -514,7 +515,8 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 <style scoped>
 .root { background: var(--bg); min-height: 100vh; }
 .body { padding: 36rpx 36rpx 140rpx; }
-.empty { padding: 140rpx 60rpx; text-align: center; }
+.empty { padding: 140rpx 60rpx; display: flex; align-items: center;
+  justify-content: center; flex-direction: column; }
 .empty-s { font-size: 28rpx; color: var(--ink-2); letter-spacing: -0.01em; }
 .err { color: var(--critical); }
 
@@ -584,7 +586,9 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 .player { width: 100%; height: 420rpx; border-radius: 24rpx; background: #000000; }
 .shot { width: 100%; border-radius: 24rpx; background: var(--surface); }
 .plate { width: 100%; height: 460rpx; border-radius: 24rpx; background: var(--surface); }
-.ph { padding: 90rpx 0; text-align: center; background: var(--surface); border-radius: 24rpx; }
+/* 预览占位框。注意别叫 .ph —— 那个名字被输入框的 placeholder-class 占着 */
+.ph-box { padding: 90rpx 0; background: var(--surface); border-radius: 24rpx;
+  display: flex; align-items: center; justify-content: center; }
 .ph-t { font-size: 26rpx; color: var(--ink-2); letter-spacing: -0.01em; }
 
 .sheet-card { margin-top: 24rpx; }
