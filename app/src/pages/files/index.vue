@@ -11,6 +11,7 @@ import { confirm, toast } from '../../util/dialog'
 import Sheet from '../../components/Sheet.vue'
 import Meter from '../../components/Meter.vue'
 import Spinner from '../../components/Spinner.vue'
+import FileIcon from '../../components/FileIcon.vue'
 
 const { t } = useI18n()
 const path = ref('/')
@@ -489,9 +490,7 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
         <view v-for="(f, i) in files" :key="f.name">
           <view v-if="i > 0" class="hsep" />
           <view class="row" @click="open(f)">
-            <view class="ic" :class="{ dir: f.isDirectory }">
-              <text class="ic-t">{{ f.isDirectory ? '›' : '·' }}</text>
-            </view>
+            <FileIcon :kind="f.isDirectory ? 'dir' : kindOf(f.name)" />
             <view class="meta">
               <text class="name">{{ f.name }}</text>
               <text class="sub">
@@ -749,11 +748,6 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 .hsep { height: 1rpx; background: var(--separator); }
 .row { display: flex; align-items: center; padding: 26rpx 0; }
 .row:active { opacity: 0.55; }
-.ic { width: 40rpx; height: 40rpx; border-radius: 12rpx; background: var(--surface-2);
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.ic.dir { background: var(--accent-dim); }
-.ic-t { font-size: 26rpx; color: var(--ink-2); line-height: 1; }
-.ic.dir .ic-t { color: var(--accent); }
 .meta { margin-left: 24rpx; flex: 1; min-width: 0; }
 .name { display: block; font-size: 29rpx; color: var(--ink);
   letter-spacing: -0.02em; word-break: break-all; line-height: 1.35; }
