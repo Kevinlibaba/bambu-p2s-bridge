@@ -118,6 +118,8 @@ export function registerFileRoutes(
     if (e instanceof ftp.TooManyReadsError) return reply.code(503).send({ error: e.message })
     if (e instanceof ftp.NotAFileError) return reply.code(e.status).send({ error: e.message })
     if (e instanceof ZipFormatError) return reply.code(422).send({ error: e.message })
+    // 路径不合法是客户端的问题，别兜底成「FTPS 失败」—— 那会把人引向排查网络
+    if (e instanceof ftp.BadPathError) return reply.code(400).send({ error: e.message })
     return reply.code(502).send({ error: `FTPS 失败: ${(e as Error).message}` })
   }
 

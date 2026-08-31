@@ -51,13 +51,26 @@ export class TooManyReadsError extends Error {
   }
 }
 
+export class BadPathError extends Error {
+  constructor(msg = '非法路径') {
+    super(msg)
+    this.name = 'BadPathError'
+  }
+}
+
 function normalize(path: string): string {
-  const p = '/' + path.replace(/^\/+/, '')
-  // 挡掉路径穿越
-  if (p.includes('..')) throw new Error('非法路径')
   // 控制字符会被原样拼进 FTP 命令行，CRLF 等同于命令注入
-  if (/[\u0000-\u001f\u007f]/.test(p)) throw new Error('非法路径')
-  return p
+  if (/[\u0000-\u001f\u007f]/.test(path)) throw new BadPathError('路径含控制字符')
+
+  /*
+   * 路径穿越要按「路径段」判，不能用子串。
+   * 原来写的是 path.includes('..')，把任何含两个连续点的文件名都当成攻击 ——
+   * 「Cool Model....3mf」这种从模型站下下来的名字直接被拒，
+   * 而它和 ../ 毫无关系。实测就是这个把导入卡住的。
+   */
+  const parts = path.split('/').filter((seg) => seg !== '' && seg !== '.')
+  if (parts.some((seg) => seg === '..')) throw new BadPathError('路径不能包含上级目录')
+  return '/' + parts.join('/')
 }
 
 /** 供路由层在进 FTP 之前就做同一套校验 */
