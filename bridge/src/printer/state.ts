@@ -88,6 +88,8 @@ export interface AmsTray {
   trayInfoIdx: string
   color: string
   remainPct: number
+  /** 整卷满料时的克重，来自 RFID。配合 remainPct 能算出实际剩余克数 */
+  weightG: number
   nozzleTempMin: number
   nozzleTempMax: number
   /** 该卷耗材 RFID 里带的推荐烘干参数，0 表示没有 */
@@ -232,6 +234,7 @@ export class PrinterState extends EventEmitter {
           trayInfoIdx: t.tray_info_idx ?? '',
           color: t.tray_color ?? '',
           remainPct: num(t.remain, -1),
+          weightG: num(t.tray_weight),
           nozzleTempMin: num(t.nozzle_temp_min),
           nozzleTempMax: num(t.nozzle_temp_max),
           dryTemp: num(t.drying_temp),

@@ -131,7 +131,26 @@
     "slotName": "スロット {n} · {name}",
     "noSlot": "未設定",
     "planning": "スロットを照合中…",
-    "pickSlotFirst": "各フィラメントにスロットを指定してください"
+    "pickSlotFirst": "各フィラメントにスロットを指定してください",
+    "checkGroup": "印刷前チェック",
+    "checkTitle": "チェックに失敗",
+    "checkForce": "それでも印刷しますか？",
+    "check": {
+      "filamentLow": "スロット {slot} の残量は約 {left} g、このプレートには {need} g 必要です",
+      "typeMismatch": "スロット {slot} は {have}、スライスは {want} を要求しています",
+      "nozzleMismatch": "{want} mm ノズル向けのスライスですが、プリンターは {have} mm です",
+      "printerBusy": "プリンターは {state} のため新しいジョブを開始できません",
+      "noSdCard": "SD カードが検出されません",
+      "printerError": "未処理のエラーが {count} 件あります",
+      "sliceWarning": "スライサーの警告: {msg}"
+    },
+    "slice": {
+      "bed_temperature_too_high_than_filament": "ベッド温度がこのフィラメントの耐熱を超えています",
+      "object_outside": "モデルが造形範囲を超えています",
+      "toolpath_outside": "ツールパスが造形範囲を超えています",
+      "nozzle_hrc_checker": "フィラメントがノズルの耐摩耗性を超えています",
+      "filament_is_not_compatible": "このプリンターと互換性のないフィラメントです"
+    }
   },
   "settings": {
     "serverGroup": "サーバー",

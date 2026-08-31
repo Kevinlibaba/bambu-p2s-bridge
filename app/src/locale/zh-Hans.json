@@ -131,7 +131,26 @@
     "slotName": "槽 {n} · {name}",
     "noSlot": "未指定",
     "planning": "正在匹配料盘…",
-    "pickSlotFirst": "请先为每种耗材指定料盘"
+    "pickSlotFirst": "请先为每种耗材指定料盘",
+    "checkGroup": "打印前检查",
+    "checkTitle": "自检未通过",
+    "checkForce": "仍然打印？",
+    "check": {
+      "filamentLow": "槽 {slot} 余量约 {left} 克，这个盘需要 {need} 克",
+      "typeMismatch": "槽 {slot} 装的是 {have}，切片要求 {want}",
+      "nozzleMismatch": "切片按 {want} mm 喷嘴生成，打印机上是 {have} mm",
+      "printerBusy": "打印机当前状态为 {state}，无法开始新任务",
+      "noSdCard": "打印机没有检测到 SD 卡",
+      "printerError": "打印机当前有 {count} 条未处理的报错",
+      "sliceWarning": "切片器告警：{msg}"
+    },
+    "slice": {
+      "bed_temperature_too_high_than_filament": "热床温度高于该耗材的耐受范围",
+      "object_outside": "有模型超出可打印范围",
+      "toolpath_outside": "走刀路径超出可打印范围",
+      "nozzle_hrc_checker": "耗材硬度超过当前喷嘴的耐受",
+      "filament_is_not_compatible": "耗材与当前打印机不兼容"
+    }
   },
   "settings": {
     "serverGroup": "服务器",

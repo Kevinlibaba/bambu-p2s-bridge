@@ -4,7 +4,7 @@ import { useI18n } from 'vue-i18n'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
 import {
   api, isConfigured, uploadFile, importUrl, deleteFile, startPrint, fetchPrintPlan,
-  type RemoteFile, type ThreeMfInfo, type PrintPlan, type PlanTray,
+  type RemoteFile, type ThreeMfInfo, type PrintPlan, type PlanTray, type PreflightCheck,
 } from '../../api/client'
 import { themeClass, applyChrome } from '../../store/prefs'
 import Sheet from '../../components/Sheet.vue'
@@ -204,6 +204,27 @@ const planReady = computed(() => {
   return f.length > 0 && f.every((x) => slotOf(x.id) >= 0)
 })
 
+// ---- 打印前自检 ----
+/*
+ * 桥接只回结论码与参数，文案在这里本地化 —— 服务端不该假定用户用哪种语言。
+ * slotMissing 由上面的料盘选择器实时反映，这里过滤掉免得重复说一遍。
+ */
+const checks = computed<PreflightCheck[]>(
+  () => (plan.value?.checks ?? []).filter((c) => c.code !== 'slotMissing'),
+)
+const blockingChecks = computed(() => checks.value.filter((c) => c.level === 'error'))
+
+function checkText(c: PreflightCheck): string {
+  const p = c.params ?? {}
+  // 切片器的告警标识来自 BambuStudio，能认出来的给中文，认不出的原样显示
+  if (c.code === 'sliceWarning') {
+    const known = `files.slice.${p.msg}`
+    const s = t(known)
+    return s === known ? String(p.msg) : s
+  }
+  return t(`files.check.${c.code}`, p as Record<string, unknown>)
+}
+
 function open(f: RemoteFile) {
   if (f.isDirectory) { load(join(path.value, f.name)); return }
   sel.value = f
@@ -363,9 +384,21 @@ async function printSelected() {
   if (!f) return
   if (!planReady.value) { toast(t('files.pickSlotFirst')); return }
   const plateNo = plate.value?.index ?? 1
-  if (!(await confirm(t('print.title'), t('print.desc', { name: f.name, plate: plateNo }), true))) return
+
+  // 自检有阻断项时，把问题原样摆出来再问一次，答应了才带 force 下发
+  const stop = blockingChecks.value
+  if (stop.length) {
+    const list = stop.map((c) => `· ${checkText(c)}`).join('\n')
+    if (!(await confirm(t('files.checkTitle'), `${list}\n\n${t('files.checkForce')}`, true))) return
+  } else if (!(await confirm(t('print.title'), t('print.desc', { name: f.name, plate: plateNo }), true))) {
+    return
+  }
+
   try {
-    await startPrint({ path: selPath.value, plate: plateNo, slots: chosenSlots() })
+    await startPrint({
+      path: selPath.value, plate: plateNo, slots: chosenSlots(),
+      force: stop.length > 0,
+    })
     toast(t('print.started'))
     close()
   } catch (e) {
@@ -522,6 +555,22 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
             </view>
             <text v-if="planLoading" class="note">{{ t('files.planning') }}</text>
             <text v-else-if="!planReady" class="note warn">{{ plan?.error || t('files.pickSlotFirst') }}</text>
+
+            <!-- 打印前自检：远程开打没人在旁边，问题得在按下之前摆出来 -->
+            <template v-if="checks.length">
+              <text class="grouphead">{{ t('files.checkGroup') }}</text>
+              <view class="card sheet-card">
+                <view v-for="(c, i) in checks" :key="i">
+                  <view v-if="i > 0" class="hsep" />
+                  <view class="line stack">
+                    <view class="chk">
+                      <text class="chk-dot" :class="c.level" />
+                      <text class="chk-t">{{ checkText(c) }}</text>
+                    </view>
+                  </view>
+                </view>
+              </view>
+            </template>
           </template>
 
           <text class="hint">{{ t('files.modelNote') }}</text>
@@ -728,4 +777,11 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 .mat .line { padding-left: 24rpx; }
 .tick { font-size: 30rpx; color: var(--accent); margin-left: 20rpx; flex-shrink: 0; }
 .v.warn, .note.warn { color: var(--critical); }
+.chk { display: flex; align-items: flex-start; }
+.chk-dot { width: 14rpx; height: 14rpx; border-radius: 50%; margin: 12rpx 18rpx 0 0;
+  flex-shrink: 0; }
+.chk-dot.error { background: var(--critical); }
+.chk-dot.warn { background: var(--warning); }
+.chk-t { flex: 1; font-size: 27rpx; color: var(--ink); line-height: 1.5;
+  letter-spacing: -0.01em; }
 </style>

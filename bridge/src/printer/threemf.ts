@@ -33,6 +33,14 @@ export interface ThreeMfFilament {
   usedG: number | null
 }
 
+export interface ThreeMfWarning {
+  /** 切片器的告警标识，如 bed_temperature_too_high_than_filament */
+  msg: string
+  /** 1 最轻，数字越大越严重；3 在 BambuStudio 里是红色告警 */
+  level: number
+  code: string
+}
+
 export interface ThreeMfPlate {
   index: number
   /** 预计打印时长，秒 */
@@ -50,6 +58,8 @@ export interface ThreeMfPlate {
    * 取自 slice_info.config 里的 filament_maps（形如 "1 1 1 1"）。
    */
   filamentCount: number
+  /** 切片器自己留下的告警，比如床温高于耗材耐受 */
+  warnings: ThreeMfWarning[]
   /** 有没有可取的预览图。有则调用 /api/files/3mf/plate.png */
   hasThumbnail: boolean
 }
@@ -137,6 +147,14 @@ export function parseSliceInfo(xml: string): ThreeMfPlate[] {
       if (a.name) objects.push(a.name)
     }
 
+    // 同一条告警会按对象重复出现，去重后再给前端
+    const warnings: ThreeMfWarning[] = []
+    for (const m of body.matchAll(/<warning\b([^>]*?)\/?>/gi)) {
+      const a = attrs(m[1])
+      if (!a.msg || warnings.some((w) => w.msg === a.msg)) continue
+      warnings.push({ msg: a.msg, level: num(a.level) ?? 0, code: a.error_code ?? '' })
+    }
+
     const filaments: ThreeMfFilament[] = []
     for (const m of body.matchAll(/<filament\b([^>]*?)\/?>/gi)) {
       const a = attrs(m[1])
@@ -160,6 +178,7 @@ export function parseSliceInfo(xml: string): ThreeMfPlate[] {
       objects,
       filaments,
       filamentCount: filamentCountOf(meta.filament_maps, filaments),
+      warnings,
       hasThumbnail: false,
     })
   }
@@ -206,6 +225,7 @@ export async function describeThreeMf(src: ZipSource, entries: ZipEntry[]): Prom
       objects: [],
       filaments: [],
       filamentCount: 0,
+      warnings: [],
       hasThumbnail: false,
     }))
   }

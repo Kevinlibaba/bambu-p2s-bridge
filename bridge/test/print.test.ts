@@ -19,6 +19,7 @@ function plate(filaments: ThreeMfFilament[], filamentCount: number): ThreeMfPlat
     objects: [],
     filaments,
     filamentCount,
+    warnings: [],
     hasThumbnail: false,
   }
 }
@@ -32,6 +33,7 @@ function tray(p: Partial<AmsTray>): AmsTray {
     trayInfoIdx: '',
     color: '000000FF',
     remainPct: 100,
+    weightG: 1000,
     nozzleTempMin: 190,
     nozzleTempMax: 230,
     dryTemp: 0,
@@ -137,4 +139,99 @@ test('读不出耗材信息时不猜，要求显式指定', () => {
 test('耗材序号超出项目耗材数时报错', () => {
   const p = plate([fil({ id: 5 })], 4)
   assert.throws(() => buildMapping({}, p, [tray({})]), /超出项目耗材数 4/)
+})
+
+// ---- 打印前自检 ----
+import { preflight } from '../src/api/preflight.js'
+import type { Summary } from '../src/printer/state.js'
+
+function state(p: Partial<Summary> = {}): Summary {
+  return {
+    online: true, state: 'IDLE', progress: 0, remainingMin: 0, layer: 0, totalLayers: 0,
+    taskName: '', file: '',
+    nozzle: { cur: 20, target: 0, type: 'HS01', diameter: '0.4' },
+    bed: { cur: 20, target: 0 }, chamber: 20,
+    fans: { cooling: 0, aux: 0, chamber: 0, heatbreak: 0 },
+    speedLevel: 2, speedPct: 100, lights: [], errors: [], printError: 0,
+    wifi: '', sdcard: true, ams: [], amsUnits: [], dryBlockers: [], updatedAt: 1,
+    ...p,
+  } as Summary
+}
+
+const codes = (cs: { code: string }[]) => cs.map((c) => c.code).sort()
+
+test('自检：一切正常时不报任何问题', () => {
+  const p = plate([fil({ id: 1, usedG: 50 })], 1)
+  const t = [tray({ slot: 0, remainPct: 80, weightG: 1000 })]
+  assert.deepEqual(preflight(p, [0], t, state()), [])
+})
+
+test('自检：余量不足按实际克数判定，而不是百分比', () => {
+  const p = plate([fil({ id: 1, usedG: 200 })], 1)
+  // 16% × 1000g = 160g < 200g
+  const low = preflight(p, [0], [tray({ slot: 0, remainPct: 16, weightG: 1000 })], state())
+  assert.deepEqual(codes(low), ['filamentLow'])
+  assert.equal(low[0].level, 'error')
+  assert.deepEqual(low[0].params, { id: 1, slot: 1, need: 200, left: 160 })
+
+  // 同样 16%，但整卷只有 250g 的小盘 —— 40g，更不够
+  const small = preflight(p, [0], [tray({ slot: 0, remainPct: 16, weightG: 250 })], state())
+  assert.equal(small[0].params?.left, 40)
+})
+
+test('自检：余量刚好够只警告不拦截', () => {
+  const p = plate([fil({ id: 1, usedG: 100 })], 1)
+  const c = preflight(p, [0], [tray({ slot: 0, remainPct: 11, weightG: 1000 })], state())
+  assert.deepEqual(codes(c), ['filamentLow'])
+  assert.equal(c[0].level, 'warn')
+})
+
+test('自检：打印机没报余量时不猜', () => {
+  const p = plate([fil({ id: 1, usedG: 900 })], 1)
+  assert.deepEqual(preflight(p, [0], [tray({ slot: 0, remainPct: -1, weightG: 0 })], state()), [])
+})
+
+test('自检：喷嘴直径不符拦截', () => {
+  const p = plate([fil({ id: 1 })], 1)
+  p.nozzleDiameters = '0.6'
+  const c = preflight(p, [0], [tray({ slot: 0 })], state())
+  assert.deepEqual(codes(c), ['nozzleMismatch'])
+  assert.equal(c[0].level, 'error')
+  assert.deepEqual(c[0].params, { want: '0.6', have: '0.4' })
+})
+
+test('自检：耗材类型只看大类，PLA Matte 装 PLA 不算错', () => {
+  const p = plate([fil({ id: 1, type: 'PLA' })], 1)
+  assert.deepEqual(preflight(p, [0], [tray({ slot: 0, type: 'PLA Matte' })], state()), [])
+
+  const wrong = plate([fil({ id: 1, type: 'PETG' })], 1)
+  const c = preflight(wrong, [0], [tray({ slot: 0, type: 'PLA' })], state())
+  assert.deepEqual(codes(c), ['typeMismatch'])
+  assert.equal(c[0].level, 'warn')
+})
+
+test('自检：打印机忙、没卡、有报错', () => {
+  const p = plate([fil({ id: 1 })], 1)
+  const t = [tray({ slot: 0 })]
+  assert.ok(codes(preflight(p, [0], t, state({ state: 'RUNNING' }))).includes('printerBusy'))
+  assert.ok(codes(preflight(p, [0], t, state({ sdcard: false }))).includes('noSdCard'))
+  const err = preflight(p, [0], t, state({ printError: 0x07004025 }))
+  assert.deepEqual(codes(err), ['printerError'])
+  assert.equal(err[0].level, 'warn')
+})
+
+test('自检：没配到料盘的耗材会被拦下', () => {
+  const p = plate([fil({ id: 2 })], 2)
+  const c = preflight(p, [-1, -1], [tray({ slot: 0 })], state())
+  assert.deepEqual(codes(c), ['slotMissing'])
+  assert.equal(c[0].level, 'error')
+})
+
+test('自检：切片器告警原样带出，去重后只留一条', () => {
+  const p = plate([fil({ id: 1 })], 1)
+  p.warnings = [{ msg: 'bed_temperature_too_high_than_filament', level: 3, code: '1000C001' }]
+  const c = preflight(p, [0], [tray({ slot: 0 })], state())
+  assert.deepEqual(codes(c), ['sliceWarning'])
+  assert.equal(c[0].level, 'warn')
+  assert.equal(c[0].params?.msg, 'bed_temperature_too_high_than_filament')
 })

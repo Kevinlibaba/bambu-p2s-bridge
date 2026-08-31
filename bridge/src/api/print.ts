@@ -21,6 +21,7 @@ import type { PrinterState, AmsTray } from '../printer/state.js'
 import { ZipFormatError, readCentralDirectory, withTail } from '../util/zip.js'
 import { describeThreeMf } from '../printer/threemf.js'
 import type { ThreeMfPlate, ThreeMfFilament } from '../printer/threemf.js'
+import { preflight, blocking, type Check } from './preflight.js'
 
 class PrintError extends Error {
   constructor(message: string, readonly status = 400) {
@@ -43,6 +44,8 @@ export interface PrintRequest {
   bedLeveling?: boolean
   flowCali?: boolean
   timelapse?: boolean
+  /** 跳过自检里的阻断项。只有用户在界面上明确确认过才该带上 */
+  force?: boolean
 }
 
 /** 料盘全局序号：AMS 编号 * 4 + 槽位，与固件 ams_mapping 的取值一致 */
@@ -210,6 +213,7 @@ export function registerPrintRoutes(
         filaments,
         mapping,
         error,
+        checks: preflight(target, mapping, trays, state.summary()),
         trays: trays.map((t) => ({
           slot: trayIndex(t.unit, t.slot),
           unit: t.unit,
@@ -244,6 +248,14 @@ export function registerPrintRoutes(
       const amsMapping = buildMapping(body, target, trays)
       const useAms = body.useAms !== false && amsMapping.some((v) => v >= 0 && v !== EXTERNAL_TRAY)
 
+      // 自检不通过就不下发。远程开打没人在旁边，代价是几小时的空跑或废件，
+      // 所以默认拦住；确实想强打的话得显式带 force。
+      const checks = preflight(target, amsMapping, trays, state.summary())
+      const stop = blocking(checks)
+      if (stop.length && body.force !== true) {
+        return reply.code(409).send({ error: '打印前自检未通过', checks: stop })
+      }
+
       const name = path.slice(path.lastIndexOf('/') + 1)
       const sequenceId = mqtt.publish({
         print: {
@@ -267,7 +279,7 @@ export function registerPrintRoutes(
         },
       })
 
-      return { ok: true, sequenceId, path, plate, plateCount, useAms, amsMapping }
+      return { ok: true, sequenceId, path, plate, plateCount, useAms, amsMapping, checks }
     } catch (e) {
       const err = e as PrintError
       return reply

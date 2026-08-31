@@ -131,7 +131,26 @@
     "slotName": "Slot {n} · {name}",
     "noSlot": "Not set",
     "planning": "Matching slots…",
-    "pickSlotFirst": "Assign a slot to every filament first"
+    "pickSlotFirst": "Assign a slot to every filament first",
+    "checkGroup": "Pre-flight checks",
+    "checkTitle": "Checks failed",
+    "checkForce": "Print anyway?",
+    "check": {
+      "filamentLow": "Slot {slot} has about {left} g left; this plate needs {need} g",
+      "typeMismatch": "Slot {slot} holds {have}, but the slice expects {want}",
+      "nozzleMismatch": "Sliced for a {want} mm nozzle; the printer has {have} mm",
+      "printerBusy": "The printer is {state} and cannot start a new job",
+      "noSdCard": "No SD card detected in the printer",
+      "printerError": "The printer has {count} unresolved error(s)",
+      "sliceWarning": "Slicer warning: {msg}"
+    },
+    "slice": {
+      "bed_temperature_too_high_than_filament": "Bed temperature is above what this filament tolerates",
+      "object_outside": "A model extends outside the printable area",
+      "toolpath_outside": "Toolpath extends outside the printable area",
+      "nozzle_hrc_checker": "Filament is harder than this nozzle tolerates",
+      "filament_is_not_compatible": "Filament is not compatible with this printer"
+    }
   },
   "settings": {
     "serverGroup": "Server",

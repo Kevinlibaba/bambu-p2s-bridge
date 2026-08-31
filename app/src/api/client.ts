@@ -259,6 +259,8 @@ export interface PrintRequest {
   amsMapping?: number[]
   /** 只点名「哪号耗材用哪个料盘」，其余由桥接自动配 */
   slots?: Record<string, number>
+  /** 跳过自检里的阻断项。只有用户明确确认过才该带上 */
+  force?: boolean
   timelapse?: boolean
 }
 
@@ -285,6 +287,13 @@ export interface PlanTray {
   empty: boolean
 }
 
+export interface PreflightCheck {
+  code: string
+  /** error 会拦住打印，warn 只提示 */
+  level: 'error' | 'warn'
+  params?: Record<string, string | number>
+}
+
 export interface PrintPlan {
   path: string
   plate: number
@@ -294,6 +303,8 @@ export interface PrintPlan {
   mapping: number[] | null
   /** 配不出来时的原因，界面据此拦住「开始打印」 */
   error: string | null
+  /** 打印前自检结果 */
+  checks: PreflightCheck[]
   trays: PlanTray[]
 }
 
