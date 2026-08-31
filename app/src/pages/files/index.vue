@@ -109,6 +109,30 @@ function fmtDay(ts: number): string {
   return `${d.getMonth() + 1}/${String(d.getDate()).padStart(2, '0')}`
 }
 
+/**
+ * 添加时间。这台机器的 FTP 对不少文件不返回时间（modifiedAt 为 null，界面上是「时间未知」），
+ * 给它们 -Infinity 排到有时间的之后，再由调用方按名字兜底，保证两次刷新顺序一样。
+ */
+function addedAt(f: RemoteFile): number {
+  if (!f.modifiedAt) return Number.NEGATIVE_INFINITY
+  const ts = Date.parse(f.modifiedAt)
+  return Number.isNaN(ts) ? Number.NEGATIVE_INFINITY : ts
+}
+
+/** 置顶项：打印时间最大的那一个文件。一个都没打过就没有置顶项；打印时间打平了按名字取定 */
+function mostRecentlyPrinted(list: RemoteFile[]): RemoteFile | null {
+  let top: RemoteFile | null = null
+  let topAt = -Infinity
+  for (const f of list) {
+    const at = f.lastPrintedAt
+    if (f.isDirectory || typeof at !== 'number') continue
+    if (at > topAt || (at === topAt && top !== null && f.name.localeCompare(top.name) < 0)) {
+      top = f; topAt = at
+    }
+  }
+  return top
+}
+
 async function load(p = path.value) {
   if (!configured.value) return
   loading.value = true; error.value = ''
@@ -116,14 +140,19 @@ async function load(p = path.value) {
     const r = await api.files(p)
     path.value = r.path
     /*
-     * 排序：目录在前；然后按上次打印时间倒序 —— 想再打一遍的多半是刚打过的。
-     * 没打过的排在打过的之后，内部按名字，保证顺序稳定。
+     * 排序：目录在前；文件里只把「最近打印的那一个」置顶 —— 想再打一遍的基本就是刚打完那个，
+     * 而把所有打印过的都排在前面，会让几个老文件长期霸占列表顶部，新传上来的反而找不到。
+     * 剩下的按添加时间（modifiedAt）倒序，新的在前。
      */
-    files.value = r.files.filter(isUserFile).sort((a, b) => {
+    const list = r.files.filter(isUserFile)
+    const top = mostRecentlyPrinted(list)
+    files.value = list.sort((a, b) => {
       if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1
-      const pa = a.lastPrintedAt ?? 0
-      const pb = b.lastPrintedAt ?? 0
-      if (pa !== pb) return pb - pa
+      if (a === top) return -1
+      if (b === top) return 1
+      const ma = addedAt(a)
+      const mb = addedAt(b)
+      if (ma !== mb) return mb - ma
       return a.name.localeCompare(b.name)
     })
     void loadThumbs(r.path)
