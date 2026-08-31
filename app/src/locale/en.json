@@ -118,7 +118,7 @@
     "previewFailed": "Preview failed",
     "noPreview": "No preview in this file",
     "printTime": "Print time",
-    "filamentUsed": "Filament & slots",
+    "filamentUsed": "Filament",
     "nozzleDiameter": "Nozzle",
     "printerModel": "Printer",
     "objects": "Objects",
@@ -156,7 +156,9 @@
     "plateGroup": "Plate",
     "lastPrinted": "printed {d}",
     "today": "today",
-    "yesterday": "yesterday"
+    "yesterday": "yesterday",
+    "prevPlate": "Previous plate",
+    "nextPlate": "Next plate"
   },
   "settings": {
     "serverGroup": "Server",

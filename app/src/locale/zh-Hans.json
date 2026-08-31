@@ -118,7 +118,7 @@
     "previewFailed": "预览失败",
     "noPreview": "此文件没有内置预览图",
     "printTime": "打印时长",
-    "filamentUsed": "耗材与料盘",
+    "filamentUsed": "耗材",
     "nozzleDiameter": "喷嘴",
     "printerModel": "机型",
     "objects": "模型",
@@ -156,7 +156,9 @@
     "plateGroup": "打印盘",
     "lastPrinted": "打印于 {d}",
     "today": "今天",
-    "yesterday": "昨天"
+    "yesterday": "昨天",
+    "prevPlate": "上一盘",
+    "nextPlate": "下一盘"
   },
   "settings": {
     "serverGroup": "服务器",

@@ -157,6 +157,44 @@ const plate = computed(() => model.value?.plates[plateIdx.value] ?? null)
 const plateUrl = computed(() =>
   plate.value?.hasThumbnail ? api.plateUrl(selPath.value, plate.value.index) : '')
 
+// ---- 盘的切换 ----
+const plateCount = computed(() => model.value?.plates.length ?? 0)
+const canPrev = computed(() => plateIdx.value > 0)
+const canNext = computed(() => plateIdx.value < plateCount.value - 1)
+function goPlate(delta: number) {
+  const next = plateIdx.value + delta
+  if (next >= 0 && next < plateCount.value) plateIdx.value = next
+}
+
+/*
+ * 预览图上左右滑动切盘。
+ * 弹窗内容本身是竖向滚动的，所以只有当横向位移明显压过竖向时才认作翻页 ——
+ * 否则想上下滚的时候会误触发。手指抬起时才判定，滑动过程中不抢滚动。
+ */
+const SWIPE_MIN = 40
+let swipeX = 0
+let swipeY = 0
+let swiping = false
+
+function onPlateTouchStart(e: TouchEvent) {
+  const t = e.touches[0]
+  if (!t) return
+  swipeX = t.clientX
+  swipeY = t.clientY
+  swiping = true
+}
+
+function onPlateTouchEnd(e: TouchEvent) {
+  if (!swiping) return
+  swiping = false
+  const t = e.changedTouches[0]
+  if (!t) return
+  const dx = t.clientX - swipeX
+  const dy = t.clientY - swipeY
+  if (Math.abs(dx) < SWIPE_MIN || Math.abs(dx) < Math.abs(dy) * 1.5) return
+  goPlate(dx < 0 ? 1 : -1)
+}
+
 // ---- 配料 ----
 /*
  * ams_mapping 的下标是「切片项目里的耗材序号 - 1」，长度必须等于项目耗材数。
@@ -522,7 +560,21 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
             </scroll-view>
           </template>
 
-          <image v-if="plateUrl" class="plate" :src="plateUrl" mode="aspectFit" />
+          <view v-if="plateUrl" class="plate-wrap"
+            @touchstart="onPlateTouchStart" @touchend="onPlateTouchEnd">
+            <image class="plate" :src="plateUrl" mode="aspectFit" />
+            <template v-if="plateCount > 1">
+              <view class="nav prev" :class="{ off: !canPrev }"
+                :aria-label="t('files.prevPlate')" @click.stop="goPlate(-1)">
+                <text class="nav-t">‹</text>
+              </view>
+              <view class="nav next" :class="{ off: !canNext }"
+                :aria-label="t('files.nextPlate')" @click.stop="goPlate(1)">
+                <text class="nav-t">›</text>
+              </view>
+              <view class="pager"><text class="pager-t">{{ plateIdx + 1 }} / {{ plateCount }}</text></view>
+            </template>
+          </view>
           <view v-else class="ph-box"><text class="ph-t">{{ t('files.noPreview') }}</text></view>
 
           <view v-if="plate" class="card sheet-card">
@@ -844,4 +896,33 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 .chk-t { flex: 1; font-size: 27rpx; color: var(--ink); line-height: 1.5;
   letter-spacing: -0.01em; }
 .printed { color: var(--accent); }
+.plate-wrap { position: relative; }
+/*
+ * 按钮浮在图上，到头时压暗但不移除 —— 位置才稳定。
+ * 底色用固定的深色而不是主题色：预览图在浅色主题下是白底，
+ * 白字压半透明浅灰完全看不见。与监控页摄像头上的浮层按钮同一套做法。
+ */
+.nav {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  width: 64rpx; height: 64rpx; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(30rpx) saturate(180%);
+  -webkit-backdrop-filter: blur(24rpx) saturate(180%);
+  border: 1rpx solid rgba(255, 255, 255, 0.14);
+}
+.nav.prev { left: 16rpx; }
+.nav.next { right: 16rpx; }
+.nav.off { opacity: 0.3; }
+.nav:active { opacity: 0.55; }
+.nav-t { font-size: 36rpx; color: #fff; line-height: 1; margin-top: -4rpx; }
+.pager {
+  position: absolute; right: 16rpx; bottom: 16rpx;
+  padding: 6rpx 18rpx; border-radius: 999rpx;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(30rpx) saturate(180%);
+  -webkit-backdrop-filter: blur(24rpx) saturate(180%);
+  border: 1rpx solid rgba(255, 255, 255, 0.14);
+}
+.pager-t { font-size: 21rpx; color: #fff; font-variant-numeric: tabular-nums; }
 </style>

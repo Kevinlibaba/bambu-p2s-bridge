@@ -118,7 +118,7 @@
     "previewFailed": "プレビューに失敗",
     "noPreview": "このファイルにプレビュー画像はありません",
     "printTime": "印刷時間",
-    "filamentUsed": "フィラメントとスロット",
+    "filamentUsed": "フィラメント",
     "nozzleDiameter": "ノズル",
     "printerModel": "プリンター",
     "objects": "オブジェクト",
@@ -156,7 +156,9 @@
     "plateGroup": "プレート",
     "lastPrinted": "{d} に印刷",
     "today": "今日",
-    "yesterday": "昨日"
+    "yesterday": "昨日",
+    "prevPlate": "前のプレート",
+    "nextPlate": "次のプレート"
   },
   "settings": {
     "serverGroup": "サーバー",
