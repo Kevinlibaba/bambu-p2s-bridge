@@ -625,6 +625,30 @@ class BambuFTPS(ftplib.FTP_TLS):
 
 Full working version: [`probes/probe7.py`](./probes/probe7.py).
 
+#### `basic-ftp` reuse breaks on Node 22 and later — pin Node 20
+
+Measured 2026-09-01 against firmware 01.01.02.03, `basic-ftp` 5.3.1, identical code,
+three runtimes, listing `/`:
+
+| Runtime | Result |
+|---|---|
+| **Node 20.20.2** | **46 entries** |
+| Node 22.23.2 | `522 SSL connection failed: session reuse required` |
+| Node 24.20.0 | same |
+
+**It is not a TLS-version problem**, which is the obvious wrong guess. Node 20 succeeds
+with the data connection on TLSv1.3, and pinning `maxVersion: 'TLSv1.2'` (so control and
+data both negotiate 1.2) does *not* rescue 22 or 24. The control session is also
+retrievable on the failing versions — `socket.getSession()` returns 1855 bytes — so the
+session object exists and is simply not being honoured for the data connection.
+
+This is an awkward constraint: **Node 20 reached end-of-life on 2026-04-30**, so the only
+runtime that can talk to the printer's FTPS is one that no longer receives security
+patches. Anyone bumping the base image will find MQTT, the camera and the whole UI still
+working while file listing, previews and uploads fail with a 502 — the failure is
+confined to FTPS, so it is easy to miss in a smoke test. Check `/api/files`, not
+`/api/health`.
+
 ### 5.2 Directory layout
 
 | Path | Contents |

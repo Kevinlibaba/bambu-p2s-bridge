@@ -3,6 +3,10 @@
 # `docker compose up -d --build` 就能出成品 —— 宿主机不需要装 Node。
 
 # ---- 1. 前端（uni-app H5）----
+# Node 20 是刻意钉死的，不要顺手升级。
+# 22 和 24 上 basic-ftp 的 TLS 会话复用失效，打印机的 vsftpd 会回
+# 「522 session reuse required」—— MQTT、摄像头、界面全都正常，只有
+# 文件相关的接口 502，冒烟测试很容易漏掉。详见 PROTOCOL.md 5.1。
 FROM node:20-slim AS app
 WORKDIR /src
 COPY app/package*.json ./
