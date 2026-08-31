@@ -150,3 +150,31 @@ test('格式不对或为空同样报问题', () => {
     assert.ok(withSubject(s, vapidSubjectProblem), s)
   }
 })
+
+// ---- 语言代码映射 ----
+import { toBambuLang } from '../src/printer/errors.js'
+
+/*
+ * 繁体在 Bambu 的错误库里必须写 zh-tw —— 实测 zh-hant / zh-hk / zh-mo
+ * 都返回 result=201 空数据。本项目内部一律用 zh-Hant 这种文字子标签，
+ * 只在出网这一步转成它家的写法，两者别混为一谈。
+ */
+test('繁体的各种写法都落到 Bambu 的 zh-tw', () => {
+  for (const v of ['zh-Hant', 'zh-hant', 'zh-TW', 'zh-HK', 'zh-MO', ' zh-Hant ']) {
+    assert.equal(toBambuLang(v), 'zh-tw', v)
+  }
+})
+
+test('简体的各种写法都落到 zh-cn', () => {
+  for (const v of ['zh-Hans', 'zh-CN', 'zh-SG', 'zh']) {
+    assert.equal(toBambuLang(v), 'zh-cn', v)
+  }
+})
+
+test('带区域的其他语言退回主语言，未知的退回英文', () => {
+  assert.equal(toBambuLang('en-US'), 'en')
+  assert.equal(toBambuLang('ja-JP'), 'ja')
+  assert.equal(toBambuLang('ko-KR'), 'en')
+  assert.equal(toBambuLang(undefined), 'en')
+  assert.equal(toBambuLang(''), 'en')
+})

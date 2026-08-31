@@ -8,7 +8,7 @@
  */
 import { config } from '../config.js'
 import type { PrinterState, Summary } from '../printer/state.js'
-import { describe, toErrorLang } from '../printer/errors.js'
+import { describe, toBambuLang } from '../printer/errors.js'
 import { detect, NOTIFY_KINDS, type NotifyEvent, type NotifyKind } from './events.js'
 import { configuredSinks, deliver, vapidReady, vapidSubjectProblem } from './sinks.js'
 import { PushStore } from './store.js'
@@ -73,7 +73,7 @@ export class Notifier {
   /** 把错误码换成人话。查不到就保留原样，不要因为外网不通就不推送。 */
   private async humanize(e: NotifyEvent): Promise<NotifyEvent> {
     if (!e.code) return e
-    const text = await describe(e.code, toErrorLang(config.notify.lang))
+    const text = await describe(e.code, toBambuLang(config.notify.lang))
     return text ? { ...e, body: e.body ? `${e.body}\n${text}` : text } : e
   }
 

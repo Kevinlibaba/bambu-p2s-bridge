@@ -13,18 +13,40 @@
 
 const HOST = 'https://e.bambulab.com'
 
-/** Bambu 错误库支持的语言，与 app 的四份语言包一一对应 */
-export type ErrorLang = 'zh-cn' | 'zh-tw' | 'en' | 'ja'
+/**
+ * Bambu 错误库自己的语言代码 —— **不是** BCP-47，别拿它当应用的语言标识。
+ * 繁体在这里必须写 zh-tw：实测 zh-hant / zh-hk / zh-mo 都返回 result=201
+ * 空数据，只有 zh-tw（大小写均可）能取到繁体文案。
+ * 本项目内部一律用 zh-Hant 这种文字子标签，只在出网请求这一步转成它家的写法。
+ */
+export type BambuLang = 'zh-cn' | 'zh-tw' | 'en' | 'ja'
 
-const LANGS: Record<string, ErrorLang> = {
-  'zh-Hans': 'zh-cn',
-  'zh-Hant': 'zh-tw',
+/**
+ * 应用语言 → Bambu 的语言代码。
+ * 除本项目使用的 zh-Hans / zh-Hant 外，也认浏览器常见的区域写法 ——
+ * 第三方直接调 /api/errors 时多半传的是 navigator.language。
+ * 繁体在台港澳都用，所以三个地区码都要落到 zh-tw。
+ */
+const LANGS: Record<string, BambuLang> = {
+  'zh-hans': 'zh-cn',
+  'zh-cn': 'zh-cn',
+  'zh-sg': 'zh-cn',
+  zh: 'zh-cn',
+  'zh-hant': 'zh-tw',
+  'zh-tw': 'zh-tw',
+  'zh-hk': 'zh-tw',
+  'zh-mo': 'zh-tw',
   en: 'en',
   ja: 'ja',
 }
 
-export function toErrorLang(locale: string | undefined): ErrorLang {
-  return LANGS[locale ?? ''] ?? 'en'
+export function toBambuLang(locale: string | undefined): BambuLang {
+  const raw = (locale ?? '').trim().toLowerCase()
+  if (!raw) return 'en'
+  if (raw in LANGS) return LANGS[raw]
+  // en-US、ja-JP 这类带区域的，退回主语言再查一次
+  const base = raw.split('-')[0]
+  return LANGS[base] ?? 'en'
 }
 
 /** print_error → 8 位十六进制，如 117456933 → "07004025" */
@@ -38,7 +60,7 @@ export function hmsCode(attr: number, code: number): string {
 }
 
 /** 官方错误页，手机上可以直接打开看图文说明 */
-export function wikiUrl(code: string, lang: ErrorLang): string {
+export function wikiUrl(code: string, lang: BambuLang): string {
   return `${HOST}/index.php?e=${code}&s=device_hms&lang=${lang}`
 }
 
@@ -56,7 +78,7 @@ function fresh(e: CacheEntry): boolean {
   return Date.now() - e.at < (e.text === null ? MISS_TTL : OK_TTL)
 }
 
-async function fetchText(code: string, lang: ErrorLang): Promise<string | null> {
+async function fetchText(code: string, lang: BambuLang): Promise<string | null> {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), 8000)
   try {
@@ -85,7 +107,7 @@ async function fetchText(code: string, lang: ErrorLang): Promise<string | null> 
 }
 
 /** 查错误码文案。查不到返回 null，调用方自己决定怎么兜底。 */
-export async function describe(code: string, lang: ErrorLang): Promise<string | null> {
+export async function describe(code: string, lang: BambuLang): Promise<string | null> {
   const key = `${lang}:${code}`
   const hit = cache.get(key)
   if (hit && fresh(hit)) return hit.text

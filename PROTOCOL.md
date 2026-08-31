@@ -194,8 +194,13 @@ https://e.bambulab.com/query.php?lang=zh-cn&e=07004025
 ```
 
 8-digit codes come back under `device_error`, 16-digit ones under `device_hms`.
-**The `lang` value must be the hyphenated lowercase form** — `zh-cn`, `zh-tw`, `en`,
-`ja`, `de`, `fr`. `zh`, `zh_cn` and `zh_CN` all return an empty result.
+
+**`lang` takes Bambu's own codes, not BCP-47.** Use the hyphenated form — `zh-cn`,
+`zh-tw`, `en`, `ja`, `de`, `fr`. Anything else comes back `{"result":201,"data":""}`:
+`zh`, `zh_cn` and `zh_CN` all fail, and so does **`zh-hant`** — traditional Chinese is
+only reachable as `zh-tw` (`zh-hk` and `zh-mo` return nothing either). Keep your own
+locale identifiers in BCP-47 (`zh-Hant`) and translate to Bambu's spelling at the
+request boundary.
 
 **Clearing.** `clean_print_error` did **not** work here. What does is the `system.uiop`
 channel — BambuStudio's `command_clean_print_error_uiop`:

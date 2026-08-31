@@ -16,7 +16,7 @@
 import type { FastifyInstance } from 'fastify'
 import type { PrinterMqtt } from '../printer/mqtt.js'
 import type { PrinterState } from '../printer/state.js'
-import { describe, hmsCode, printErrorCode, toErrorLang, wikiUrl } from '../printer/errors.js'
+import { describe, hmsCode, printErrorCode, toBambuLang, wikiUrl } from '../printer/errors.js'
 
 export interface PrinterErrorItem {
   /** 'print' 可清除，'hms' 只能等条件消失 */
@@ -35,7 +35,7 @@ export function registerErrorRoutes(
   state: PrinterState,
 ): void {
   app.get('/api/errors', async (req) => {
-    const lang = toErrorLang((req.query as { lang?: string } | undefined)?.lang)
+    const lang = toBambuLang((req.query as { lang?: string } | undefined)?.lang)
     const s = state.summary()
 
     const codes: { kind: 'print' | 'hms'; code: string }[] = []
