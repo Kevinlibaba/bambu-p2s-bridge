@@ -487,10 +487,10 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
           -->
           <template v-if="model.plates.length > 1">
             <text class="grouphead plate-head">{{ t('files.plateGroup') }}</text>
-            <scroll-view class="plates" scroll-x
-              :scroll-into-view="'plate-' + plateIdx" :show-scrollbar="false">
+            <!-- 只手动滑动：绑 scroll-into-view 会让每次点选都把选中项弹到最左 -->
+            <scroll-view class="plates" scroll-x :show-scrollbar="false">
               <view class="chiprow">
-                <view v-for="(p, i) in model.plates" :key="p.index" :id="'plate-' + i"
+                <view v-for="(p, i) in model.plates" :key="p.index"
                   class="chip" :class="{ on: i === plateIdx }" @click="plateIdx = i">
                   <text class="chip-t">{{ p.index }}</text>
                 </view>
