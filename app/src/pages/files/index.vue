@@ -193,11 +193,6 @@ function confirm(title: string, content: string, danger = false): Promise<boolea
 type ImportStep = '' | 'choose' | 'link' | 'progress'
 const importStep = ref<ImportStep>('')
 const canImport = computed(() => path.value === '/')
-
-function onAdd() {
-  if (!canImport.value) return toast(t('import.rootOnly'))
-  importStep.value = 'choose'
-}
 const linkText = ref('')
 const progressName = ref('')
 const progressPct = ref(0)
@@ -316,9 +311,9 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
       <view class="crumb">
         <text v-if="path !== '/'" class="up" @click="up">‹ {{ t('files.up') }}</text>
         <text class="path">{{ path }}</text>
-        <!-- 导入作用于当前所在目录，所以入口跟着面包屑走；
-             导入只能落在模型根目录，其他目录置灰而不是消失，免得像功能没了 -->
-        <view class="add-btn" :class="{ off: !canImport }" @click="onAdd">
+        <!-- 导入只能落在模型根目录，所以入口跟着面包屑走，且只在那里出现。
+             面包屑行有固定最小高度，按钮出现与否不会让下方列表跳动。 -->
+        <view v-if="canImport" class="add-btn" @click="importStep = 'choose'">
           <text class="add-t">+</text>
         </view>
       </view>
@@ -560,7 +555,6 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
   transition: opacity 0.25s ease;
 }
 .add-btn:active { opacity: 0.55; }
-.add-btn.off { opacity: 0.32; }
 .add-t { font-size: 34rpx; font-weight: 500; color: var(--accent); line-height: 1; }
 
 /* 选项行：标题 + 说明纵向排列，比系统 actionSheet 能承载更多信息 */

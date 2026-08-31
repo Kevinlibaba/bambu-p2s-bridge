@@ -180,8 +180,7 @@
     "entryHint": "Add a sliced file from this device or a link",
     "confirm": "Import",
     "progressTitle": "Importing",
-    "verifying": "Verifying",
-    "rootOnly": "Imports go to the models root folder"
+    "verifying": "Verifying"
   },
   "del": {
     "action": "Delete",

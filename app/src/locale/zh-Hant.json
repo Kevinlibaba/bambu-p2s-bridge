@@ -180,8 +180,7 @@
     "entryHint": "從裝置或連結加入已切片檔案",
     "confirm": "匯入",
     "progressTitle": "正在匯入",
-    "verifying": "驗證中",
-    "rootOnly": "只能匯入到模型根目錄"
+    "verifying": "驗證中"
   },
   "del": {
     "action": "刪除",
