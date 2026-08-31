@@ -237,6 +237,7 @@ Bambu Lab 多次收紧过局域网/开发者模式，固件升级可能导致失
 ## 致谢
 
 [OpenBambuAPI](https://github.com/Doridian/OpenBambuAPI) ·
+[Bootstrap Icons](https://github.com/twbs/icons) (MIT) ·
 [ha-bambulab](https://github.com/greghesp/ha-bambulab) ·
 [go2rtc](https://github.com/AlexxIT/go2rtc)
 

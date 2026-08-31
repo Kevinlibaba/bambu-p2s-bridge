@@ -408,6 +408,7 @@ Bambu Lab has tightened LAN/Developer Mode before. This may break on firmware up
 ## Credits
 
 [OpenBambuAPI](https://github.com/Doridian/OpenBambuAPI) ·
+[Bootstrap Icons](https://github.com/twbs/icons) (MIT) ·
 [ha-bambulab](https://github.com/greghesp/ha-bambulab) ·
 [go2rtc](https://github.com/AlexxIT/go2rtc)
 
