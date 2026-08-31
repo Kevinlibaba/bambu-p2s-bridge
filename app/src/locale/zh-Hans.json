@@ -67,7 +67,8 @@
     "updatedAt": "更新于 {time}",
     "confirmPause": "确定暂停当前打印？",
     "confirmStop": "停止后无法恢复。确定停止打印？",
-    "liveFallback": "实时画面不可用，已切换到抽帧"
+    "liveFallback": "实时画面不可用，已切换到抽帧",
+    "fullscreen": "全屏"
   },
   "ams": {
     "empty": "空槽",

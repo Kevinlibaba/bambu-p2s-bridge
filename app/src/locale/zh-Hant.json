@@ -67,7 +67,8 @@
     "updatedAt": "更新於 {time}",
     "confirmPause": "確定暫停目前列印？",
     "confirmStop": "停止後無法復原。確定停止列印？",
-    "liveFallback": "即時畫面不可用，已切換為抽格"
+    "liveFallback": "即時畫面不可用，已切換為抽格",
+    "fullscreen": "全螢幕"
   },
   "ams": {
     "empty": "空槽",

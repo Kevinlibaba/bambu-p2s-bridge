@@ -67,7 +67,8 @@
     "updatedAt": "Updated {time}",
     "confirmPause": "Pause the current print?",
     "confirmStop": "Stopping cannot be undone. Stop the print?",
-    "liveFallback": "Live video unavailable — showing stills"
+    "liveFallback": "Live video unavailable — showing stills",
+    "fullscreen": "Fullscreen"
   },
   "ams": {
     "empty": "Empty",

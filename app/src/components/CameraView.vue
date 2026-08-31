@@ -19,6 +19,8 @@ const props = withDefaults(
 const emit = defineEmits<{ (e: 'fallback'): void }>()
 
 const host = ref<{ $el?: HTMLElement } | HTMLElement | null>(null)
+const fsHost = ref<{ $el?: HTMLElement } | HTMLElement | null>(null)
+const fullscreen = ref(false)
 const snapshotUrl = ref('')
 const usingSnapshot = ref(false)
 
@@ -46,6 +48,7 @@ function stopSnapshots() {
 
 // ---------- WebRTC ----------
 function teardownRtc() {
+  if (fullscreen.value) { fullscreen.value = false; lockPage(false) }
   if (watchdog) { clearTimeout(watchdog); watchdog = null }
   try { ws?.close() } catch { /* noop */ }
   ws = null
@@ -65,8 +68,13 @@ function fallback() {
 }
 
 // #ifdef H5
+function elOf(r: typeof host): HTMLElement | null {
+  const v = r.value as { $el?: HTMLElement } | HTMLElement | null
+  return (v as { $el?: HTMLElement })?.$el ?? (v as HTMLElement | null)
+}
+
 function mountVideo(): HTMLVideoElement | null {
-  const el = (host.value as { $el?: HTMLElement })?.$el ?? (host.value as HTMLElement | null)
+  const el = elOf(host)
   if (!el) return null
   const v = document.createElement('video')
   v.autoplay = true
@@ -77,8 +85,90 @@ function mountVideo(): HTMLVideoElement | null {
   v.setAttribute('playsinline', '')
   v.setAttribute('webkit-playsinline', '')
   v.style.cssText = 'width:100%;height:100%;display:block;background:#000;object-fit:contain'
+  v.addEventListener('click', toggleFullscreen)
   el.appendChild(v)
   return v
+}
+
+/*
+ * 全屏。原生 API 能用就用原生（Android/桌面能顺带处理旋转和系统 UI），
+ * iOS Safari 只在 <video> 上提供 webkitEnterFullscreen，且对 MediaStream
+ * 源的支持不稳定 —— 两条都不成就退回应用内覆盖层，行为在各端一致。
+ */
+type IOSVideo = HTMLVideoElement & {
+  webkitEnterFullscreen?: () => void
+  webkitDisplayingFullscreen?: boolean
+}
+
+function toggleFullscreen() {
+  if (fullscreen.value) return void closeOverlay()
+  enterFullscreen()
+}
+
+function enterFullscreen() {
+  const v = video
+  if (!v) return
+  const ios = v as IOSVideo
+
+  /*
+   * iOS Safari 在 iPhone 上不支持元素级的标准全屏 API，只在 <video> 上提供
+   * webkitEnterFullscreen —— 那是系统播放器，自带退出按钮，体验比自制覆盖层好，
+   * 所以优先。但它对 MediaStream 源的支持不稳定，可能既不抛错也不生效，
+   * 因此调用后要回头确认真的进去了，没有就退回覆盖层。
+   */
+  if (typeof ios.webkitEnterFullscreen === 'function') {
+    try {
+      ios.webkitEnterFullscreen()
+      setTimeout(() => {
+        if (!ios.webkitDisplayingFullscreen) void openOverlay()
+      }, 500)
+      return
+    } catch { /* 落到下一档 */ }
+  }
+
+  if (typeof v.requestFullscreen === 'function') {
+    v.requestFullscreen().catch(() => void openOverlay())
+    return
+  }
+
+  void openOverlay()
+}
+
+/** 覆盖层期间锁住背后的页面，理由同弹出卡片：iOS 上 preventDefault 挡不住滚动 */
+let savedY = 0
+function lockPage(on: boolean) {
+  if (typeof document === 'undefined') return
+  const b = document.body
+  if (on) {
+    savedY = window.scrollY || document.documentElement.scrollTop || 0
+    b.style.position = 'fixed'
+    b.style.top = `-${savedY}px`
+    b.style.left = '0'
+    b.style.right = '0'
+    b.style.width = '100%'
+  } else {
+    b.style.position = ''
+    b.style.top = ''
+    b.style.left = ''
+    b.style.right = ''
+    b.style.width = ''
+    window.scrollTo(0, savedY)
+  }
+}
+
+async function openOverlay() {
+  fullscreen.value = true
+  lockPage(true)
+  await nextTick()
+  const target = elOf(fsHost)
+  if (target && video) target.appendChild(video)   // 移动节点，MediaStream 不中断
+}
+
+async function closeOverlay() {
+  const back = elOf(host)
+  if (back && video) back.appendChild(video)
+  fullscreen.value = false
+  lockPage(false)
 }
 
 async function startRtc() {
@@ -166,18 +256,38 @@ function start() {
 
 /* 必须等挂载完成 —— immediate 的 watch 会在模板渲染前就跑，
    那时容器 ref 还是 null，会被误判成"起不来"直接降级 */
-onMounted(() => { void nextTick(start) })
+onMounted(() => {
+  void nextTick(start)
+  // #ifdef H5
+  document.addEventListener('fullscreenchange', () => {
+    if (!document.fullscreenElement) fullscreen.value = false
+  })
+  // #endif
+})
 watch(() => [props.active, props.mode], () => void nextTick(start))
-onBeforeUnmount(stopAll)
+onBeforeUnmount(() => { lockPage(false); stopAll() })
 
-defineExpose({ start, stopAll })
+defineExpose({ start, stopAll, enterFullscreen })
 </script>
 
 <template>
   <view class="wrap">
     <!-- WebRTC 的 <video> 由脚本挂进这里；抽帧时用 image -->
     <view ref="host" class="host" />
-    <image v-if="usingSnapshot && snapshotUrl" class="shot" :src="snapshotUrl" mode="aspectFit" />
+    <image
+      v-if="usingSnapshot && snapshotUrl"
+      class="shot"
+      :src="snapshotUrl"
+      mode="aspectFit"
+      @click="openOverlay"
+    />
+
+    <!-- 应用内全屏覆盖层：原生全屏不可用时的统一行为 -->
+    <view v-if="fullscreen" class="fs" @click="closeOverlay">
+      <view ref="fsHost" class="fs-host" />
+      <image v-if="usingSnapshot && snapshotUrl" class="fs-shot" :src="snapshotUrl" mode="aspectFit" />
+      <view class="fs-close"><text class="fs-close-t">✕</text></view>
+    </view>
   </view>
 </template>
 
@@ -197,6 +307,31 @@ defineExpose({ start, stopAll })
 @supports not (aspect-ratio: 1 / 1) {
   .wrap::before { content: ''; display: block; padding-top: 56.25%; }
 }
+.fs {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  /* 盖住 tabBar(899) 与弹出卡片(900)，但让给 uni 自己的 toast/modal(999) */
+  z-index: 950;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.fs-host { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+.fs-shot { width: 100%; height: 100%; }
+.fs-close {
+  position: absolute;
+  top: calc(24rpx + constant(safe-area-inset-top));
+  top: calc(24rpx + env(safe-area-inset-top));
+  right: 28rpx;
+  width: 72rpx; height: 72rpx; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(20rpx);
+  -webkit-backdrop-filter: blur(20rpx);
+  display: flex; align-items: center; justify-content: center;
+}
+.fs-close-t { color: #fff; font-size: 30rpx; line-height: 1; }
+
 .host, .shot {
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;

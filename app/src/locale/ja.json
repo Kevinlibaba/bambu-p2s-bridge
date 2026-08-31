@@ -67,7 +67,8 @@
     "updatedAt": "更新 {time}",
     "confirmPause": "印刷を一時停止しますか？",
     "confirmStop": "停止すると元に戻せません。印刷を停止しますか？",
-    "liveFallback": "リアルタイム映像が利用できないため静止画に切り替えました"
+    "liveFallback": "リアルタイム映像が利用できないため静止画に切り替えました",
+    "fullscreen": "全画面"
   },
   "ams": {
     "empty": "空きスロット",

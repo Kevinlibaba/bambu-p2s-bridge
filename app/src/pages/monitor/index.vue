@@ -63,6 +63,7 @@ const camMode = ref<'live' | 'saver'>('live')
 /* uni-app 会缓存页面，切走标签页时组件不会卸载 —— 不显式停掉的话
    WebRTC 会在后台一直跑，白耗流量和电。 */
 const pageActive = ref(true)
+const cam = ref<{ enterFullscreen: () => void } | null>(null)
 const camActive = computed(() => camOn.value && pageActive.value)
 
 function toggleCam() {
@@ -125,7 +126,7 @@ async function send(c: Command, confirmText?: string) {
     <template v-else>
       <!-- 摄像头：全出血，控件浮在画面上 -->
       <view class="cam">
-        <CameraView v-if="camOn" :active="camActive" :mode="camMode" @fallback="onCamFallback" />
+        <CameraView v-if="camOn" ref="cam" :active="camActive" :mode="camMode" @fallback="onCamFallback" />
         <view v-else class="cam-off"><text class="cam-off-t">{{ t('monitor.camPaused') }}</text></view>
         <view class="scrim" />
         <view class="cam-ctl">
@@ -134,6 +135,9 @@ async function send(c: Command, confirmText?: string) {
           </view>
           <view class="glass" @click="cycleRate">
             <text class="glass-t">{{ rateLabel }}</text>
+          </view>
+          <view class="glass" @click="cam?.enterFullscreen()">
+            <text class="glass-t">{{ t('monitor.fullscreen') }}</text>
           </view>
         </view>
       </view>
