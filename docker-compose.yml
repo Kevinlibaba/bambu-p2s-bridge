@@ -9,10 +9,17 @@ services:
       - ./go2rtc.yaml:/config/go2rtc.yaml:ro
 
   bridge:
-    build: ./bridge
+    # 上下文是仓库根目录：前端和桥接在同一次构建里完成，
+    # 宿主机不需要装 Node，也不用手动把产物拷进 bridge/public
+    build:
+      context: .
+      dockerfile: bridge/Dockerfile
     container_name: bambu-bridge
     restart: unless-stopped
     network_mode: host
     env_file: .env
+    volumes:
+      # 推送订阅与打印历史落在这里，容器重建后要保住
+      - ./data:/data
     depends_on:
       - go2rtc

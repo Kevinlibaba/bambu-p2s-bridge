@@ -49,6 +49,7 @@ printer talking to a cloud, this gives you the phone app back on your own terms.
 |---|---|
 | [`bridge/`](./bridge) | Node/TypeScript service. Speaks MQTT/FTPS to the printer, exposes a clean REST + WebSocket API with bearer auth, and proxies the camera. |
 | [`app/`](./app) | Web client (uni-app / Vue 3 + TS). Builds to **H5 / PWA** — installable to the home screen. |
+| [`install.sh`](./install.sh) | One-command deploy: discovers the printer, generates keys, builds, starts, verifies. |
 | [`probes/`](./probes) | Dependency-free Python scripts that verify each printer protocol. Run these first. |
 | [`PROTOCOL.md`](./PROTOCOL.md) | **Reverse-engineering notes for the P2S LAN protocol.** The P2S uses a new-generation state schema that existing libraries don't fully parse. |
 
@@ -95,79 +96,64 @@ Printer (LAN only)                Bridge host                    Phone
 
 ## Quick start
 
-### 0. Prerequisites
+### Prerequisites
 
-- P2S in **LAN Mode** with **Developer Mode** enabled; note the 8-character Access Code
-- An always-on Linux host on the same LAN (LXC container, Raspberry Pi, NAS, …)
-- Tailscale on that host and on your phone
+- P2S in **LAN Mode** with **Developer Mode** enabled — note the 8-character Access Code
+- An always-on Linux host on the same LAN (LXC container, Raspberry Pi, NAS, …) with
+  **Docker** and the Compose plugin
+- Optional: Tailscale on that host and on your phone, to reach it from outside
 
-### 1. Verify your printer speaks what this expects
+### One command
 
 ```bash
-python3 probes/probe.py  <printer-ip> <access-code>
+git clone https://github.com/Kevinlibaba/bambu-p2s-bridge.git
+cd bambu-p2s-bridge
+./install.sh
+```
+
+It finds the printer over SSDP, asks for the Access Code, generates the API token and
+the Web Push keys, builds both images, starts everything, and verifies it can actually
+talk to the printer before telling you it worked. Then it prints the URL and token to
+enter on your phone.
+
+Node is **not** a prerequisite — the web app is built inside the image.
+
+```
+==> 查找打印机
+  监听 SSDP 广播，约 8 秒…
+  选中 192.168.1.42（00M00A000000000）
+...
+==> 自检
+  接口已就绪：{"ok":true,"printerConnected":true,...}
+  打印机：在线，状态 RUNNING
+
+部署完成
+  地址   http://192.168.1.10:8080/app/
+  Token  8f3a…（48 位十六进制）
+```
+
+Re-running it is safe: it offers to keep the existing `.env` and just rebuild.
+
+Non-interactive:
+
+```bash
+BAMBU_ACCESS_CODE=xxxxxxxx ./install.sh --yes --no-tailscale
+```
+
+### Check your printer first (optional)
+
+If something doesn't work, these tell you which protocol is at fault. Stdlib only.
+
+```bash
+python3 scripts/discover.py                           # find printers on the LAN
+python3 probes/probe.py  <printer-ip> <access-code>   # MQTT
 python3 probes/probe5.py <printer-ip> <access-code>   # camera
 python3 probes/probe7.py <printer-ip> <access-code>   # files
 ```
 
-No dependencies — stdlib only. If these fail, nothing else will work.
+### Expose over Tailscale
 
-### 2. Configure
-
-```bash
-cp bridge/.env.example .env
-# fill in BAMBU_HOST / BAMBU_SERIAL / BAMBU_ACCESS_CODE
-# API_TOKEN: openssl rand -hex 24
-chmod 600 .env
-```
-
-### 3. Run
-
-`docker-compose.yml`:
-
-```yaml
-services:
-  go2rtc:
-    image: alexxit/go2rtc:latest
-    restart: unless-stopped
-    network_mode: host
-    env_file: .env
-    volumes: [./go2rtc.yaml:/config/go2rtc.yaml:ro]
-
-  bridge:
-    build: ./bridge
-    restart: unless-stopped
-    network_mode: host
-    env_file: .env
-```
-
-`go2rtc.yaml` — note the API binds to localhost only; go2rtc has **no authentication**,
-so the bridge is the only way in:
-
-```yaml
-api:  { listen: "127.0.0.1:1984" }
-rtsp: { listen: "127.0.0.1:8554" }
-webrtc: { listen: ":8555" }
-streams:
-  bambu_p2s:
-    - rtsps://bblp:${BAMBU_ACCESS_CODE}@${BAMBU_HOST}:322/streaming/live/1
-```
-
-```bash
-docker compose up -d --build
-```
-
-### 4. Build and host the app
-
-```bash
-cd app && npm install && npm run build:h5
-cp -R dist/build/h5/. ../bridge/public/
-docker compose up -d --build bridge
-```
-
-The bridge serves it at `/app/` (auth-exempt so the shell can load before you enter a
-token) and redirects `/` there.
-
-### 5. Expose over Tailscale
+`install.sh` offers to do this if `tailscale` is on the host. By hand:
 
 ```bash
 tailscale serve --bg --https=443 http://127.0.0.1:8080
@@ -177,7 +163,29 @@ You get `https://<node>.<tailnet>.ts.net` with a real Let's Encrypt certificate,
 reachable only from your tailnet. **Do not enable Funnel** unless you add another
 layer of auth — that publishes to the internet.
 
----
+<details>
+<summary>Doing it by hand instead</summary>
+
+```bash
+cp bridge/.env.example .env
+# BAMBU_HOST / BAMBU_SERIAL / BAMBU_ACCESS_CODE
+# API_TOKEN: openssl rand -hex 24
+# VAPID keys (optional, for Web Push): npx web-push generate-vapid-keys
+chmod 600 .env
+mkdir -p data
+
+docker compose up -d --build
+```
+
+`docker-compose.yml` and `go2rtc.yaml` are in the repo. go2rtc binds its API to
+localhost only — it has **no authentication of its own**, so the bridge is the only
+way in. Don't change that to `0.0.0.0`.
+
+The bridge serves the web app at `/app/` (auth-exempt so the shell can load before you
+enter a token) and redirects `/` there. `./data` holds push subscriptions and print
+history and must survive container rebuilds.
+
+</details>
 
 ## API
 

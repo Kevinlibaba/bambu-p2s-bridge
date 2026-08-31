@@ -1,0 +1,13 @@
+# 构建上下文是仓库根目录，把不需要进镜像的挡在外面 ——
+# 否则 node_modules 和 docs 会让上下文膨胀到几百 MB
+.git
+.github
+**/node_modules
+**/dist
+app/unpackage
+bridge/public
+docs
+probes
+*.md
+.env
+*.log

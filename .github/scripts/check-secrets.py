@@ -24,6 +24,14 @@ PLACEHOLDER = re.compile(
 LOOKS_LIKE_ACCESS_CODE = re.compile(r"^[0-9a-zA-Z]{8}$")
 LOOKS_LIKE_TOKEN = re.compile(r"^(?:[0-9a-fA-F]{16,}|[A-Za-z0-9_\-]{24,})$")
 
+def looks_like_serial(v: str) -> bool:
+    """
+    真序列号字符种类多；文档里的占位符（00M00A000000000、XXXXXXXXXXXXXXX）
+    翻来覆去就那么两三个字符。用字符多样性区分，比枚举占位符写法可靠。
+    """
+    return len(set(v)) >= 6
+
+
 CHECKS = [
     (
         "硬编码访问码",
@@ -41,6 +49,14 @@ CHECKS = [
         # 文档里写 *.ts.net / your-tailnet.ts.net 属于说明文字，不拦。
         re.compile(r"(?P<v>\b[a-z0-9-]+\.tail[0-9a-f]{4,}\.ts\.net\b)"),
         None,
+    ),
+    (
+        "真实设备序列号",
+        # Bambu 序列号是两位数字 + 13 位大写字母数字，共 15 位。
+        # （这里刻意不写完整样例 —— 写了会被本规则自己拦下。）
+        # 它能唯一标识一台机器，不该出现在文档或代码里。
+        re.compile(r"(?P<v>\b\d{2}[0-9A-Z]{13}\b)"),
+        lambda v: looks_like_serial(v),
     ),
     (
         "真实打印机地址",
