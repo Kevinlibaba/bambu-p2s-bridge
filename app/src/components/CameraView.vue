@@ -76,7 +76,7 @@ function mountVideo(): HTMLVideoElement | null {
   v.playsInline = true
   v.setAttribute('playsinline', '')
   v.setAttribute('webkit-playsinline', '')
-  v.style.cssText = 'width:100%;display:block;background:#000'
+  v.style.cssText = 'width:100%;height:100%;display:block;background:#000;object-fit:contain'
   el.appendChild(v)
   return v
 }
@@ -177,12 +177,29 @@ defineExpose({ start, stopAll })
   <view class="wrap">
     <!-- WebRTC 的 <video> 由脚本挂进这里；抽帧时用 image -->
     <view ref="host" class="host" />
-    <image v-if="usingSnapshot && snapshotUrl" class="shot" :src="snapshotUrl" mode="widthFix" />
+    <image v-if="usingSnapshot && snapshotUrl" class="shot" :src="snapshotUrl" mode="aspectFit" />
   </view>
 </template>
 
 <style scoped>
-.wrap { position: relative; background: #000; line-height: 0; }
-.host { line-height: 0; }
-.shot { width: 100%; display: block; }
+/*
+ * 高度由 16:9 写死，不随内容变化。
+ * 切换档位的瞬间容器里既没有图片也还没有视频，若让内容决定高度就会先塌陷
+ * 再撑开，下方整页跟着跳一下。源流固定 1920x1080，锁比例即可根治。
+ */
+.wrap {
+  position: relative;
+  background: #000;
+  line-height: 0;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+}
+@supports not (aspect-ratio: 1 / 1) {
+  .wrap::before { content: ''; display: block; padding-top: 56.25%; }
+}
+.host, .shot {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  width: 100%; height: 100%;
+}
 </style>

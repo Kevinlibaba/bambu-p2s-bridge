@@ -229,7 +229,12 @@ async function send(c: Command, confirmText?: string) {
 
 .cam { position: relative; background: #000; line-height: 0; }
 .cam-img { width: 100%; display: block; }
-.cam-off { height: 420rpx; display: flex; align-items: center; justify-content: center; }
+/* 和 CameraView 一样锁 16:9，暂停/恢复才不会差那一两像素。
+   写死 rpx 高度会随屏宽和真实画面比例对不上。 */
+.cam-off { aspect-ratio: 16 / 9; display: flex; align-items: center; justify-content: center; }
+@supports not (aspect-ratio: 1 / 1) {
+  .cam-off { height: 0; padding-top: 56.25%; position: relative; }
+}
 .cam-off-t { color: var(--ink-3); font-size: 26rpx; letter-spacing: -0.01em; }
 /* 底部压一层渐变，控件不再受画面明暗影响（Apple 在相机/照片里的做法） */
 .scrim { position: absolute; left: 0; right: 0; bottom: 0; height: 180rpx;
