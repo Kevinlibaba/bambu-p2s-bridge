@@ -344,8 +344,11 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
         </view>
       </view>
 
-      <text class="note">{{ t('files.note') }}</text>
-      <text v-if="path === '/'" class="note">{{ t('import.note') }}</text>
+      <!-- 加载时只留转圈，说明文字一并收起，免得那一瞬满屏都是字 -->
+      <template v-if="!loading">
+        <text class="note">{{ t('files.note') }}</text>
+        <text v-if="path === '/'" class="note">{{ t('import.note') }}</text>
+      </template>
     </view>
 
     <!-- 详情与预览 -->
