@@ -196,7 +196,8 @@
     "pushNoVapid": "ブリッジに VAPID 鍵が未設定のため利用できません",
     "pushDenied": "通知が拒否されています。システム設定で許可してください",
     "pushFailed": "購読に失敗しました",
-    "openHistory": "印刷履歴を見る"
+    "openHistory": "印刷履歴を見る",
+    "paste": "貼り付け"
   },
   "action": {
     "pause": "一時停止",

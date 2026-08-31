@@ -196,7 +196,8 @@
     "pushNoVapid": "The bridge has no VAPID keys, so web push is unavailable",
     "pushDenied": "Notification permission denied — allow it in system settings",
     "pushFailed": "Subscription failed",
-    "openHistory": "Open print history"
+    "openHistory": "Open print history",
+    "paste": "Paste"
   },
   "action": {
     "pause": "Pause",

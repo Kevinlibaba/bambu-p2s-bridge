@@ -9,7 +9,7 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
-import { fetchHistory, isConfigured, type HistoryPayload, type JobRecord } from '../../api/client'
+import { fetchHistory, configured, type HistoryPayload, type JobRecord } from '../../api/client'
 import { themeClass, applyChrome } from '../../store/prefs'
 import Spinner from '../../components/Spinner.vue'
 
@@ -19,7 +19,7 @@ const loading = ref(false)
 const err = ref('')
 
 async function load() {
-  if (!isConfigured()) return
+  if (!configured.value) return
   loading.value = true
   err.value = ''
   try {
@@ -68,7 +68,7 @@ function sub(j: JobRecord): string {
 
 <template>
   <view class="root" :class="themeClass">
-    <view v-if="!isConfigured()" class="empty">
+    <view v-if="!configured" class="empty">
       <text class="empty-t">{{ t('monitor.emptyTitle') }}</text>
     </view>
 

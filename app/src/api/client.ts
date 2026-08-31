@@ -4,6 +4,8 @@
  * 这里只负责拼地址、带 token、统一错误。
  */
 
+import { computed, ref } from 'vue'
+
 const KEY_BASE = 'bambu.baseUrl'
 const KEY_TOKEN = 'bambu.token'
 
@@ -19,15 +21,26 @@ export function loadSettings(): Settings {
   }
 }
 
+/*
+ * 「是否已配置」必须是响应式的。
+ * tabBar 页面一旦创建就一直活着，如果这里只是个普通函数，
+ * 在设置页保存之后切到别的标签页，模板不会重新求值 ——
+ * 表现就是连接明明已经好了，功能页却还在提示「请先设置连接」，
+ * 得把 app 杀掉重开才正常。
+ */
+const settingsRev = ref(0)
+
 export function saveSettings(s: Settings) {
   uni.setStorageSync(KEY_BASE, s.baseUrl.replace(/\/+$/, ''))
   uni.setStorageSync(KEY_TOKEN, s.token)
+  settingsRev.value += 1
 }
 
-export function isConfigured(): boolean {
+export const configured = computed(() => {
+  settingsRev.value // 依赖，保存后重新求值
   const s = loadSettings()
   return !!s.baseUrl && !!s.token
-}
+})
 
 export class ApiError extends Error {
   constructor(message: string, readonly status = 0) {

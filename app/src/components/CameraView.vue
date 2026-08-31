@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { api, isConfigured, tokenizedUrl } from '../api/client'
+import { api, configured, tokenizedUrl } from '../api/client'
 
 /**
  * 摄像头画面。
@@ -32,7 +32,7 @@ let watchdog: ReturnType<typeof setTimeout> | null = null
 
 // ---------- 抽帧 ----------
 function refreshSnapshot() {
-  if (!isConfigured()) return
+  if (!configured.value) return
   snapshotUrl.value = api.snapshotUrl() + '&t=' + Date.now()
 }
 function startSnapshots(intervalMs: number) {
@@ -213,7 +213,7 @@ async function closeOverlay() {
 }
 
 async function startRtc() {
-  if (!isConfigured()) return
+  if (!configured.value) return
   video = mountVideo()
   if (!video) return fallback()
 

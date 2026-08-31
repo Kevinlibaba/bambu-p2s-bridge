@@ -22,9 +22,15 @@ const testing = ref(false)
 const result = ref('')
 const ok = ref(false)
 
+/*
+ * 表单只在页面创建时读一次存储。
+ * onShow 每次切回本页都会触发 —— 包括去别的 app 复制 token 再回来。
+ * 如果在这里重读存储，用户刚粘好、还没保存的地址就被清空了。
+ */
+form.value = loadSettings()
+
 onShow(() => {
   applyChrome('tab.settings')
-  form.value = loadSettings()
   void loadNotify()
 })
 
@@ -110,6 +116,20 @@ const activeSinks = computed(() => {
   return ['webpush', 'bark', 'ntfy', 'telegram', 'webhook'].filter((k) => s[k] === true)
 })
 
+/*
+ * 从剪贴板填入。地址和 token 通常要分两次从别处复制，
+ * 每次都手动切到输入框再长按粘贴太折腾。
+ * iOS 会为此弹一次系统授权，用户拒绝就静默不动。
+ */
+async function pasteInto(field: 'baseUrl' | 'token') {
+  try {
+    const text = (await navigator.clipboard.readText()).trim()
+    if (text) form.value[field] = text
+  } catch {
+    /* 没授权或浏览器不支持，保持原样 */
+  }
+}
+
 async function testAndSave() {
   testing.value = true; result.value = ''
   const prev = loadSettings()
@@ -173,14 +193,20 @@ function pickLocale() {
       <view class="card">
         <view class="field">
           <text class="flabel">{{ t('settings.address') }}</text>
-          <input class="finput" v-model="form.baseUrl"
-            :placeholder="t('settings.addressPlaceholder')" placeholder-class="ph" />
+          <view class="frow">
+            <input class="finput" v-model="form.baseUrl"
+              :placeholder="t('settings.addressPlaceholder')" placeholder-class="ph" />
+            <text class="paste" @click="pasteInto('baseUrl')">{{ t('settings.paste') }}</text>
+          </view>
         </view>
         <view class="hsep" />
         <view class="field">
           <text class="flabel">{{ t('settings.token') }}</text>
-          <input class="finput" v-model="form.token" password
-            :placeholder="t('settings.tokenPlaceholder')" placeholder-class="ph" />
+          <view class="frow">
+            <input class="finput" v-model="form.token" password
+              :placeholder="t('settings.tokenPlaceholder')" placeholder-class="ph" />
+            <text class="paste" @click="pasteInto('token')">{{ t('settings.paste') }}</text>
+          </view>
         </view>
       </view>
       <text class="note">{{ t('settings.serverNote') }}</text>
@@ -338,4 +364,8 @@ function pickLocale() {
   margin-top: 60rpx; line-height: 1.7; letter-spacing: -0.01em; }
 .opt-sub { display: block; font-size: 23rpx; color: var(--ink-2);
   margin-top: 10rpx; line-height: 1.5; letter-spacing: -0.01em; }
+.frow { display: flex; align-items: center; }
+.frow .finput { flex: 1; }
+.paste { font-size: 25rpx; color: var(--accent); padding: 10rpx 0 10rpx 24rpx; flex-shrink: 0; }
+.paste:active { opacity: 0.5; }
 </style>

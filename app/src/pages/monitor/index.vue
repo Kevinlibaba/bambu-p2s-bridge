@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onShow, onHide, onPullDownRefresh } from '@dcloudio/uni-app'
-import { api, isConfigured, type Command } from '../../api/client'
+import { api, configured, type Command } from '../../api/client'
 import { printer, restart } from '../../store/printer'
 import { themeClass, applyChrome } from '../../store/prefs'
 import StatTile from '../../components/StatTile.vue'
@@ -336,7 +336,7 @@ async function send(c: Command, confirmText?: string) {
 <template>
   <view class="root" :class="themeClass">
     <!-- 未配置 -->
-    <view v-if="!isConfigured()" class="empty">
+    <view v-if="!configured" class="empty">
       <text class="empty-t">{{ t('monitor.emptyTitle') }}</text>
       <text class="empty-s">{{ t('monitor.emptyDesc') }}</text>
       <button class="cta" @click="goSettings">{{ t('monitor.emptyCta') }}</button>

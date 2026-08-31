@@ -3,7 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
 import {
-  api, isConfigured, uploadFile, importUrl, deleteFile, startPrint, fetchPrintPlan,
+  api, configured, uploadFile, importUrl, deleteFile, startPrint, fetchPrintPlan,
   type RemoteFile, type ThreeMfInfo, type PrintPlan, type PlanTray, type PreflightCheck,
 } from '../../api/client'
 import { themeClass, applyChrome } from '../../store/prefs'
@@ -97,7 +97,7 @@ function isUserFile(f: RemoteFile): boolean {
 }
 
 async function load(p = path.value) {
-  if (!isConfigured()) return
+  if (!configured.value) return
   loading.value = true; error.value = ''
   try {
     const r = await api.files(p)
@@ -415,7 +415,7 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 
 <template>
   <view class="root" :class="themeClass">
-    <view v-if="!isConfigured()" class="empty"><text class="empty-s">{{ t('common.notConfigured') }}</text></view>
+    <view v-if="!configured" class="empty"><text class="empty-s">{{ t('common.notConfigured') }}</text></view>
 
     <view v-else class="body">
       <view class="segs">

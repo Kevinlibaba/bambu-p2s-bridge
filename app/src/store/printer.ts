@@ -1,5 +1,5 @@
 import { reactive, readonly } from 'vue'
-import { api, eventsUrl, isConfigured, type Summary } from '../api/client'
+import { api, eventsUrl, configured, type Summary } from '../api/client'
 
 export type Link = 'idle' | 'connecting' | 'live' | 'polling' | 'error'
 
@@ -103,7 +103,7 @@ function stopPolling() {
 }
 
 export function start() {
-  if (!isConfigured()) {
+  if (!configured.value) {
     store.link = 'idle'
     store.error = '尚未配置服务器地址与 Token'
     return

@@ -196,7 +196,8 @@
     "pushNoVapid": "橋接未設定 VAPID 金鑰，網頁推播無法使用",
     "pushDenied": "通知權限被拒絕，請至系統設定開啟",
     "pushFailed": "訂閱失敗",
-    "openHistory": "查看列印歷史"
+    "openHistory": "查看列印歷史",
+    "paste": "貼上"
   },
   "action": {
     "pause": "暫停",

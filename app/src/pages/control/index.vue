@@ -2,7 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onShow } from '@dcloudio/uni-app'
-import { api, isConfigured, type Command } from '../../api/client'
+import { api, configured, type Command } from '../../api/client'
 import { printer } from '../../store/printer'
 import { themeClass, applyChrome } from '../../store/prefs'
 
@@ -46,7 +46,7 @@ const step = (which: 'n' | 'b', d: number) => {
 
 <template>
   <view class="root" :class="themeClass">
-    <view v-if="!isConfigured()" class="empty">
+    <view v-if="!configured" class="empty">
       <text class="empty-s">{{ t('common.notConfigured') }}</text>
     </view>
 

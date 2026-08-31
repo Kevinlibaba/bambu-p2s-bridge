@@ -196,7 +196,8 @@
     "pushNoVapid": "桥接未配置 VAPID 密钥，网页推送不可用",
     "pushDenied": "通知权限被拒绝，请在系统设置里放开",
     "pushFailed": "订阅失败",
-    "openHistory": "查看打印历史"
+    "openHistory": "查看打印历史",
+    "paste": "粘贴"
   },
   "action": {
     "pause": "暂停",
