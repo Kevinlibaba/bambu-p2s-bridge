@@ -540,25 +540,6 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
         <view v-if="modelLoading" class="ph-box"><Spinner :size="40" /></view>
         <view v-else-if="modelError" class="ph-box"><text class="ph-t err">{{ modelError }}</text></view>
         <template v-else-if="model">
-          <!--
-            盘数不固定，见过 13 个的文件。等分会把每个挤到二十来像素宽；
-            而每格重复一遍「Plate」既冗余、又让宽度随语言浮动 ——
-            英文下标签会折行，「Plate」连成一片。
-            改成「组标题说一次 + 格子只放数字」：数字在任何语言下等宽，
-            横滚且向右出血，边缘露出半个格子提示后面还有。
-          -->
-          <template v-if="model.plates.length > 1">
-            <text class="grouphead plate-head">{{ t('files.plateGroup') }}</text>
-            <!-- 只手动滑动：绑 scroll-into-view 会让每次点选都把选中项弹到最左 -->
-            <scroll-view class="plates" scroll-x :show-scrollbar="false">
-              <view class="chiprow">
-                <view v-for="(p, i) in model.plates" :key="p.index"
-                  class="chip" :class="{ on: i === plateIdx }" @click="plateIdx = i">
-                  <text class="chip-t">{{ p.index }}</text>
-                </view>
-              </view>
-            </scroll-view>
-          </template>
 
           <view v-if="plateUrl" class="plate-wrap"
             @touchstart="onPlateTouchStart" @touchend="onPlateTouchEnd">
@@ -769,27 +750,6 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 .seg.on { background: var(--surface-2); }
 .seg-t { font-size: 28rpx; color: var(--ink); letter-spacing: -0.02em; }
 .seg.on .seg-t { font-weight: 600; }
-.plate-head { margin-top: 4rpx; }
-/*
- * scroll-view 自身不能是 flex，那会破坏它的内部结构、内容撑不开就滚不动。
- * 让内层 .chiprow 做 inline-flex，宽度自然超出容器，横滚才成立。
- * 左右负边距是为了向出血到卡片边缘 —— 边上露出半个格子，
- * 才看得出后面还有内容，而不是一条到头的横线。
- */
-.plates { display: block; white-space: nowrap; margin: 0 -36rpx 28rpx; }
-.chiprow { display: inline-flex; padding: 0 36rpx; }
-.chip {
-  /* 92rpx ≈ 44px，Apple 的最小点击目标 */
-  flex: 0 0 auto; min-width: 92rpx; height: 92rpx; line-height: 92rpx;
-  margin-right: 16rpx; padding: 0 10rpx; border-radius: 46rpx;
-  background: var(--surface); text-align: center;
-  transition: background 0.2s ease;
-}
-.chip:last-child { margin-right: 0; }
-.chip-t { font-size: 28rpx; color: var(--ink); letter-spacing: -0.02em;
-  font-variant-numeric: tabular-nums; }
-.chip.on { background: var(--accent); }
-.chip.on .chip-t { color: #fff; font-weight: 600; }
 
 .crumb { display: flex; align-items: center; margin: 28rpx 8rpx 16rpx; min-height: 56rpx; }
 .up { font-size: 26rpx; color: var(--accent); margin-right: 20rpx; letter-spacing: -0.01em; }
