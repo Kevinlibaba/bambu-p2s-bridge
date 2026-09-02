@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useZoomPan } from '../util/useZoomPan'
 import { api, configured, tokenizedUrl } from '../api/client'
 
 /**
@@ -21,6 +22,14 @@ const emit = defineEmits<{ (e: 'fallback'): void }>()
 const host = ref<{ $el?: HTMLElement } | HTMLElement | null>(null)
 const fsHost = ref<{ $el?: HTMLElement } | HTMLElement | null>(null)
 const fullscreen = ref(false)
+/*
+ * 全屏后的缩放与拖动。
+ *
+ * iPhone 上原来走的是 webkitEnterFullscreen（系统播放器），它的捏合只是
+ * 「适应↔填充」两档切换，不是缩放 —— 表现就是只能放大一倍且不能移动。
+ * 想看清打印件的某个角落根本做不到。现在统一用应用内覆盖层，手势自己实现。
+ */
+const zoom = useZoomPan()
 const snapshotUrl = ref('')
 const usingSnapshot = ref(false)
 
@@ -157,21 +166,17 @@ function enterFullscreen() {
    * 所以优先。但它对 MediaStream 源的支持不稳定，可能既不抛错也不生效，
    * 因此调用后要回头确认真的进去了，没有就退回覆盖层。
    */
-  if (typeof ios.webkitEnterFullscreen === 'function') {
-    try {
-      ios.webkitEnterFullscreen()
-      setTimeout(() => {
-        if (!ios.webkitDisplayingFullscreen) void openOverlay()
-      }, 500)
-      return
-    } catch { /* 落到下一档 */ }
-  }
-
-  if (typeof v.requestFullscreen === 'function') {
-    v.requestFullscreen().catch(() => void openOverlay())
-    return
-  }
-
+  /*
+   * 一律用应用内覆盖层，不再调系统播放器。
+   *
+   * 原来优先 webkitEnterFullscreen / requestFullscreen，理由是系统播放器
+   * 自带退出按钮。但两者都把 <video> 交给了浏览器，我们就没法在上面做手势 ——
+   * iOS 系统播放器的捏合只是「适应↔填充」两档切换，Android 的元素级全屏
+   * 同样轮不到我们处理触摸。而全屏看画面的目的恰恰是放大某处看细节。
+   * 覆盖层自己有关闭按钮，缩放、拖动、双击都归我们管，各端行为也一致。
+   */
+  void v
+  void ios
   void openOverlay()
 }
 
@@ -205,7 +210,22 @@ async function openOverlay() {
   if (target && video) target.appendChild(video)   // 移动节点，MediaStream 不中断
 }
 
+const fsRoot = ref<HTMLElement | { $el?: HTMLElement } | null>(null)
+
+function onFsTouchStart(e: TouchEvent) {
+  zoom.onTouchStart(e, elOf(fsRoot))
+}
+function onFsTouchMove(e: TouchEvent) {
+  zoom.onTouchMove(e)
+}
+function onFsTouchEnd(e: TouchEvent) {
+  const tapped = zoom.onTouchEnd(e, elOf(fsRoot))
+  // 放大状态下正在看细节，一次误触不该把全屏关掉；收回 1 倍后再恢复点背景关闭
+  if (tapped && !zoom.zoomed.value) void closeOverlay()
+}
+
 async function closeOverlay() {
+  zoom.reset()
   const back = elOf(host)
   if (back && video) back.appendChild(video)
   fullscreen.value = false
@@ -328,11 +348,23 @@ defineExpose({ start, stopAll, enterFullscreen })
       @click="openOverlay"
     />
 
-    <!-- 应用内全屏覆盖层：原生全屏不可用时的统一行为 -->
-    <view v-if="fullscreen" class="fs" @click="closeOverlay">
-      <view ref="fsHost" class="fs-host" />
-      <image v-if="usingSnapshot && snapshotUrl" class="fs-shot" :src="snapshotUrl" mode="aspectFit" />
-      <view class="fs-close"><text class="fs-close-t">✕</text></view>
+    <!--
+      应用内全屏覆盖层。双指缩放、放大后单指拖动、双击切换倍数都在这里做 ——
+      交给系统播放器就没法实现，那正是「只能放大一倍且不能移动」的由来。
+    -->
+    <view
+      v-if="fullscreen"
+      ref="fsRoot"
+      class="fs"
+      @touchstart="onFsTouchStart"
+      @touchmove="onFsTouchMove"
+      @touchend="onFsTouchEnd"
+    >
+      <view class="fs-inner" :style="zoom.style.value">
+        <view ref="fsHost" class="fs-host" />
+        <image v-if="usingSnapshot && snapshotUrl" class="fs-shot" :src="snapshotUrl" mode="aspectFit" />
+      </view>
+      <view class="fs-close" @click.stop="closeOverlay"><text class="fs-close-t">✕</text></view>
     </view>
   </view>
 </template>
@@ -362,6 +394,17 @@ defineExpose({ start, stopAll, enterFullscreen })
   display: flex;
   align-items: center;
   justify-content: center;
+}
+/*
+ * 手势全部自己处理，必须关掉浏览器的默认触摸行为，
+ * 否则 iOS 会把双指当成页面手势、单指当成滚动。
+ */
+.fs { touch-action: none; }
+.fs-inner {
+  width: 100%; height: 100%;
+  display: flex; align-items: center; justify-content: center;
+  transform-origin: center center;
+  will-change: transform;
 }
 .fs-host { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
 .fs-shot { width: 100%; height: 100%; }

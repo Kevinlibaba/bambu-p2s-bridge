@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
 import {
@@ -9,6 +9,7 @@ import {
 import { themeClass, applyChrome } from '../../store/prefs'
 import { confirm, toast } from '../../util/dialog'
 import Sheet from '../../components/Sheet.vue'
+import ZoomOverlay from '../../components/ZoomOverlay.vue'
 import Meter from '../../components/Meter.vue'
 import Spinner from '../../components/Spinner.vue'
 import FileIcon from '../../components/FileIcon.vue'
@@ -177,6 +178,37 @@ const plateIdx = ref(0)
 const selPath = computed(() => (sel.value ? join(path.value, sel.value.name) : ''))
 const selKind = computed<Kind>(() => (sel.value ? kindOf(sel.value.name) : 'other'))
 const mediaUrl = computed(() => (selPath.value ? api.mediaUrl(selPath.value) : ''))
+
+/*
+ * 放大看录像。
+ *
+ * 不用系统全屏 —— 那是原生播放器，捏合只在「适应↔填充」两档之间切换，
+ * 既放不大也不能平移。这里另起一个覆盖层，把播放进度接力过去，
+ * 免得放大后又要从头找。
+ */
+const zoomOpen = ref(false)
+function currentOf(id: string): number {
+  const el = document.getElementById(id) as HTMLVideoElement | null
+  // uni-app 的 video 在 H5 下是包一层的，真正的媒体元素在里面
+  const v = el?.tagName === 'VIDEO' ? el : (el?.querySelector('video') ?? null)
+  return v?.currentTime ?? 0
+}
+function seek(id: string, to: number) {
+  const el = document.getElementById(id) as HTMLElement | null
+  const v = el?.tagName === 'VIDEO' ? (el as HTMLVideoElement) : (el?.querySelector('video') ?? null)
+  if (v && to > 0) v.currentTime = to
+}
+async function openZoom() {
+  const at = currentOf('fileplayer')
+  zoomOpen.value = true
+  await nextTick()
+  setTimeout(() => seek('zoomplayer', at), 120)
+}
+function closeZoom() {
+  const at = currentOf('zoomplayer')
+  zoomOpen.value = false
+  setTimeout(() => seek('fileplayer', at), 120)
+}
 
 const posterUrl = computed(() => {
   if (!sel.value) return ''
@@ -558,10 +590,19 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
     </view>
 
     <!-- 详情与预览 -->
+    <ZoomOverlay :visible="zoomOpen" @close="closeZoom">
+      <video v-if="zoomOpen" id="zoomplayer" class="zplayer" :src="mediaUrl"
+        controls autoplay object-fit="contain" />
+    </ZoomOverlay>
+
     <Sheet :visible="!!sel" :title="sel?.name" @close="close">
       <!-- 视频：Range 由桥接侧实现，进度条可拖 -->
-      <video v-if="selKind === 'video'" class="player" :src="mediaUrl" :poster="posterUrl"
-        controls object-fit="contain" />
+      <video v-if="selKind === 'video'" id="fileplayer" class="player" :src="mediaUrl"
+        :poster="posterUrl" controls object-fit="contain" />
+      <view v-if="selKind === 'video'" class="line tappable" @click="openZoom">
+        <text class="k">{{ t('files.zoomView') }}</text>
+        <text class="v accent">›</text>
+      </view>
 
       <image v-else-if="selKind === 'image'" class="shot" :src="mediaUrl" mode="widthFix" />
 
@@ -835,6 +876,7 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 
 /* ---- 详情卡片 ---- */
 .player { width: 100%; height: 420rpx; border-radius: 24rpx; background: #000000; }
+.zplayer { width: 100%; height: 100%; background: #000000; }
 .shot { width: 100%; border-radius: 24rpx; background: var(--surface); }
 .plate { width: 100%; height: 460rpx; border-radius: 24rpx; background: var(--surface); }
 /* 预览占位框。注意别叫 .ph —— 那个名字被输入框的 placeholder-class 占着 */

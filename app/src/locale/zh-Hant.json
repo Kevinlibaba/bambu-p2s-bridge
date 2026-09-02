@@ -160,7 +160,8 @@
     "yesterday": "昨天",
     "prevPlate": "上一盤",
     "nextPlate": "下一盤",
-    "unsliced": "未切片"
+    "unsliced": "未切片",
+    "zoomView": "放大檢視"
   },
   "settings": {
     "serverGroup": "伺服器",

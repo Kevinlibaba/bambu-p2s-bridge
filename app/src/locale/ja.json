@@ -160,7 +160,8 @@
     "yesterday": "昨日",
     "prevPlate": "前のプレート",
     "nextPlate": "次のプレート",
-    "unsliced": "未スライス"
+    "unsliced": "未スライス",
+    "zoomView": "拡大表示"
   },
   "settings": {
     "serverGroup": "サーバー",

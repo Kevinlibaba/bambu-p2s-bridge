@@ -6,7 +6,7 @@
  * 统计只呈现能确证的部分：耗材克重取自切片文件，查不到的单不计入，
  * 并在下面注明「N 单未计入」—— 宁可说不全，也不给一个凑出来的数。
  */
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
 import {
@@ -16,6 +16,7 @@ import {
 import { themeClass, applyChrome } from '../../store/prefs'
 import Spinner from '../../components/Spinner.vue'
 import Sheet from '../../components/Sheet.vue'
+import ZoomOverlay from '../../components/ZoomOverlay.vue'
 import TempChart from '../../components/TempChart.vue'
 
 const { t } = useI18n()
@@ -35,6 +36,25 @@ const temps = ref<TempSample[]>([])
 const tempsState = ref<'loading' | 'ok' | 'none' | 'error'>('loading')
 
 const events = ref<LoggedEvent[]>([])
+
+/* 放大看录像。播放进度在两个播放器之间接力，免得放大后要从头找 */
+const zoomOpen = ref(false)
+function mediaEl(id: string): HTMLVideoElement | null {
+  const el = document.getElementById(id)
+  if (!el) return null
+  return el.tagName === 'VIDEO' ? (el as HTMLVideoElement) : el.querySelector('video')
+}
+async function openZoom() {
+  const at = mediaEl('hplayer')?.currentTime ?? 0
+  zoomOpen.value = true
+  await nextTick()
+  setTimeout(() => { const v = mediaEl('hzoom'); if (v && at > 0) v.currentTime = at }, 120)
+}
+function closeZoom() {
+  const at = mediaEl('hzoom')?.currentTime ?? 0
+  zoomOpen.value = false
+  setTimeout(() => { const v = mediaEl('hplayer'); if (v && at > 0) v.currentTime = at }, 120)
+}
 
 /** 源 3mf 还在打印机上时才有缩略图；文件被删了就没有，这很常见 */
 function thumb(j: JobRecord): string {
@@ -212,9 +232,19 @@ function sub(j: JobRecord): string {
       <!-- 延时录像。打印机不给关联信息，是按结束时间撞出来的 -->
       <template v-if="videoUrl">
         <text class="grouphead">{{ t('history.timelapse') }}</text>
-        <video class="player" :src="videoUrl" controls object-fit="contain" />
+        <video id="hplayer" class="player" :src="videoUrl" controls object-fit="contain" />
+        <view class="line tappable" @click="openZoom">
+          <text class="k">{{ t('files.zoomView') }}</text>
+          <text class="v accent">›</text>
+        </view>
       </template>
     </Sheet>
+
+    <!-- 放大看录像：系统全屏的捏合只在「适应↔填充」间切换，放不大也不能平移 -->
+    <ZoomOverlay :visible="zoomOpen" @close="closeZoom">
+      <video v-if="zoomOpen" id="hzoom" class="zplayer" :src="videoUrl"
+        controls autoplay object-fit="contain" />
+    </ZoomOverlay>
   </view>
 </template>
 
@@ -256,6 +286,7 @@ function sub(j: JobRecord): string {
   background: var(--fill); }
 .player { width: 100%; height: 420rpx; margin-top: 24rpx; border-radius: 16rpx;
   background: #000; }
+.zplayer { width: 100%; height: 100%; background: #000; }
 .v { font-size: 28rpx; color: var(--ink-2); letter-spacing: -0.02em; }
 .v.accent { color: var(--accent); }
 

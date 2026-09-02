@@ -51,6 +51,9 @@ jobs:
       - name: vue-tsc --noEmit
         run: npx vue-tsc --noEmit
         working-directory: app
+      - name: 单元测试（缩放手势的数学部分）
+        run: npm test
+        working-directory: app
       - name: Build H5
         run: npm run build:h5
         working-directory: app

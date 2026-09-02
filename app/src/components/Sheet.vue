@@ -65,10 +65,18 @@ let downX = 0
 let downY = 0
 let dragged = false
 
-/** TouchList 不是数组，不能当数组用 */
+/*
+ * 取第一个触点。
+ *
+ * 原来写的是 touches.item(0) —— 那假定拿到的一定是原生 TouchList。
+ * 但 uni-app 会规范化事件，某些路径下 touches 是普通数组，没有 item()，
+ * 于是这里每次触摸都抛 TypeError，dragged 永远设不上：这段代码本是为了
+ * 「在遮罩上划动时别关掉卡片」，结果防护完全失效。
+ * 下标取值对 TouchList 和数组都成立。
+ */
 function pointOf(e: TouchEvent | MouseEvent): { x: number; y: number } | null {
   if ('touches' in e) {
-    const t = e.touches.item(0) ?? e.changedTouches.item(0)
+    const t = e.touches[0] ?? e.changedTouches[0]
     return t ? { x: t.clientX, y: t.clientY } : null
   }
   return { x: e.clientX, y: e.clientY }
