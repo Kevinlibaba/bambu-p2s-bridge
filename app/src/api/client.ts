@@ -406,6 +406,18 @@ export interface HarvestPlan {
   gcode: string[]
 }
 
+export interface HarvestAuto {
+  armed: boolean
+  /** idle | waitingPrint | cooling | ejecting | done | failed */
+  phase: string
+  error: string | null
+  bedTarget: number
+}
+/** 预约：这一单打完自动降温并收菜 */
+export const fetchHarvestAuto = () => request<HarvestAuto>('/api/eject/auto')
+export const armHarvest = (armed: boolean) =>
+  request<HarvestAuto>('/api/eject/auto', { method: 'POST', data: { armed } })
+
 /** 不带 confirm 只算不发 */
 export const planHarvest = () =>
   request<HarvestPlan>('/api/eject', { method: 'POST', data: {} })

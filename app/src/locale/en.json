@@ -432,7 +432,15 @@
     "started": "Sent — the machine is moving",
     "confirm": "Start the harvest? The toolhead homes first, then sweeps the part off the plate.",
     "note": "This moves the machine. Watch it the first time.",
-    "plateN": "plate {n}"
+    "plateN": "plate {n}",
+    "auto": "Harvest when this print finishes",
+    "autoOn": "Armed — it will run when this print ends",
+    "autoHint": "Fans come on first; it waits for the bed to reach {t}℃. One-shot.",
+    "autoFailed": "Cancelled: {msg}",
+    "now": "Harvest now",
+    "armed": "Armed",
+    "cancel": "Cancel",
+    "busyHint": "A print is running, so you can only arm it for later"
   },
   "harvestWarn": {
     "tooFlat": "Part is too short for the nozzle to reach",

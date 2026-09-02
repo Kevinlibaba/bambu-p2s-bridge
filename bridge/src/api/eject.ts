@@ -24,6 +24,7 @@ import { readEjectSource, EjectSourceError, type EjectSource } from '../eject/so
 import { resolveJobFile } from '../history/resolve.js'
 import * as ftp from '../printer/ftp.js'
 import type { History } from '../history/index.js'
+import type { AutoHarvest } from '../eject/auto.js'
 
 class EjectError extends Error {
   constructor(message: string, readonly status = 400) {
@@ -81,6 +82,46 @@ export interface EjectRequest {
 const BED = { width: 256, depth: 256 }
 
 /**
+ * 给预约收菜用的执行器：走和手动完全一样的那条路径。
+ *
+ * 刻意不另写一份 —— 两条路只要有一处参数不同，真机上出问题时就分不清
+ * 是哪条路的毛病。
+ */
+export function makeHarvestRunner(
+  state: PrinterState,
+  mqtt: PrinterMqtt,
+  history: History,
+) {
+  const send = async (opts: { coolOnly?: boolean }) => {
+    const src = await resolveSource({}, history)
+    const plan = planEject(src.objects, { bed: BED, maxZ: src.maxZ }, {
+      mode: 'standalone',
+      brimWidth: src.brimWidth,
+    })
+    if (plan.order.length === 0) throw new Error('没有可推的件')
+
+    const isFanOff = (l: string) => /^M106 P(2|3|10) S0\b/.test(l)
+    const isCoolingOn = (l: string) =>
+      !isFanOff(l) && /^M(190\b|140\b|106 P(2|3|10)\b)/.test(l)
+    const gcode = opts.coolOnly
+      ? plan.gcode.filter((l) => isCoolingOn(l) && !/^M190\b/.test(l))
+      : plan.gcode.filter((l) => !isCoolingOn(l))
+
+    const s = state.summary()
+    if (!mqtt.connected) throw new Error('打印机未连接')
+    if (!opts.coolOnly) {
+      if (BUSY.has(s.state)) throw new Error(`打印机正忙（${s.state}）`)
+      if (s.printError) throw new Error('打印机有未清除的报错')
+    }
+    mqtt.publish({ print: { command: 'gcode_line', param: gcode.join('\n') + '\n' } })
+  }
+  return {
+    cool: () => send({ coolOnly: true }),
+    eject: () => send({}),
+  }
+}
+
+/**
  * 决定要推哪一盘。
  *
  * 优先级：显式 objects（调试）→ 显式 path/plate → 最近打完的那一单。
@@ -125,7 +166,26 @@ export function registerEjectRoutes(
   state: PrinterState,
   mqtt: PrinterMqtt,
   history: History,
+  auto: AutoHarvest,
 ): void {
+  /** 预约状态。armed 之后这一单打完会自动降温并推件 */
+  app.get('/api/eject/auto', async () => auto.status())
+
+  app.post('/api/eject/auto', async (req, reply) => {
+    const on = (req.body as { armed?: unknown } | undefined)?.armed
+    if (typeof on !== 'boolean') return reply.code(400).send({ error: 'armed 必须是布尔值' })
+    if (on) {
+      // 预约之前先确认这一单真的能算出轨迹，别等打完了才发现推不了
+      try {
+        await resolveSource({}, history)
+      } catch (e) {
+        const status = (e as { status?: number }).status ?? 400
+        return reply.code(status).send({ error: (e as Error).message })
+      }
+    }
+    return auto.arm(on)
+  })
+
   app.post('/api/eject', async (req, reply) => {
     try {
       const body = (req.body ?? {}) as EjectRequest

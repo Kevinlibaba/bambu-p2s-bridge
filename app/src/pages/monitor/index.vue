@@ -17,7 +17,9 @@ import TempChart from '../../components/TempChart.vue'
 import {
   startDrying, stopDrying, unloadFilament, DryBlockedError,
   fetchErrors, clearErrors, fetchTemps,
+  planHarvest, runHarvest, fetchHarvestAuto, armHarvest,
   type AmsUnit, type DryBlocker, type PrinterErrorItem, type TempSample,
+  type HarvestPlan, type HarvestAuto,
 } from '../../api/client'
 
 const { t, locale } = useI18n()
@@ -126,6 +128,76 @@ function onCamFallback() {
 
 function goSettings() {
   uni.switchTab({ url: '/pages/settings/index' })
+}
+
+/*
+ * 收菜。
+ *
+ * 打印中只能「预约」——打完之后桥接会自己开风扇、等热床降到阈值、再推件。
+ * 手动那颗按钮在打印进行中是禁用的：件还在长，这时候推进去就是撞。
+ *
+ * 热床温度单独拎出来显示并挡住按钮，因为「热的时候推不动、硬推只会把力
+ * 顶在热端上」是实测结论，不是保守估计。
+ */
+const HARVEST_BED_MAX = 30
+const hSheet = ref(false)
+const hPlan = ref<HarvestPlan | null>(null)
+const hAuto = ref<HarvestAuto | null>(null)
+const hErr = ref('')
+const hBusy = ref(false)
+const hRunning = computed(() => ['RUNNING', 'PREPARE', 'SLICING', 'PAUSE'].includes(s.value?.state ?? ''))
+const hBedHot = computed(() => (hPlan.value?.bedTemp ?? 0) > HARVEST_BED_MAX || hRunning.value)
+/** 桥接只给 path/plate，「第 N 盘」这句话按当前语言在这里拼 */
+const hSource = computed(() => {
+  const p = hPlan.value
+  if (!p?.path) return '—'
+  const name = p.path.replace(/^\//, '')
+  return p.plate === null ? name : `${name} · ${t('harvest.plateN', { n: p.plate })}`
+})
+
+async function refreshAuto() {
+  try {
+    hAuto.value = await fetchHarvestAuto()
+  } catch { /* 状态取不到不影响主流程 */ }
+}
+
+async function openHarvest() {
+  hSheet.value = true
+  hPlan.value = null
+  hErr.value = ''
+  void refreshAuto()
+  try {
+    hPlan.value = await planHarvest()
+  } catch (e) {
+    hErr.value = (e as Error).message
+  }
+}
+
+async function toggleArm() {
+  const on = !hAuto.value?.armed
+  hBusy.value = true
+  try {
+    hAuto.value = await armHarvest(on)
+    toast(on ? t('harvest.autoOn') : t('harvest.cancel'))
+  } catch (e) {
+    toast((e as Error).message)
+  } finally {
+    hBusy.value = false
+  }
+}
+
+async function doHarvest() {
+  if (!(await confirmAsk(t('harvest.title'), t('harvest.confirm')))) return
+  hBusy.value = true
+  try {
+    await runHarvest()
+    hSheet.value = false
+    toast(t('harvest.started'))
+  } catch (e) {
+    toast((e as Error).message)
+  } finally {
+    hBusy.value = false
+  }
 }
 
 onShow(() => { pageActive.value = true; applyChrome('tab.monitor'); startTemps() })
@@ -415,6 +487,10 @@ async function send(c: Command, confirmText?: string) {
             <text class="fact">{{ t('monitor.layers', { cur: s?.layer ?? 0, total: s?.totalLayers ?? 0 }) }}</text>
             <text class="sep">·</text>
             <text class="fact">{{ t('monitor.remaining', { value: eta }) }}</text>
+            <!-- 收菜。预约中给个点亮的状态，一眼能看出这一单打完会自己动 -->
+            <view class="harvest-btn" :class="{ on: hAuto?.armed }" @click="openHarvest">
+              <text class="harvest-t">{{ hAuto?.armed ? t('harvest.armed') : t('harvest.title') }}</text>
+            </view>
           </view>
         </view>
 
@@ -467,6 +543,73 @@ async function send(c: Command, confirmText?: string) {
 
         <!-- 烘干控制 -->
       <!-- 错误详情：文案来自 Bambu 官方错误库，桥接侧代查 -->
+      <Sheet :visible="hSheet" :title="t('harvest.title')" @close="hSheet = false">
+        <view v-if="!hPlan && !hErr" class="busy"><Spinner :size="40" /></view>
+
+        <view v-else-if="hErr" class="card sheet-card">
+          <view class="line"><text class="k dim">{{ hErr }}</text></view>
+        </view>
+
+        <template v-else-if="hPlan">
+          <text class="cap">{{ t('harvest.intro') }}</text>
+
+          <view class="card sheet-card">
+            <view class="line">
+              <text class="k">{{ t('harvest.source') }}</text>
+              <text class="v ell">{{ hSource }}</text>
+            </view>
+            <view class="hsep" />
+            <view class="line">
+              <text class="k">{{ t('harvest.parts') }}</text>
+              <text class="v">{{ hPlan.objectCount }}</text>
+            </view>
+            <view class="hsep" />
+            <view class="line">
+              <text class="k">{{ t('harvest.bedTemp') }}</text>
+              <text class="v" :class="hBedHot ? 'warn' : ''">{{ hPlan.bedTemp }}℃</text>
+            </view>
+          </view>
+
+          <template v-if="hPlan.warnings.length">
+            <text class="grouphead">{{ t('harvest.warnings') }}</text>
+            <view class="card sheet-card">
+              <view v-for="(w, i) in hPlan.warnings" :key="w.code + i">
+                <view v-if="i > 0" class="hsep" />
+                <view class="line stack">
+                  <text class="k">{{ t('harvestWarn.' + w.code, w.params || {}) }}</text>
+                </view>
+              </view>
+            </view>
+          </template>
+
+          <!-- 预约：打印中时这是唯一能做的事 -->
+          <view class="card sheet-card">
+            <view class="line stack tappable" @click="toggleArm">
+              <view class="row">
+                <text class="k" :class="hAuto?.armed ? 'accent' : ''">
+                  {{ hAuto?.armed ? t('harvest.cancel') : t('harvest.auto') }}
+                </text>
+              </view>
+              <text class="sub">
+                {{ hAuto?.armed
+                  ? t('harvest.autoOn')
+                  : t('harvest.autoHint', { t: hAuto?.bedTarget ?? 30 }) }}
+              </text>
+            </view>
+          </view>
+
+          <button
+            class="pill go" :disabled="hBusy || hRunning || hBedHot || !hPlan.order.length"
+            @click="doHarvest"
+          >
+            {{ hBusy ? t('harvest.working') : t('harvest.now') }}
+          </button>
+          <text class="note">
+            {{ hRunning ? t('harvest.busyHint') : t('harvest.note') }}
+          </text>
+        </template>
+      </Sheet>
+
       <Sheet :visible="errSheet" :title="t('err.title')" @close="errSheet = false">
         <view v-if="errLoading" class="busy"><Spinner :size="36" /></view>
 
@@ -714,6 +857,23 @@ async function send(c: Command, confirmText?: string) {
 .task { display: block; font-size: 32rpx; color: var(--ink); margin-top: 32rpx;
   letter-spacing: -0.02em; line-height: 1.35; }
 .facts { display: flex; align-items: center; margin-top: 12rpx; }
+/* 收菜按钮：贴在层数/剩余那一行的最右端 */
+.harvest-btn {
+  margin-left: auto; padding: 8rpx 22rpx; border-radius: 999rpx;
+  background: var(--fill); flex-shrink: 0;
+}
+.harvest-btn.on { background: var(--accent); }
+.harvest-btn:active { opacity: 0.6; }
+.harvest-t { font-size: 24rpx; color: var(--ink-2); letter-spacing: -0.01em; }
+.harvest-btn.on .harvest-t { color: #fff; }
+/* 详情卡里几处覆盖 */
+.line.stack .sub { display: block; font-size: 25rpx; color: var(--ink-2);
+  margin-top: 8rpx; line-height: 1.45; }
+.k.accent { color: var(--accent); }
+.k.dim { color: var(--ink-3); }
+.v.warn { color: var(--warning); }
+.v.ell { max-width: 60%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.pill.go { background: var(--accent); color: #fff; width: 100%; margin: 32rpx 0 0; }
 .fact { font-size: 26rpx; color: var(--ink-2); letter-spacing: -0.01em; }
 .sep { font-size: 26rpx; color: var(--ink-3); margin: 0 14rpx; }
 

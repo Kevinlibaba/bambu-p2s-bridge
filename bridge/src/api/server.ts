@@ -18,6 +18,7 @@ import type { Notifier } from '../notify/index.js'
 import { registerHistoryRoutes } from './history.js'
 import { registerEjectRoutes } from './eject.js'
 import type { EventLog } from '../history/eventlog.js'
+import type { AutoHarvest } from '../eject/auto.js'
 import type { History } from '../history/index.js'
 import type { Temps } from '../history/temps.js'
 
@@ -35,6 +36,7 @@ export async function buildServer(
   history: History,
   temps: Temps,
   events: EventLog,
+  auto: AutoHarvest,
 ) {
   const app = Fastify({ logger: { level: 'warn' } })
   await app.register(websocket)
@@ -106,7 +108,7 @@ export async function buildServer(
   registerErrorRoutes(app, mqtt, state)
   registerNotifyRoutes(app, notifier)
   registerHistoryRoutes(app, history, temps, events)
-  registerEjectRoutes(app, state, mqtt, history)
+  registerEjectRoutes(app, state, mqtt, history, auto)
 
   // ---- 摄像头：在 go2rtc 前面做鉴权代理 ----
   // go2rtc 本身无认证，因此它只监听 127.0.0.1，外部一律经这里
