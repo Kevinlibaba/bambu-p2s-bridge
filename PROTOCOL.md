@@ -925,24 +925,31 @@ front at all.
                └──┘
 ```
 
-That matters, because a sloped contact is not the same as a flat one. It pushes the part
-forward *and* down: the downward component presses it into the plate and adds friction
-rather than helping. It worked here, but it is not the "a vertical wall cannot let the part
-tip" mechanism that would have made this robust.
+**Every height is pushable — the contact just changes.** The nozzle is the lowest point of
+the whole assembly, so there is no height that gets ridden over. Writing `z` for the push
+height, `n` for `nozzle_height` (4.2) and `c` for the chamfer's own height:
 
-Two consequences that do follow:
+| Part height `H` | What touches it | Quality |
+|---|---|---|
+| `z < H < z + n` | the nozzle alone | works, but a point |
+| `z + n ≤ H ≤ z + n + c` | a **line** along the chamfer | works — this is what the 11.2 mm bar got |
+| `H > z + n + c` | the **full vertical face** | best |
 
-- **`pushZ` should stay as low as the plate allows.** The front-bottom corner sits
-  `nozzle_height` above the nozzle tip, so at `Z1` it is ~5.2 mm above the plate. Raising
-  the push height raises that corner with it and shrinks the band of the part that gets
-  engaged. Low maximises engagement and keeps the contact near the part's base.
-- **The front face leads the nozzle.** Commanding the nozzle to `Y0` drags the face well
-  past the plate's front edge, which is why the stroke clears the part off. The exact
-  offset is in no profile field and has not been measured.
+So the design goal for a part meant to be auto-ejected is simply **tall enough to clear the
+chamfer**, and the only hard ceiling is the gantry rod at 32.5 mm above the nozzle.
 
-**Unmeasured, and it bounds the whole technique:** how tall the chamfer is. That number
-sets which parts get flat-face contact (tall ones), which get slope contact (this bar), and
-which are short enough to be ridden over instead of pushed.
+This also settles what `pushZ` should be. Face contact requires `H > z + n + c`, so the
+*lower* `z` is, the more parts reach the flat face; and nozzle contact requires `H > z`, so
+a low `z` also keeps the shortest parts reachable. **`z = 1` is right at both ends** — not
+because of engagement area, which was the earlier reasoning, but because lowering the head
+is what promotes a part from line contact to face contact.
+
+**The front face leads the nozzle.** Commanding the nozzle to `Y0` drags the face well past
+the plate's front edge, which is why the stroke clears the part off. The exact offset is in
+no profile field and has not been measured.
+
+**Still unmeasured:** `c`, the chamfer height. It is the threshold between line contact and
+face contact, so it is the number needed to tell someone how tall to make a part.
 
 Still unverified: whether the reduced motor current actually skips steps rather than
 shoving — this run never tested it, because the part came free. And `M190 R` vs `S`
