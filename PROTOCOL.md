@@ -790,6 +790,26 @@ setting, so treat that as a modelling trick rather than a slicer option.
 `planEject` now emits a `hasBrim` warning whenever it is told the slice has one; the width
 is readable from `project_settings.config`.
 
+#### Second run: same part, brim cut off — ejected cleanly
+
+The brim was trimmed off by hand and the part set back down in roughly its original spot.
+The machine was still homed from the previous run, so this went out as `endGcode` mode with
+**no `G28` at all** — which is also the shape the injected-before-`M18` path will take.
+Bed at 23 °C. The plate came back empty: the part went off the front edge and out. No
+error, no HMS.
+
+So the chain is verified in two halves rather than one run:
+
+| Question | Answer | Where it was shown |
+|---|---|---|
+| Does a printed part let go of the plate once cool? | yes, at 28 °C | run 1 — it moved before the brim snapped it back |
+| Does a loose part get swept off the front edge? | yes | run 2 |
+| Does a brim stop it? | yes | run 1 |
+
+What is still untested is the two halves *chained in one go* — a freshly printed, brim-less
+part released and ejected by a single sequence. Also still untested: the reduced motor
+current has never had to protect anything, because nothing has jammed yet.
+
 Still unverified: whether the reduced motor current actually skips steps rather than
 shoving — this run never tested it, because the part came free. And `M190 R` vs `S`
 semantics remain untested; this run deliberately did not rely on them, waiting for the
