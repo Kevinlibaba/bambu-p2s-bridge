@@ -415,5 +415,34 @@
     "dryDone": "Drying finished",
     "offline": "Printer offline",
     "online": "Back online"
+  },
+  "harvest": {
+    "title": "Harvest",
+    "intro": "Push the finished part off the plate with the toolhead. It has to be cold, and ideally printed without a brim.",
+    "source": "From",
+    "parts": "Parts",
+    "bedTemp": "Bed",
+    "tooHot": "Bed is still warm — needs to be under {max}℃",
+    "tooHotHint": "A warm part stays stuck; forcing it only loads the hotend",
+    "cool": "Run the fans",
+    "cooling": "Fans on, cooling down",
+    "warnings": "Before you do",
+    "go": "Harvest",
+    "working": "Working…",
+    "started": "Sent — the machine is moving",
+    "confirm": "Start the harvest? The toolhead homes first, then sweeps the part off the plate.",
+    "note": "This moves the machine. Watch it the first time.",
+    "plateN": "plate {n}"
+  },
+  "harvestWarn": {
+    "tooFlat": "Part is too short for the nozzle to reach",
+    "noApproachRoom": "Part sits too far back — the head cannot get behind it",
+    "mayTipOver": "Tall and narrow; it may tip instead of sliding",
+    "alreadyAtEdge": "Already near the front edge, so the stroke is short",
+    "homingHazard": "Homes first. The Z probe point avoids every part",
+    "hasBrim": "Has a {width}mm brim. A brim tethers the part — measured, it does not come off",
+    "mayRotate": "Long and narrow ({width}×{depth}mm); it may spin in place",
+    "tooTallForGantry": "{maxZ}mm tall — over {limit}mm hits the gantry rod",
+    "noSafeHomePoint": "No homing spot clears every part, so this cannot run"
   }
 }

@@ -20,6 +20,10 @@ import type { FastifyInstance } from 'fastify'
 import type { PrinterMqtt } from '../printer/mqtt.js'
 import type { PrinterState } from '../printer/state.js'
 import { planEject, type EjectOptions, type PlateObject } from '../eject/plan.js'
+import { readEjectSource, EjectSourceError, type EjectSource } from '../eject/source.js'
+import { resolveJobFile } from '../history/resolve.js'
+import * as ftp from '../printer/ftp.js'
+import type { History } from '../history/index.js'
 
 class EjectError extends Error {
   constructor(message: string, readonly status = 400) {
@@ -32,7 +36,13 @@ class EjectError extends Error {
 const BUSY = new Set(['RUNNING', 'PAUSE', 'PREPARE', 'SLICING'])
 
 export interface EjectRequest {
-  /** 要推的件。bbox 为 [xmin, ymin, xmax, ymax]，床坐标 mm */
+  /**
+   * 打印机上的 3mf 路径与盘号。给了就由服务端自己解出轮廓、最高点和 brim ——
+   * App 不该知道 bbox 是什么。不给就退回「最近打完的那一单」。
+   */
+  path?: string
+  plate?: number
+  /** 直接给轮廓。调试用；正常路径走 path/plate */
   objects?: PlateObject[]
   /** 整盘最高点，取自 gcode 头部的 max_z_height */
   maxZ?: number
@@ -70,28 +80,64 @@ export interface EjectRequest {
 
 const BED = { width: 256, depth: 256 }
 
+/**
+ * 决定要推哪一盘。
+ *
+ * 优先级：显式 objects（调试）→ 显式 path/plate → 最近打完的那一单。
+ * 最后这条是 App 走的路径：用户只知道「刚打完的东西还在板上」。
+ */
+async function resolveSource(
+  body: EjectRequest,
+  history: History,
+): Promise<EjectSource & { path: string | null; plate: number | null }> {
+  if (Array.isArray(body.objects) && body.objects.length > 0) {
+    for (const o of body.objects) {
+      if (!Array.isArray(o.bbox) || o.bbox.length !== 4 || o.bbox.some((n) => !Number.isFinite(n)))
+        throw new EjectError('bbox 必须是四个数：[xmin, ymin, xmax, ymax]')
+    }
+    const maxZ = Number(body.maxZ)
+    if (!Number.isFinite(maxZ) || maxZ <= 0) throw new EjectError('maxZ 必须是正数')
+    return { objects: body.objects, maxZ, brimWidth: body.brimWidth ?? 0, path: null, plate: null }
+  }
+
+  let path = body.path
+  let plate = body.plate
+  if (!path) {
+    const last = history.list(1)[0]
+    if (!last) throw new EjectError('还没有打印记录，不知道要推什么', 409)
+    const file = await resolveLastFile(last.name)
+    if (!file) throw new EjectError(`在打印机上找不到「${last.name}」对应的模型文件`, 404)
+    path = file
+    plate = plate ?? last.plate ?? 1
+  }
+  const src = await readEjectSource(path, plate ?? 1)
+  return { ...src, path, plate: plate ?? 1 }
+}
+
+/** 按归一化后的名字在打印机根目录里找回源文件 —— taskName 把下划线换成了空格 */
+async function resolveLastFile(name: string): Promise<string | null> {
+  const root = await ftp.listDir('/')
+  return resolveJobFile(name, root.map((f) => ({ name: f.name, isDirectory: f.isDirectory })))
+}
+
 export function registerEjectRoutes(
   app: FastifyInstance,
   state: PrinterState,
   mqtt: PrinterMqtt,
+  history: History,
 ): void {
   app.post('/api/eject', async (req, reply) => {
     try {
       const body = (req.body ?? {}) as EjectRequest
-      const objects = Array.isArray(body.objects) ? body.objects : []
-      if (objects.length === 0) throw new EjectError('没有给出要推的件')
-      for (const o of objects) {
-        if (!Array.isArray(o.bbox) || o.bbox.length !== 4 || o.bbox.some((n) => !Number.isFinite(n)))
-          throw new EjectError('bbox 必须是四个数：[xmin, ymin, xmax, ymax]')
-      }
-      const maxZ = Number(body.maxZ)
-      if (!Number.isFinite(maxZ) || maxZ <= 0) throw new EjectError('maxZ 必须是正数')
+      const src = await resolveSource(body, history)
+      const { objects, maxZ } = src
+      const brimWidth = body.brimWidth ?? src.brimWidth
 
       const plan = planEject(objects, { bed: BED, maxZ }, {
         mode: body.mode ?? 'standalone',
         ...(Number.isFinite(body.pushZ as number) ? { pushZ: Number(body.pushZ) } : {}),
         ...(Number.isFinite(body.bedTarget as number) ? { bedTarget: Number(body.bedTarget) } : {}),
-        ...(Number.isFinite(body.brimWidth as number) ? { brimWidth: Number(body.brimWidth) } : {}),
+        brimWidth,
       })
 
       // 冷却是安全措施，去掉它要显式说，并且只在空跑时有意义
@@ -134,8 +180,21 @@ export function registerEjectRoutes(
         return reply.code(409).send({ error: '没有可推的件', warnings: plan.warnings })
       }
 
+      /*
+       * 只回数据，不回拼好的中文 —— 「第 N 盘」这种话由前端按当前语言出，
+       * 桥接不该决定界面语言。
+       */
+      const info = {
+        path: src.path,
+        plate: src.plate,
+        bedTemp: state.summary().bed.cur,
+        objectCount: objects.length,
+        maxZ,
+        brimWidth,
+      }
+
       if (!body.confirm) {
-        return { dryRun: true, cool, order: plan.order, warnings: plan.warnings, gcode }
+        return { dryRun: true, cool, ...info, order: plan.order, warnings: plan.warnings, gcode }
       }
 
       const s = state.summary()
@@ -146,9 +205,10 @@ export function registerEjectRoutes(
       const sequenceId = mqtt.publish({
         print: { command: 'gcode_line', param: gcode.join('\n') + '\n' },
       })
-      return { sent: true, sequenceId, cool, order: plan.order, warnings: plan.warnings, gcode }
+      return { sent: true, sequenceId, cool, ...info, order: plan.order, warnings: plan.warnings, gcode }
     } catch (e) {
       if (e instanceof EjectError) return reply.code(e.status).send({ error: e.message })
+      if (e instanceof EjectSourceError) return reply.code(e.status).send({ error: e.message })
       return reply.code(500).send({ error: (e as Error).message })
     }
   })

@@ -415,5 +415,34 @@
     "dryDone": "烘乾完成",
     "offline": "印表機離線",
     "online": "連線恢復"
+  },
+  "harvest": {
+    "title": "收菜",
+    "intro": "列印完成後用列印頭把件推下熱床。件要冷透、最好沒有 brim。",
+    "source": "來源",
+    "parts": "零件數",
+    "bedTemp": "熱床溫度",
+    "tooHot": "熱床還有溫度，需降到 {max}℃ 以下",
+    "tooHotHint": "熱的時候件黏在板上推不動，硬推只會頂壞熱端",
+    "cool": "開風扇降溫",
+    "cooling": "風扇已開，正在降溫",
+    "warnings": "注意事項",
+    "go": "開始收菜",
+    "working": "執行中…",
+    "started": "已下發，機器開始動作",
+    "confirm": "確認開始收菜？列印頭會先回零，再把件推下熱床。",
+    "note": "這會讓機器動起來。第一次用建議站在旁邊看著。",
+    "plateN": "第 {n} 盤"
+  },
+  "harvestWarn": {
+    "tooFlat": "件太矮，噴嘴構不到",
+    "noApproachRoom": "件太靠後，列印頭繞不到它後面",
+    "mayTipOver": "件又高又窄，可能被推倒",
+    "alreadyAtEdge": "件已經貼近前沿，推的行程很短",
+    "homingHazard": "會先回零。Z 探測點已避開所有件",
+    "hasBrim": "件帶 brim（{width}mm）。brim 會把件拽回來，實測推不下去",
+    "mayRotate": "件又長又窄（{width}×{depth}mm），可能原地打轉",
+    "tooTallForGantry": "件高 {maxZ}mm，超過 {limit}mm 會撞到龍門桿",
+    "noSafeHomePoint": "找不到能避開所有件的回零位置，不能執行"
   }
 }

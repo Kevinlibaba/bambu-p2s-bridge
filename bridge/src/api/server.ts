@@ -106,7 +106,7 @@ export async function buildServer(
   registerErrorRoutes(app, mqtt, state)
   registerNotifyRoutes(app, notifier)
   registerHistoryRoutes(app, history, temps, events)
-  registerEjectRoutes(app, state, mqtt)
+  registerEjectRoutes(app, state, mqtt, history)
 
   // ---- 摄像头：在 go2rtc 前面做鉴权代理 ----
   // go2rtc 本身无认证，因此它只监听 127.0.0.1，外部一律经这里

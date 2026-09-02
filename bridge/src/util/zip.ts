@@ -8,7 +8,7 @@
  * 支持 ZIP64：切片产物一般远不到 4 GB，但读取器认不出 ZIP64 时会给出误导性的
  * "不是有效的 ZIP"，成本很低，索性一起处理掉。
  */
-import { inflateRaw } from 'node:zlib'
+import { createInflateRaw, inflateRaw } from 'node:zlib'
 import { promisify } from 'node:util'
 
 const inflate = promisify(inflateRaw)
@@ -221,6 +221,66 @@ export async function readEntry(src: ZipSource, entry: ZipEntry, maxBytes: numbe
   if (entry.method === METHOD_STORE) return Buffer.from(data)
   if (entry.method === METHOD_DEFLATE) return await inflate(data)
   throw new ZipFormatError(`不支持的压缩方式 ${entry.method}: ${entry.name}`)
+}
+
+/**
+ * 只取条目开头的一小段，不把整个条目读下来。
+ *
+ * 用来读 gcode 头部的注释（`; max_z_height: ...`）。gcode 动辄几十 MB 且是
+ * deflate 压缩的，为了一行注释把整条流拉过来、再整包解压，既费 FTP 带宽
+ * 也费内存。这里只读一小段压缩数据，增量解压到够用就停 —— 流被截断是预期内的，
+ * 不当作错误。
+ *
+ * @param maxOut 最多要多少解压后的字节
+ */
+export async function readEntryHead(
+  src: ZipSource,
+  entry: ZipEntry,
+  maxOut: number,
+): Promise<Buffer> {
+  if (entry.compressedSize === 0) return Buffer.alloc(0)
+
+  const nameLen = Buffer.byteLength(entry.name, 'utf8')
+  const probe = await src.read(
+    entry.localHeaderOffset,
+    Math.min(src.size - 1, entry.localHeaderOffset + 30 + nameLen + LOCAL_EXTRA_SLACK),
+  )
+  if (probe.length < 30 || u32(probe, 0) !== SIG_LOCAL) {
+    throw new ZipFormatError(`本地文件头无效: ${entry.name}`)
+  }
+  const dataAt = entry.localHeaderOffset + 30 + probe.readUInt16LE(26) + probe.readUInt16LE(28)
+
+  /*
+   * 压缩比未知，按 1:20 估一段来读，再夹在条目自身大小之内。
+   * 估少了就少解出一点，调用方拿到多少用多少；估多了也只是多读几十 KB。
+   */
+  const want = Math.min(entry.compressedSize, Math.max(4096, Math.ceil(maxOut / 20) + 4096))
+  const data = await src.read(dataAt, dataAt + want - 1)
+
+  if (entry.method === METHOD_STORE) return Buffer.from(data.subarray(0, maxOut))
+  if (entry.method !== METHOD_DEFLATE) {
+    throw new ZipFormatError(`不支持的压缩方式 ${entry.method}: ${entry.name}`)
+  }
+
+  return await new Promise<Buffer>((resolve) => {
+    const chunks: Buffer[] = []
+    let got = 0
+    const z = createInflateRaw()
+    const done = () => resolve(Buffer.concat(chunks).subarray(0, maxOut))
+    z.on('data', (c: Buffer) => {
+      chunks.push(c)
+      got += c.length
+      if (got >= maxOut) {
+        z.removeAllListeners('data')
+        z.destroy()
+        done()
+      }
+    })
+    // 截断的流必然以错误收场，那正是预期 —— 把已经解出来的交出去
+    z.on('error', done)
+    z.on('end', done)
+    z.end(data)
+  })
 }
 
 /** 按名字找条目，大小写不敏感 —— 切片器版本之间大小写并不完全一致 */

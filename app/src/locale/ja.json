@@ -415,5 +415,34 @@
     "dryDone": "乾燥完了",
     "offline": "プリンターオフライン",
     "online": "接続復帰"
+  },
+  "harvest": {
+    "title": "収穫",
+    "intro": "印刷後、ツールヘッドで造形物をベッドから押し出します。冷えていること、brim が無いことが望ましいです。",
+    "source": "対象",
+    "parts": "点数",
+    "bedTemp": "ベッド温度",
+    "tooHot": "ベッドがまだ温かい（{max}℃ 未満が必要）",
+    "tooHotHint": "温かいと張り付いて動かず、無理に押すとホットエンドを痛めます",
+    "cool": "ファンで冷却",
+    "cooling": "ファン作動中、冷却しています",
+    "warnings": "注意",
+    "go": "収穫する",
+    "working": "実行中…",
+    "started": "送信しました。動作を開始します",
+    "confirm": "収穫を開始しますか？先に原点復帰してから押し出します。",
+    "note": "機械が動きます。初回はそばで見ていてください。",
+    "plateN": "プレート {n}"
+  },
+  "harvestWarn": {
+    "tooFlat": "低すぎてノズルが届きません",
+    "noApproachRoom": "奥すぎてヘッドが背後に回れません",
+    "mayTipOver": "高くて細いため、滑らず倒れる可能性があります",
+    "alreadyAtEdge": "すでに手前寄りで、押す距離がほとんどありません",
+    "homingHazard": "先に原点復帰します。Z 測定点は造形物を避けています",
+    "hasBrim": "brim（{width}mm）があります。brim が引き戻すため実測では外れません",
+    "mayRotate": "細長い（{width}×{depth}mm）ため、その場で回る可能性があります",
+    "tooTallForGantry": "高さ {maxZ}mm。{limit}mm を超えるとガントリーに当たります",
+    "noSafeHomePoint": "すべての造形物を避けられる原点復帰位置がありません"
   }
 }

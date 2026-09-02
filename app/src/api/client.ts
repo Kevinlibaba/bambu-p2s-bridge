@@ -385,6 +385,36 @@ export const fetchTemps = (minutes = 60) =>
  * available 为 false 表示这一单跑在温度落盘上线之前 —— 是「没有记录」，
  * 不是「加载失败」，前端要分开说。
  */
+/** 收菜（推件）。桥接自己从「刚打完的那一单」解出轮廓，前端不需要知道 bbox */
+export interface HarvestWarning {
+  code: string
+  objectId?: number
+  params?: Record<string, string | number>
+}
+export interface HarvestPlan {
+  dryRun?: boolean
+  sent?: boolean
+  /** 哪个文件的哪一盘。文案由前端拼，桥接只给数据 */
+  path: string | null
+  plate: number | null
+  bedTemp: number
+  objectCount: number
+  maxZ: number
+  brimWidth: number
+  order: { id: number; name: string; pushX: number; startY: number }[]
+  warnings: HarvestWarning[]
+  gcode: string[]
+}
+
+/** 不带 confirm 只算不发 */
+export const planHarvest = () =>
+  request<HarvestPlan>('/api/eject', { method: 'POST', data: {} })
+export const runHarvest = () =>
+  request<HarvestPlan>('/api/eject', { method: 'POST', data: { confirm: true }, timeout: 30000 })
+/** 只吹风降温，不动任何轴 */
+export const coolForHarvest = () =>
+  request<HarvestPlan>('/api/eject', { method: 'POST', data: { coolOnly: true, confirm: true } })
+
 export interface LoggedEvent {
   t: number
   /** 事件类型。文案在前端出，桥接只给类型 */

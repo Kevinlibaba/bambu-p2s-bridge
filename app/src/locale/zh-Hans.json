@@ -415,5 +415,34 @@
     "dryDone": "烘干完成",
     "offline": "打印机离线",
     "online": "连接恢复"
+  },
+  "harvest": {
+    "title": "收菜",
+    "intro": "打完之后用打印头把件推下热床。件要冷透、最好没有 brim。",
+    "source": "来源",
+    "parts": "零件数",
+    "bedTemp": "热床温度",
+    "tooHot": "热床还有温度，需降到 {max}℃ 以下",
+    "tooHotHint": "热的时候件粘在板上推不动，硬推只会顶坏热端",
+    "cool": "开风扇降温",
+    "cooling": "风扇已开，正在降温",
+    "warnings": "注意事项",
+    "go": "开始收菜",
+    "working": "执行中…",
+    "started": "已下发，机器开始动作",
+    "confirm": "确认开始收菜？打印头会先回零，再把件推下热床。",
+    "note": "这会让机器动起来。第一次用建议站在旁边看着。",
+    "plateN": "第 {n} 盘"
+  },
+  "harvestWarn": {
+    "tooFlat": "件太矮，喷嘴够不到",
+    "noApproachRoom": "件太靠后，打印头绕不到它后面",
+    "mayTipOver": "件又高又窄，可能被推倒",
+    "alreadyAtEdge": "件已经贴近前沿，推的行程很短",
+    "homingHazard": "会先回零。Z 探测点已避开所有件",
+    "hasBrim": "件带 brim（{width}mm）。brim 会把件拽回来，实测推不下去",
+    "mayRotate": "件又长又窄（{width}×{depth}mm），可能原地打转",
+    "tooTallForGantry": "件高 {maxZ}mm，超过 {limit}mm 会撞到龙门杆",
+    "noSafeHomePoint": "找不到能避开所有件的回零位置，不能执行"
   }
 }
