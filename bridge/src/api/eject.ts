@@ -39,6 +39,8 @@ export interface EjectRequest {
   mode?: EjectOptions['mode']
   pushZ?: number
   bedTarget?: number
+  /** 切片时的 brim 宽度（mm）。大于 0 会告警：brim 是推不下去的主因 */
+  brimWidth?: number
   /**
    * 是否等热床冷却。默认 true。
    * 只有在床上确实空无一物、纯粹验证运动路径时才允许关。
@@ -81,6 +83,7 @@ export function registerEjectRoutes(
         mode: body.mode ?? 'standalone',
         ...(Number.isFinite(body.pushZ as number) ? { pushZ: Number(body.pushZ) } : {}),
         ...(Number.isFinite(body.bedTarget as number) ? { bedTarget: Number(body.bedTarget) } : {}),
+        ...(Number.isFinite(body.brimWidth as number) ? { brimWidth: Number(body.brimWidth) } : {}),
       })
 
       // 冷却是安全措施，去掉它要显式说，并且只在空跑时有意义

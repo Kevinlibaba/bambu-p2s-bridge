@@ -45,6 +45,11 @@ export interface EjectOptions {
   /** 推到哪个 Y。0 是前沿 */
   exitY?: number
   /**
+   * 切片时的 brim 宽度（mm），取自 project_settings.config 的 brim_width。
+   * 大于 0 就会告警 —— 见 hasBrim。
+   */
+  brimWidth?: number
+  /**
    * 下发方式。
    *
    * endGcode —— 塞进打印任务的结束 G-code、M18 之前。那时机器仍已归零、
@@ -69,6 +74,13 @@ export type EjectWarningCode =
   | 'homingHazard'
   /** 找不到能避开所有件的 Z 探测位置，standalone 模式无法安全执行 */
   | 'noSafeHomePoint'
+  /**
+   * 件带 brim。实测这是推不下去的主因：brim 只有一层（约 0.2mm），
+   * 喷嘴在推的高度上整个从它上方飞过，从头到尾没碰到它 —— brim 不是
+   * 被推走的，是被主体拽着走的。扯不断的那部分就成了橡皮筋，
+   * 主体被推出去又被拉回来。
+   */
+  | 'hasBrim'
 
 export interface EjectWarning {
   code: EjectWarningCode
@@ -92,6 +104,7 @@ const DEFAULTS: Required<EjectOptions> = {
   approach: 10,
   exitY: 0,
   mode: 'endGcode',
+  brimWidth: 0,
 }
 
 const r2 = (n: number) => Math.round(n * 100) / 100
@@ -168,6 +181,14 @@ export function planEject(
   // 整盘最高点都够不到，后面算什么都没意义
   if (geom.maxZ <= o.pushZ) {
     warnings.push({ code: 'tooFlat', params: { maxZ: r2(geom.maxZ), pushZ: o.pushZ } })
+  }
+
+  /*
+   * brim 比推的高度矮得多，喷嘴够不到它。真机首测就栽在这上面：
+   * 主体被推出去，没扯断的 brim 又把它拉了回来。
+   */
+  if (o.brimWidth > 0 && objects.length > 0) {
+    warnings.push({ code: 'hasBrim', params: { width: o.brimWidth, pushZ: o.pushZ } })
   }
 
   const safeZ = r2(Math.max(geom.maxZ + o.clearance, o.pushZ + o.clearance))

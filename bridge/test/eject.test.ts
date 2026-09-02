@@ -136,3 +136,24 @@ test('没有件时什么都不生成，也不报回中风险', () => {
   assert.deepEqual(p.gcode, [])
   assert.deepEqual(p.warnings, [])
 })
+
+/*
+ * 真机首测的失败原因：件带 5mm 的 brim。brim 只有一层（约 0.2mm），
+ * 喷嘴在 Z=1 推的时候整个从它上方飞过，从头到尾没碰到它 —— brim 不是
+ * 被推走的，是被主体拽着走的。扯不断的那部分成了橡皮筋，把主体拉了回来。
+ */
+test('件带 brim 时告警 —— 这是推不下去的主因', () => {
+  const p = planEject([obj(1, [93, 87, 162, 166])], BED, { brimWidth: 5 })
+  assert.ok(codes(p).includes('hasBrim'))
+  const w = p.warnings.find((x) => x.code === 'hasBrim')!
+  assert.deepEqual(w.params, { width: 5, pushZ: 1 })
+})
+
+test('没有 brim 就不告警', () => {
+  assert.ok(!codes(planEject([obj(1, [93, 87, 162, 166])], BED)).includes('hasBrim'))
+  assert.ok(!codes(planEject([obj(1, [93, 87, 162, 166])], BED, { brimWidth: 0 })).includes('hasBrim'))
+})
+
+test('没有件时即使给了 brim 宽度也不告警', () => {
+  assert.deepEqual(planEject([], BED, { brimWidth: 5 }).warnings, [])
+})

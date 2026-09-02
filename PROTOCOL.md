@@ -772,13 +772,23 @@ wrapping only the push stroke:
 - **The part released.** 28 °C was cold enough on a textured PEI plate; nothing had to be
   pried. So the cooling step is the load-bearing precondition it was assumed to be, and
   ambient is a workable target — you do not need the 25 °C the community G-code asks for.
-- **It travelled nearly the full sweep but did not fall off.** It ended tipped forward at
-  the front edge instead of sliding clear. Pushing the *rear* face to Y = 0 should put a
-  79 mm-deep part entirely past the edge; what appears to happen instead is that the part
-  tips as its centre of mass crosses the edge, after which a nozzle at Z = 1 mm is under
-  the part rather than behind it and stops driving it. **Height works against you at the
-  very end**, not during the slide.
+- **It moved, then sprang back.** Watching at the machine — rather than inferring from
+  the chamber camera — the mechanism is the **brim**, not tipping. This plate was sliced
+  with `brim_type = outer_only`, `brim_width = 5`. A brim is one layer, roughly 0.2 mm, so
+  a nozzle pushing at Z = 1 mm **passes clean over it and never touches it**. The brim is
+  not pushed; it is dragged by the body it is fused to. Part of it tears free, part stays
+  stuck, and the still-stuck remainder acts as a tether that pulls the body back.
 - No error, no HMS entry, no audible stall.
+
+So the rule that falls out: **auto-ejection wants no brim.** Prefer a part with enough
+base area to hold on its own and slice it with `brim_type = no_brim`. Raising the push
+height does not help — the brim is below any safe pushing height, and dropping the nozzle
+to brim height means dragging it on the plate. Making the brim *taller* than the push
+height would let the nozzle drive brim and body together, but Bambu Studio has no brim-height
+setting, so treat that as a modelling trick rather than a slicer option.
+
+`planEject` now emits a `hasBrim` warning whenever it is told the slice has one; the width
+is readable from `project_settings.config`.
 
 Still unverified: whether the reduced motor current actually skips steps rather than
 shoving — this run never tested it, because the part came free. And `M190 R` vs `S`
