@@ -68,6 +68,12 @@ export type EjectWarningCode =
   | 'noApproachRoom'
   /** 又高又窄，推的时候大概率是翻倒而不是滑走 */
   | 'mayTipOver'
+  /**
+   * 又长又窄。喷嘴只能顶住一个点，而件在推的方向上很浅、在垂直方向上很长 ——
+   * 两端脱开的先后只要有一点差别，就会绕还粘着的那端转起来，原地打转而不是
+   * 往前滑。实测：56×10mm 的长条转了 60-70 度。
+   */
+  | 'mayRotate'
   /** 件已经压在前沿上，推出去的行程很短 */
   | 'alreadyAtEdge'
   /** standalone 模式必须先回零，而 Z 探测点默认在床中心 —— 见 safeHomePoint */
@@ -229,6 +235,19 @@ export function planEject(
       })
     }
 
+    /*
+     * 推的方向上很浅、垂直方向上很长的件会打转。喷嘴是单点接触，
+     * 约束不了旋转；两端脱开的先后稍有差别就变成一个力矩。
+     */
+    const width = xmax - xmin
+    if (depth > 0 && width > depth * 3) {
+      warnings.push({
+        code: 'mayRotate',
+        objectId: obj.id,
+        params: { width: r2(width), depth: r2(depth) },
+      })
+    }
+
     if (ymin - o.exitY < 20) {
       warnings.push({ code: 'alreadyAtEdge', objectId: obj.id, params: { ymin: r2(ymin) } })
     }
@@ -270,7 +289,16 @@ function render(
   g.push(
     'M400 ; 等前面的动作走完',
     `G0 Z${safeZ} F1200 ; 先抬到所有件之上，再开始横移`,
-    'M106 P2 S255 ; 辅助风扇全速，加快热床降温',
+    /*
+     * 三个降温风扇全开。编号取自机器自己的结束 G-code：
+     *   M106 P2  远端零件冷却风扇
+     *   M106 P3  腔体降温风扇
+     *   M106 P10 左侧辅助风扇
+     * 只靠自然散热的话，热床从 55℃ 降到环境温度要二十分钟以上。
+     */
+    'M106 P2 S255 ; 远端零件冷却风扇',
+    'M106 P3 S255 ; 腔体降温风扇',
+    'M106 P10 S255 ; 左侧辅助风扇',
     'M140 S0',
     // Marlin 里 M190 S 只在升温时等待，降温不等；等降温要用 M190 R。
     // 社区那份 P1S 方案用的是 S 并声称可用，但 Bambu 固件不是原版 Marlin，
@@ -280,6 +308,8 @@ function render(
     `M190 R${o.bedTarget} ; 等热床冷透 —— 不冷透件还粘在板上，推不动`,
     `M190 S${o.bedTarget} ; 兜底：固件若不认 R，这条至少是社区验证过的写法`,
     'M106 P2 S0',
+    'M106 P3 S0',
+    'M106 P10 S0',
   )
 
   /*

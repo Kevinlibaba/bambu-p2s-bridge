@@ -58,6 +58,14 @@ export interface EjectRequest {
    * home_flag，比赌一把便宜得多。
    */
   homeOnly?: boolean
+  /**
+   * 只下发降温那几行，不做任何运动。
+   *
+   * 自然散热从 55℃ 到环境温度要二十分钟以上；三个风扇全开快得多。
+   * 但**不能在打印过程中用** —— 中途猛吹会影响层间粘接和翘边，
+   * 所以调用方必须自己确保打印已经结束。
+   */
+  coolOnly?: boolean
 }
 
 const BED = { width: 256, depth: 256 }
@@ -88,7 +96,27 @@ export function registerEjectRoutes(
 
       // 冷却是安全措施，去掉它要显式说，并且只在空跑时有意义
       const cool = body.cool !== false
-      let gcode = cool ? plan.gcode : plan.gcode.filter((l) => !/^M(190|140|106 P2)\b/.test(l))
+      /*
+       * 「关风扇」永远保留。
+       *
+       * cool:false 时把降温整段滤掉是对的，但关风扇不属于降温 —— 它属于
+       * 收尾。滤掉的话，先用 coolOnly 吹上的风就再也没人关了。
+       */
+      const isFanOff = (l: string) => /^M106 P(2|3|10) S0\b/.test(l)
+      const isCoolingOn = (l: string) => !isFanOff(l) && /^M(190\b|140\b|106 P(2|3|10)\b)/.test(l)
+      let gcode = cool ? plan.gcode : plan.gcode.filter((l) => !isCoolingOn(l))
+
+      if (body.coolOnly) {
+        /*
+         * 只吹风，不动任何轴，**也不带 M190 等待**。
+         *
+         * M190 的 R/S 语义还没验证过；万一它不按预期返回，就会把打印机的
+         * 指令队列一直卡着。等温度这件事交给调用方自己盯 bed_temper，
+         * 比赌固件行为可靠。
+         */
+        if (!cool) throw new EjectError('coolOnly 与 cool:false 矛盾')
+        gcode = plan.gcode.filter((l) => isCoolingOn(l) && !/^M190\b/.test(l))
+      }
 
       if (body.homeOnly) {
         /*

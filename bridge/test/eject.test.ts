@@ -157,3 +157,30 @@ test('没有 brim 就不告警', () => {
 test('没有件时即使给了 brim 宽度也不告警', () => {
   assert.deepEqual(planEject([], BED, { brimWidth: 5 }).warnings, [])
 })
+
+test('三个降温风扇都要开，并且事后都要关', () => {
+  const g = planEject([obj(1, [10, 20, 50, 70])], BED).gcode
+  for (const p of ['P2', 'P3', 'P10']) {
+    assert.ok(g.includes(`M106 ${p} S255`) || g.some((l) => l.startsWith(`M106 ${p} S255`)),
+      `缺少 M106 ${p} S255`)
+    assert.ok(g.some((l) => l.startsWith(`M106 ${p} S0`)), `缺少 M106 ${p} S0`)
+  }
+  // 关风扇必须在推之前 —— 推的时候还在猛吹没有意义，也吵
+  const push = g.findIndex((l) => l.startsWith('G1 Y0'))
+  assert.ok(g.findIndex((l) => l.startsWith('M106 P3 S0')) < push)
+})
+
+/*
+ * 实测第三轮：56×10mm 的长条被推动了，但绕着还粘住的那端转了 60-70 度，
+ * 原地打转而不是往前滑。喷嘴是单点接触，约束不了旋转。
+ */
+test('又长又窄的件告警会打转', () => {
+  const p = planEject([obj(1, [86.5, 96.7, 142.7, 106.7])], { ...BED, maxZ: 11.2 })
+  assert.ok(codes(p).includes('mayRotate'))
+  const w = p.warnings.find((x) => x.code === 'mayRotate')!
+  assert.deepEqual(w.params, { width: 56.2, depth: 10 })
+})
+
+test('接近方形的件不报打转', () => {
+  assert.ok(!codes(planEject([obj(1, [93, 87, 162, 166])], BED)).includes('mayRotate'))
+})

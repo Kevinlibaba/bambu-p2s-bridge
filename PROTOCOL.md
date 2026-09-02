@@ -806,9 +806,28 @@ So the chain is verified in two halves rather than one run:
 | Does a loose part get swept off the front edge? | yes | run 2 |
 | Does a brim stop it? | yes | run 1 |
 
-What is still untested is the two halves *chained in one go* — a freshly printed, brim-less
-part released and ejected by a single sequence. Also still untested: the reduced motor
-current has never had to protect anything, because nothing has jammed yet.
+#### Third run: a long thin bar rotates instead of sliding
+
+A 56.3 × 10.0 × 11.2 mm bar, printed fresh, `auto_brim` chose no brim, bed fan-cooled to
+28 °C, pushed once at the bbox's X centre. Recorded from the chamber camera.
+
+**It moved — and pivoted roughly 60–70°, ending diagonal on the plate.** So adhesion did
+break; what failed is the direction. A nozzle contacts a single point. On a part that is
+56 mm long and 10 mm deep, any unevenness in how the two ends let go turns straight into a
+moment about the end that is still holding, and the part rotates in place instead of
+translating forward. Nothing about the trajectory is wrong — a single-point pusher simply
+cannot constrain rotation of an elongated part.
+
+So the shape rule is not just "no brim, big base". It is also **compact**: the closer the
+footprint is to square, the less leverage an uneven release has. Long bars are the worst
+case, and they are exactly what people print as test pieces.
+
+Possible mitigations, none of them tested yet: repeat the stroke several times and let the
+part walk forward; push at two X positions per pass; or push along the part's *long* axis
+so the contact face is the short one. All of them are guesses until they run.
+
+Also still untested: the reduced motor current has never had to protect anything, because
+nothing has jammed yet.
 
 Still unverified: whether the reduced motor current actually skips steps rather than
 shoving — this run never tested it, because the part came free. And `M190 R` vs `S`
