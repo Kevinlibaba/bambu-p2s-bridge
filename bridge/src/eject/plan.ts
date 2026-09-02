@@ -1,8 +1,12 @@
 /**
  * 用打印头把打完的件推下热床。
  *
- * 这是有真实机械风险的动作 —— 推力经由喷嘴传递，是热端的侧向受力。
- * 所以这个模块只负责「算」和「生成」，不负责下发；下发要显式走另一条路。
+ * 推件的是**整个打印头组件的前脸**，不是喷嘴尖 —— 喷嘴只探出 4.2mm，
+ * 拿它当推头既够不着稍高的件，也把接触点顶到了重心之上。前脸是个竖直大平面，
+ * 稳得多：件想翻，平面在更高处顶回去；件想转，平面也约束着它。
+ *
+ * 这仍是有真实机械风险的动作 —— 真机上顶掉过一次前盖。所以这个模块只负责
+ * 「算」和「生成」，不负责下发；下发要显式走另一条路。
  *
  * 两个前提比轨迹本身重要得多：
  *
@@ -89,15 +93,11 @@ export type EjectWarningCode =
    * 往前滑。实测：56×10mm 的长条转了 60-70 度。
    */
   | 'mayRotate'
-  /**
-   * 件太高，喷嘴够不着而壳体先撞上。
-   *
-   * 喷嘴只比周围结构低 nozzle_height（P2S 是 4.2mm）。要让喷嘴而不是壳体
-   * 接触件，推的高度必须 ≥ 件高 − 4.2；可要让件滑而不是翻，推的高度又得
-   * 低于重心（约件高的一半）。两者同时成立需要 件高 < 2 × 4.2 = 8.4mm。
-   * 超过这个高度，除非件的后壁像方锥那样向内倾斜、自己让开壳体。
+/**
+   * 件高过龙门杆。用壳体前脸推的话，件只要不超过杆高就行；
+   * 超过了就会在推的过程中撞到杆上（杆在喷嘴上方 32.5mm）。
    */
-  | 'tooTallForNozzle'
+  | 'tooTallForGantry'
   /** 件已经压在前沿上，推出去的行程很短 */
   | 'alreadyAtEdge'
   /** standalone 模式必须先回零，而 Z 探测点默认在床中心 —— 见 safeHomePoint */
@@ -139,6 +139,8 @@ export interface EjectPlan {
  */
 const NOZZLE_PROTRUSION = 4.2
 const TOOLHEAD_RADIUS = 72
+/** 龙门杆在喷嘴上方多高。件高过这个就会撞杆 */
+const HEIGHT_TO_ROD = 32.5
 
 /**
  * 在包络半径之外再留的余量。
@@ -260,32 +262,24 @@ export function planEject(
   }
 
   /*
-   * 推的高度。
+   * 推的高度贴着板走。
    *
-   * 下限：喷嘴不能蹭板，至少留 1mm。
-   * 下限之二：件顶必须能从壳体底下过去，也就是 z ≥ 件高 − 喷嘴探出量。
-   * 上限：z 要低于重心（约件高一半），否则推的是上半身，件会翻。
+   * 推件的是**整个打印头组件的前脸**，不是喷嘴尖。喷嘴只探出 4.2mm，
+   * 拿它当推头意味着接触点必须落在件高 4.2mm 以内的一小段上，
+   * 件稍高一点就够不着 —— 之前为了迁就它把推的高度抬到「件高 − 4.2」，
+   * 那反而把接触点顶到重心之上，件只会翻。
    *
-   * 两个下限撞上上限时无解 —— 那正是 tooTallForNozzle 要报的情况。
+   * 改成低位推：喷嘴离板 1mm，壳体前脸的下沿就在 5.2mm。件比这高的部分
+   * 全由前脸承力。一个竖直的大平面比一个点稳得多 —— 件想翻，平面会在更高处
+   * 顶回去，翻不起来；件想转，平面也约束着它。
+   *
+   * 代价是件不能高过龙门杆：杆在喷嘴上方 32.5mm。
    */
-  const needForBody = r2(Math.max(1, geom.maxZ - NOZZLE_PROTRUSION))
-  const pushZ = opts.pushZ !== undefined ? o.pushZ : needForBody
-  o.pushZ = pushZ
-
-  if (objects.length > 0 && geom.maxZ > 1) {
-    if (needForBody >= geom.maxZ) {
-      // 壳体让位所需的高度已经超过件本身，喷嘴根本碰不到件
-      warnings.push({
-        code: 'tooTallForNozzle',
-        params: { maxZ: r2(geom.maxZ), needZ: needForBody, nozzle: NOZZLE_PROTRUSION },
-      })
-    } else if (pushZ > geom.maxZ / 2) {
-      // 能碰到，但接触点在重心之上 —— 会翻，不会滑
-      warnings.push({
-        code: 'tooTallForNozzle',
-        params: { maxZ: r2(geom.maxZ), pushZ, com: r2(geom.maxZ / 2) },
-      })
-    }
+  if (objects.length > 0 && geom.maxZ > o.pushZ + HEIGHT_TO_ROD) {
+    warnings.push({
+      code: 'tooTallForGantry',
+      params: { maxZ: r2(geom.maxZ), limit: r2(o.pushZ + HEIGHT_TO_ROD) },
+    })
   }
 
   const safeZ = r2(Math.max(geom.maxZ + o.clearance, o.pushZ + o.clearance))

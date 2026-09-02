@@ -862,6 +862,33 @@ Rule 1 also applies to Z homing: the probe point needs the same 72 mm of clearan
 15 mm originally used. Getting that wrong sets Z zero one part-height too high and the
 nozzle then sails over the part without touching it.
 
+#### What actually works: push with the whole head, low
+
+Rule 2 above was wrong, and the machine settled it. The mistake was assuming the *nozzle*
+has to be the contact point, which forces the push height up to `H − 4.2` — above the
+centre of mass, so the part tips. Drop that assumption and push **low** instead: nozzle
+1 mm off the plate, and let the head's body meet whatever stands taller than about 5 mm.
+
+Run 4 did exactly that with the same 56 × 10 × 11.2 mm bar that had refused to move twice,
+and **the plate came back empty**. No error, no HMS, cover still attached.
+
+So the working recipe on this machine is:
+
+```gcode
+G28 X                      ; X and Y
+G1 X<clear> Y<clear>       ; ≥72 mm from every part
+G28 Z P0                   ; probe here, not at the centre
+G0 Z<maxZ + 5>             ; lift clear
+G0 X<part centre> Y<part rear + 87>   ; travel while still high and far
+G0 Z1                      ; descend HERE — 87 mm away from anything
+G1 Y0 F1000                ; straight translation, Z never changes again
+```
+
+The two things that make it work are both about the head being a solid object rather than a
+point: descend far away and translate in, and push low enough that the head — not the
+nozzle tip — carries the load. The remaining height limit is the gantry rod at 32.5 mm
+above the nozzle, not the 8.4 mm the nozzle-only model predicted.
+
 Still unverified: whether the reduced motor current actually skips steps rather than
 shoving — this run never tested it, because the part came free. And `M190 R` vs `S`
 semantics remain untested; this run deliberately did not rely on them, waiting for the

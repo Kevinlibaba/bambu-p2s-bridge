@@ -231,29 +231,25 @@ test('接近方形的件不报打转', () => {
  * 要让件滑而不是翻，又得低于重心（件高的一半）。
  * 两者同时成立需要 件高 < 8.4mm。真机上 11.2mm 的件就卡在做不到的区间。
  */
-test('矮件：推的高度取最低的 1mm，不报高度问题', () => {
-  const p = planEject([obj(1, [10, 20, 50, 70])], { ...BED, maxZ: 4 })
-  assert.ok(line(p, /^G0 Z1 F900/), '4mm 高的件，喷嘴探出量就够让位')
-  assert.ok(!codes(p).includes('tooTallForNozzle'))
+/*
+ * 推件的是打印头前脸，不是喷嘴尖。所以推的高度贴着板走（1mm），
+ * 让前脸的下沿（5.2mm）去承力 —— 竖直大平面比一个点稳得多。
+ * 之前为了迁就喷嘴把高度抬到「件高 − 4.2」，反而把接触点顶到重心之上。
+ */
+test('推的高度贴着板，不随件高变化', () => {
+  for (const maxZ of [4, 11.2, 25]) {
+    const p = planEject([obj(1, [10, 20, 50, 70])], { ...BED, maxZ })
+    assert.ok(line(p, /^G0 Z1 F900/), `maxZ=${maxZ} 时推的高度应为 1mm`)
+  }
 })
 
-test('高件：推的高度自动抬到让壳体越过件顶', () => {
-  const p = planEject([obj(1, [10, 20, 50, 70])], { ...BED, maxZ: 11.2 })
-  // 11.2 - 4.2 = 7
-  assert.ok(line(p, /^G0 Z7 F900/), '推的高度应抬到 7mm')
-})
+test('件高过龙门杆时告警', () => {
+  const ok = planEject([obj(1, [10, 20, 50, 70])], { ...BED, maxZ: 30 })
+  assert.ok(!codes(ok).includes('tooTallForGantry'), '30mm 还在杆下')
 
-test('件高超过 2×4.2 时报 tooTallForNozzle —— 接触点会落在重心之上', () => {
-  const p = planEject([obj(1, [10, 20, 50, 70])], { ...BED, maxZ: 11.2 })
-  assert.ok(codes(p).includes('tooTallForNozzle'))
-  const w = p.warnings.find((x) => x.code === 'tooTallForNozzle')!
-  assert.equal(w.params!.pushZ, 7)
-  assert.equal(w.params!.com, 5.6)
-})
-
-test('8mm 以下的件两个条件都满足，不告警', () => {
-  const p = planEject([obj(1, [10, 20, 50, 70])], { ...BED, maxZ: 8 })
-  assert.ok(!codes(p).includes('tooTallForNozzle'), '8mm 应当刚好可行')
+  const bad = planEject([obj(1, [10, 20, 50, 70])], { ...BED, maxZ: 40 })
+  assert.ok(codes(bad).includes('tooTallForGantry'))
+  assert.equal(bad.warnings.find((w) => w.code === 'tooTallForGantry')!.params!.limit, 33.5)
 })
 
 test('Z 探测点的余量用机器声明的打印头半径 72mm', () => {
