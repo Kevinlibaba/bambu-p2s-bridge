@@ -889,6 +889,40 @@ point: descend far away and translate in, and push low enough that the head — 
 nozzle tip — carries the load. The remaining height limit is the gantry rod at 32.5 mm
 above the nozzle, not the 8.4 mm the nozzle-only model predicted.
 
+#### The head's actual side profile, and why the direction matters
+
+The clearance numbers are a cylinder-and-rod approximation; they say nothing about shape.
+Sketched from the side by someone looking at the machine:
+
+```
+   front (−Y)                              back (+Y)
+      ┌──────────────────────────────────────┐
+      │                                      │
+      │                                      │
+      │             toolhead body            │
+      │                                      │
+      │                                    ╱ ┘   ← back-bottom is chamfered
+      └───────┬──────────────┬───────────────
+              │    hotend    │
+              └────┐    ┌────┘
+                   │ ▓▓ │   ← nozzle: the lowest point, and set well back
+                   └────┘      from the front face
+```
+
+Three things follow that the scalar clearances do not tell you:
+
+- **The front face is a full-height vertical plane.** That is what makes body-pushing
+  stable rather than lucky: a part cannot tip away from a vertical wall, because tipping
+  puts it back into contact higher up. A point pusher has no such property.
+- **The front face leads the nozzle.** Commanding the nozzle to `Y0` therefore drags the
+  face well past the plate's front edge — which is why the stroke ejects cleanly. It also
+  means the effective contact reaches the part earlier than the nozzle's own Y suggests.
+  The exact offset is not in any profile field; it has not been measured here.
+- **The direction is not symmetric.** The back-bottom is chamfered, so a push toward `+Y`
+  would meet the part with a slope and ride up over it instead of driving it. Pushing
+  toward `−Y` is the only direction that presents the flat face. This is geometry, not
+  preference — do not make the push direction configurable without accounting for it.
+
 Still unverified: whether the reduced motor current actually skips steps rather than
 shoving — this run never tested it, because the part came free. And `M190 R` vs `S`
 semantics remain untested; this run deliberately did not rely on them, waiting for the
