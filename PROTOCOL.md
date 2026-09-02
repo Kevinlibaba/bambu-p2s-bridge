@@ -909,21 +909,40 @@ Sketched from the side by someone looking at the machine:
                    └────┘      from the front face
 ```
 
-Two things follow that the scalar clearances do not tell you:
+**Where the contact actually happens.** Reviewing the recording frame by frame: the
+11.2 mm bar was driven by the **middle of the chamfer**, not by the vertical face above it.
+The chamfer is deep enough that a part of this height never reaches the flat part of the
+front at all.
 
-- **The front face is a vertical plane over most of its height.** That is what makes
-  body-pushing stable rather than lucky: a part cannot tip away from a vertical wall,
-  because tipping puts it back into contact higher up. A point pusher has no such property.
-- **The front face leads the nozzle.** Commanding the nozzle to `Y0` therefore drags the
-  face well past the plate's front edge — which is why the stroke ejects cleanly. It also
-  means the effective contact reaches the part earlier than the nozzle's own Y suggests.
-  The exact offset is not in any profile field; it has not been measured here.
+```
+                                 ╲          ← chamfer
+        toolhead                  ╲  ┌────────────┐
+        body                       ╲ │            │
+     ───────┬────────┬──────────────╲│    part    │
+            │ hotend │               ╲            │
+            └──┐  ┌──┘                └───────────┘
+               │▓▓│                  ↑ contact lands here, on the slope
+               └──┘
+```
 
-**Open question:** the chamfer sits low on the *front*, i.e. on the leading edge of the
-push. The 11.2 mm bar was contacted in the 5–11 mm band and went off cleanly, so the
-vertical portion evidently did the work — but how far up the chamfer reaches is unmeasured,
-and with it the minimum part height that gets flat-face contact rather than a slope. A part
-short enough to sit entirely within the chamfer would be ridden over rather than pushed.
+That matters, because a sloped contact is not the same as a flat one. It pushes the part
+forward *and* down: the downward component presses it into the plate and adds friction
+rather than helping. It worked here, but it is not the "a vertical wall cannot let the part
+tip" mechanism that would have made this robust.
+
+Two consequences that do follow:
+
+- **`pushZ` should stay as low as the plate allows.** The front-bottom corner sits
+  `nozzle_height` above the nozzle tip, so at `Z1` it is ~5.2 mm above the plate. Raising
+  the push height raises that corner with it and shrinks the band of the part that gets
+  engaged. Low maximises engagement and keeps the contact near the part's base.
+- **The front face leads the nozzle.** Commanding the nozzle to `Y0` drags the face well
+  past the plate's front edge, which is why the stroke clears the part off. The exact
+  offset is in no profile field and has not been measured.
+
+**Unmeasured, and it bounds the whole technique:** how tall the chamfer is. That number
+sets which parts get flat-face contact (tall ones), which get slope contact (this bar), and
+which are short enough to be ridden over instead of pushed.
 
 Still unverified: whether the reduced motor current actually skips steps rather than
 shoving — this run never tested it, because the part came free. And `M190 R` vs `S`
