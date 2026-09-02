@@ -30,6 +30,10 @@ export const config = {
   history: {
     /** 打印历史（JSONL）落盘位置。容器里挂 /data */
     path: process.env.HISTORY_PATH ?? '/data/jobs.jsonl',
+    /** 温度采样按天分文件放这里，用来回看历史某一单的曲线 */
+    tempsDir: process.env.TEMPS_DIR ?? '/data/temps',
+    /** 温度曲线保留天数 */
+    tempsKeepDays: Number(process.env.TEMPS_KEEP_DAYS ?? 60),
   },
   notify: {
     enabled: process.env.NOTIFY_ENABLED !== 'false',

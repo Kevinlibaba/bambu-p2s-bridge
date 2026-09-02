@@ -11,7 +11,7 @@ const state = new PrinterState()
 const mqtt = new PrinterMqtt(state)
 const notifier = new Notifier(state)
 const history = new History(state, lookupPlate)
-const temps = new Temps(state)
+const temps = new Temps(state, 10_000, 1080, config.history.tempsDir, 6, config.history.tempsKeepDays)
 
 async function main() {
   if (!config.api.token) {
@@ -19,7 +19,7 @@ async function main() {
   }
   await notifier.start()
   await history.start()
-  temps.start()
+  await temps.start()
   mqtt.start()
   const app = await buildServer(state, mqtt, notifier, history, temps)
   await app.listen({ port: config.api.port, host: config.api.host })
@@ -29,6 +29,8 @@ async function main() {
   const shutdown = async (sig: string) => {
     console.log(`\n[${sig}] 关闭中…`)
     mqtt.stop()
+    // 先把没落盘的采样冲下去，否则最后一段曲线会丢
+    await temps.flush()
     await app.close()
     process.exit(0)
   }

@@ -376,6 +376,17 @@ export interface TempSample {
 export const fetchTemps = (minutes = 60) =>
   request<{ samples: TempSample[] }>(`/api/history/temps?minutes=${minutes}`)
 
+/**
+ * 回看某一单的温度曲线。
+ *
+ * available 为 false 表示这一单跑在温度落盘上线之前 —— 是「没有记录」，
+ * 不是「加载失败」，前端要分开说。
+ */
+export const fetchJobTemps = (jobId: string) =>
+  request<{ samples: TempSample[]; available: boolean }>(
+    `/api/history/temps?job=${encodeURIComponent(jobId)}`,
+  )
+
 export const fetchHistory = (limit = 50) =>
   request<HistoryPayload>(`/api/history?limit=${limit}`)
 

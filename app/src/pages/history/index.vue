@@ -9,14 +9,43 @@
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
-import { fetchHistory, configured, type HistoryPayload, type JobRecord } from '../../api/client'
+import {
+  fetchHistory, fetchJobTemps, configured,
+  type HistoryPayload, type JobRecord, type TempSample,
+} from '../../api/client'
 import { themeClass, applyChrome } from '../../store/prefs'
 import Spinner from '../../components/Spinner.vue'
+import Sheet from '../../components/Sheet.vue'
+import TempChart from '../../components/TempChart.vue'
 
 const { t } = useI18n()
 const data = ref<HistoryPayload | null>(null)
 const loading = ref(false)
 const err = ref('')
+
+/*
+ * 回看某一单的温度曲线。
+ *
+ * 曲线是按天落盘的，只有这个功能上线之后跑的单才有 —— 更早的单会拿到
+ * available: false。那是「没记录」，不是「加载失败」，两者要分开说，
+ * 否则用户会以为是坏了。
+ */
+const sel = ref<JobRecord | null>(null)
+const temps = ref<TempSample[]>([])
+const tempsState = ref<'loading' | 'ok' | 'none' | 'error'>('loading')
+
+async function openJob(j: JobRecord) {
+  sel.value = j
+  temps.value = []
+  tempsState.value = 'loading'
+  try {
+    const r = await fetchJobTemps(j.id)
+    temps.value = r.samples
+    tempsState.value = r.available ? 'ok' : 'none'
+  } catch {
+    tempsState.value = 'error'
+  }
+}
 
 async function load() {
   if (!configured.value) return
@@ -112,7 +141,7 @@ function sub(j: JobRecord): string {
       <view v-else class="card">
         <view v-for="(j, i) in jobs" :key="j.id + i">
           <view v-if="i > 0" class="hsep" />
-          <view class="line stack">
+          <view class="line stack tappable" @click="openJob(j)">
             <view class="row">
               <text class="dot" :class="j.result" />
               <text class="name">{{ j.name || t('history.unnamed') }}</text>
@@ -122,6 +151,21 @@ function sub(j: JobRecord): string {
         </view>
       </view>
     </template>
+
+    <Sheet :visible="!!sel" :title="sel?.name || t('history.unnamed')" @close="sel = null">
+      <text class="cap">{{ sel ? sub(sel) : '' }}</text>
+      <view v-if="tempsState === 'loading'" class="busy"><Spinner :size="40" /></view>
+      <view v-else-if="tempsState === 'ok'" class="chart">
+        <TempChart id="histchart" :samples="temps" />
+      </view>
+      <view v-else class="card sheet-card">
+        <view class="line">
+          <text class="k dim">
+            {{ tempsState === 'none' ? t('history.noCurve') : t('history.curveFailed') }}
+          </text>
+        </view>
+      </view>
+    </Sheet>
   </view>
 </template>
 
@@ -151,6 +195,9 @@ function sub(j: JobRecord): string {
 .line.stack { display: block; padding: 24rpx 0; }
 .k { font-size: 29rpx; color: var(--ink); letter-spacing: -0.02em; }
 .k.dim { color: var(--ink-3); }
+.tappable:active { opacity: 0.55; }
+.sheet-card { margin-top: 24rpx; }
+.chart { margin-top: 24rpx; }
 .v { font-size: 28rpx; color: var(--ink-2); letter-spacing: -0.02em; }
 .v.accent { color: var(--accent); }
 

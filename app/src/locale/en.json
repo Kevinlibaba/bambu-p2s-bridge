@@ -310,7 +310,9 @@
     "stoppedAt": "stopped at {p}%",
     "minutes": "{n} min",
     "hoursMinutes": "{h} h {m} min",
-    "unknownTime": "duration unknown"
+    "unknownTime": "duration unknown",
+    "noCurve": "No temperature data for this job",
+    "curveFailed": "Could not load the temperature curve"
   },
   "chart": {
     "nozzle": "Nozzle",

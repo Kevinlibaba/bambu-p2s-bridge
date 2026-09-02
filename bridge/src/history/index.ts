@@ -198,6 +198,10 @@ export class History {
     return best
   }
 
+  find(id: string): JobRecord | undefined {
+    return this.jobs.find((j) => j.id === id)
+  }
+
   list(limit = 50): JobRecord[] {
     return this.jobs.slice(-limit).reverse()
   }

@@ -12,10 +12,18 @@ import { computed, onMounted, ref, watch, getCurrentInstance, nextTick } from 'v
 import { useI18n } from 'vue-i18n'
 import type { TempSample } from '../api/client'
 
-const props = defineProps<{ samples: TempSample[] }>()
+/*
+ * canvasId 必须每个实例唯一。uni-app 的 tab 页是保活的 —— 监控页的图表
+ * 和历史页里的图表会同时存在于 DOM，共用一个 id 会让 createCanvasContext
+ * 和 getElementById 拿到对方那块画布。
+ */
+const props = withDefaults(
+  defineProps<{ samples: TempSample[]; id?: string }>(),
+  { id: 'tempchart' },
+)
 const { t } = useI18n()
 const inst = getCurrentInstance()
-const canvasId = 'tempchart'
+const canvasId = props.id
 const W = ref(0)
 const H = 180
 

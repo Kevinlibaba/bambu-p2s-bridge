@@ -310,7 +310,9 @@
     "stoppedAt": "{p}% で停止",
     "minutes": "{n} 分",
     "hoursMinutes": "{h} 時間 {m} 分",
-    "unknownTime": "所要時間不明"
+    "unknownTime": "所要時間不明",
+    "noCurve": "このジョブの温度記録はありません",
+    "curveFailed": "温度グラフを読み込めませんでした"
   },
   "chart": {
     "nozzle": "ノズル",

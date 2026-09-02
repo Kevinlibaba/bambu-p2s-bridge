@@ -310,7 +310,9 @@
     "stoppedAt": "停在 {p}%",
     "minutes": "{n} 分钟",
     "hoursMinutes": "{h} 小时 {m} 分",
-    "unknownTime": "耗时未知"
+    "unknownTime": "耗时未知",
+    "noCurve": "这一单没有温度记录",
+    "curveFailed": "温度曲线加载失败"
   },
   "chart": {
     "nozzle": "喷嘴",
