@@ -161,16 +161,31 @@ async function refreshAuto() {
   } catch { /* 状态取不到不影响主流程 */ }
 }
 
+/*
+ * 弹层的上滑动画是 300ms。取计划要走 FTP（读 zip 尾部、盘信息、gcode 头部），
+ * 响应回来时若正好在动画中途，换布局那一下就会掉帧。所以等动画走完再发请求：
+ * 静态部分（警告、标题）先跟着动画一起上来，数据部分随后填入。
+ */
+const SHEET_ANIM_MS = 320
+
+function afterAnim(fn: () => void) {
+  setTimeout(fn, SHEET_ANIM_MS)
+}
+
 async function openHarvest() {
   hSheet.value = true
   hPlan.value = null
   hErr.value = ''
-  void refreshAuto()
-  try {
-    hPlan.value = await planHarvest()
-  } catch (e) {
-    hErr.value = (e as Error).message
-  }
+  afterAnim(() => {
+    void refreshAuto()
+    void (async () => {
+      try {
+        hPlan.value = await planHarvest()
+      } catch (e) {
+        hErr.value = (e as Error).message
+      }
+    })()
+  })
 }
 
 /** error 排前面 —— 做不成的事要先看到，info 只是告知，垫底 */
@@ -569,7 +584,8 @@ async function send(c: Command, confirmText?: string) {
         <!-- 烘干控制 -->
       <!-- 错误详情：文案来自 Bambu 官方错误库，桥接侧代查 -->
       <Sheet :visible="hSheet" :title="t('harvest.title')" @close="hSheet = false">
-        <view v-if="!hPlan && !hErr" class="busy"><Spinner :size="40" /></view>
+        <!-- 动画走完之前不转圈：Spinner 自己也在耗帧，正是要省下的那部分 -->
+        <view v-if="!hPlan && !hErr" class="busy ph" />
 
         <view v-else-if="hErr" class="card sheet-card">
           <view class="line"><text class="k dim">{{ hErr }}</text></view>
@@ -584,7 +600,6 @@ async function send(c: Command, confirmText?: string) {
           -->
           <view class="hwarn">
             <text class="hwarn-t">{{ t('harvest.expTitle') }}</text>
-            <text class="hwarn-b">{{ t('harvest.expBody') }}</text>
           </view>
 
           <view class="card sheet-card">
@@ -644,10 +659,8 @@ async function send(c: Command, confirmText?: string) {
           >
             {{ hBusy ? t('harvest.working') : t('harvest.now') }}
           </button>
-          <!-- 按钮灰着的时候必须说清楚为什么，否则只能干瞪眼 -->
-          <text class="note" :class="{ warn: !!hBlockReason }">
-            {{ hBlockReason || t('harvest.note') }}
-          </text>
+          <!-- 只在按不动的时候说明原因。能按时不必再补一句废话 -->
+          <text v-if="hBlockReason" class="note warn">{{ hBlockReason }}</text>
         </template>
       </Sheet>
 
@@ -937,8 +950,9 @@ async function send(c: Command, confirmText?: string) {
   background: var(--warning-bg);
 }
 .hwarn-t { display: block; font-size: 27rpx; color: var(--warning);
-  letter-spacing: -0.02em; margin-bottom: 10rpx; }
-.hwarn-b { display: block; font-size: 25rpx; color: var(--ink-2); line-height: 1.5; }
+  letter-spacing: -0.02em; }
+/* 数据没到之前占住高度，免得内容填进来时整块往下跳 */
+.busy.ph { height: 320rpx; }
 /* 特异性要压过 .line.stack .sub，否则这条提示会被染回灰色 */
 .line.stack .sub.warn { color: var(--warning); }
 .note.warn { color: var(--warning); }

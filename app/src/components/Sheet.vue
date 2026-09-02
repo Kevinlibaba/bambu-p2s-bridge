@@ -159,6 +159,8 @@ function onMaskTap() {
   overflow: hidden;
   /* 沉稳上滑，不弹跳 —— 与 Meter 的过渡曲线一致 */
   animation: rise 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  /* 提前给合成层，别让第一帧才去提升图层 */
+  will-change: transform;
 }
 
 .grabber {
