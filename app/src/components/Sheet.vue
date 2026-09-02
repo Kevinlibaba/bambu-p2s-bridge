@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onUnmounted, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { onHide, onUnload } from '@dcloudio/uni-app'
 
 const props = defineProps<{ visible: boolean; title?: string }>()
@@ -44,6 +44,151 @@ function lockPage(on: boolean) {
 }
 
 watch(() => props.visible, (v) => lockPage(v), { immediate: true })
+
+/*
+ * 下滑关闭。
+ *
+ * 行为对着 iOS 原生 sheet 抄，常量取自 vaul（那个库明确以 iOS sheet 为蓝本，
+ * 而且它的缓动曲线 cubic-bezier(0.32, 0.72, 0, 1) 和本组件原本用的正好一致）：
+ *
+ *   往下拖   跟手 1:1
+ *   往上拖   橡皮筋阻尼，永远回不到打开位置之上
+ *   松手     速度 ≥ 0.4 px/ms，或拖过卡片高度的 25% → 关闭；否则弹回
+ *
+ * 最要紧的一条是和内部滚动的协同：内容没滚到顶时，下滑应该是滚内容，
+ * 不是关卡片。少了这一条，手势就会在「想往回滚」时把卡片关掉 ——
+ * 那是最恼人的一种错。
+ */
+const VELOCITY_DISMISS = 0.4
+const CLOSE_RATIO = 0.25
+/*
+ * 橡皮筋系数，用 UIScrollView 那条 f(x) = x·d·c / (d + c·x)，越拉越迟钝。
+ *
+ * 滚动回弹惯用 0.55，但那对固定高度的卡片太软 —— 实测拖 200px 会上移 96px，
+ * 卡片下方直接露出一截遮罩，看着像坏了。这里的卡片不能变高，往上拖只需要
+ * 一点「收到了」的反馈，所以取 0.1：拖 200px 约 19px，且封顶在 74px。
+ */
+const RUBBER_C = 0.1
+
+const dragY = ref(0)
+const dragging = ref(false)
+/* uni-app 里 <view> 上的 ref 拿到的可能是组件代理而不是 DOM 元素 */
+const cardRef = ref<{ $el?: HTMLElement } | HTMLElement | null>(null)
+const scrollRef = ref<{ $el?: HTMLElement } | HTMLElement | null>(null)
+let startY = 0
+let startAt = 0
+let sheetH = 0
+let armed = false
+
+/**
+ * 卡片高度。它是关闭阈值的分母 —— 量不到就退回半屏，绝不能留 0：
+ * 那会让阈值变成「往下拖一点点就关」，实测踩过。
+ */
+function measureCard(): number {
+  // #ifdef H5
+  const h = unwrap(cardRef.value)?.getBoundingClientRect?.().height ?? 0
+  if (h > 0) return h
+  // #endif
+  return typeof window === 'undefined' ? 600 : window.innerHeight * 0.5
+}
+
+/**
+ * 这一次触摸该不该拖卡片。
+ *
+ * 两条规则，都照 iOS：
+ *  · 手指落在抓手、标题、底部操作这些非滚动区 → 永远可拖
+ *  · 落在滚动区里 → 只有内容已经在顶部才拖，否则先滚内容
+ *
+ * 第二条是手势好不好用的分水岭。少了它，用户想把内容往回滚的时候
+ * 卡片会直接被关掉 —— 那是最恼人的一种错。
+ *
+ * 不从 e.target 往上找滚动容器：uni-app 把事件包装过，target 不是
+ * DOM 元素，遍历从第一步就失效（实测踩过，表现是任何下拉都能关闭）。
+ * 直接持有滚动区的 ref 更可靠。
+ */
+function unwrap(r: unknown): HTMLElement | null {
+  const v = r as { $el?: HTMLElement } | HTMLElement | null
+  return ((v as { $el?: HTMLElement })?.$el ?? (v as HTMLElement | null)) ?? null
+}
+
+/*
+ * 找出真正在滚的那个元素。
+ *
+ * 不按类名找：uni-app 的 scroll-view 渲染成 <uni-scroll-view> 外加一层内部 div，
+ * 而**外层才是滚动容器**（实测 688/400），内层是 688/688 根本不滚。
+ * 按类名去取内层就永远读到 scrollTop = 0，于是任何下拉都被当成「已在顶部」。
+ * 按「谁的 scrollHeight 超出 clientHeight」来判，对版本差异也更稳。
+ */
+function scroller(): HTMLElement | null {
+  // #ifdef H5
+  const host = unwrap(scrollRef.value)
+  if (!host) return null
+  if (host.scrollHeight > host.clientHeight + 1) return host
+  const nested = host.querySelectorAll?.('*') ?? []
+  for (const el of Array.from(nested) as HTMLElement[]) {
+    if (el.scrollHeight > el.clientHeight + 1) return el
+  }
+  return host
+  // #endif
+  // eslint-disable-next-line no-unreachable
+  return null
+}
+
+function shouldDrag(touchY: number): boolean {
+  const el = scroller()
+  if (!el) return true
+  const r = el.getBoundingClientRect?.()
+  // 落在滚动区之外（抓手 / 标题 / 底部操作）—— 永远可拖
+  if (r && (touchY < r.top || touchY > r.bottom)) return true
+  return (el.scrollTop ?? 0) <= 0
+}
+
+function onSheetDown(e: TouchEvent) {
+  const p = pointOf(e)
+  if (!p) return
+  startY = p.y
+  startAt = Date.now()
+  dragY.value = 0
+  armed = shouldDrag(p.y)
+  dragging.value = false
+  sheetH = measureCard()
+}
+
+function onSheetMove(e: TouchEvent) {
+  if (!armed) return
+  const p = pointOf(e)
+  if (!p) return
+  const dy = p.y - startY
+  // 往上拖：橡皮筋，且永远不越过打开位置
+  dragY.value = dy >= 0 ? dy : -((-dy) * sheetH * RUBBER_C) / (sheetH + RUBBER_C * -dy)
+  if (Math.abs(dy) > 4) dragging.value = true
+}
+
+function onSheetUp() {
+  if (!armed) return
+  armed = false
+  const dy = dragY.value
+  const dt = Math.max(1, Date.now() - startAt)
+  const velocity = dy / dt
+  dragging.value = false
+  if (dy > 0 && (velocity >= VELOCITY_DISMISS || dy >= sheetH * CLOSE_RATIO)) {
+    // 从当前位置继续往下滑出去，而不是先跳回原位再播关闭动画
+    dragY.value = sheetH
+    setTimeout(() => { dragY.value = 0; emit('close') }, 180)
+    return
+  }
+  dragY.value = 0
+}
+
+const sheetStyle = computed(() =>
+  dragY.value === 0 ? '' : `transform: translateY(${dragY.value.toFixed(1)}px);`,
+)
+/* 遮罩跟着一起淡出，手指还没松就能看出「再拖一点就关了」 */
+const maskStyle = computed(() => {
+  if (dragY.value <= 0 || sheetH === 0) return ''
+  const k = Math.max(0, 1 - dragY.value / sheetH)
+  return `opacity: ${k.toFixed(2)};`
+})
 
 /*
  * 页面被切走时必须解锁。uni-app 会缓存页面而不是卸载它，所以 onUnmounted
@@ -109,17 +254,32 @@ function onMaskTap() {
   <view
     v-if="visible"
     class="mask"
+    :style="maskStyle"
     @click="onMaskTap"
     @touchstart="onMaskDown"
     @mousedown="onMaskDown"
     @touchmove.stop.prevent="onMaskMove"
   >
     <!-- 卡片内的滑动到此为止，不再冒泡到遮罩，否则内部滚动区也会被 prevent 掉 -->
-    <view class="sheet" @click.stop @touchmove.stop.prevent="swallow">
+    <view
+      ref="cardRef"
+      class="sheet"
+      :class="{ dragging }"
+      :style="sheetStyle"
+      @click.stop
+      @touchstart="onSheetDown"
+      @touchmove.stop.prevent="onSheetMove"
+      @touchend="onSheetUp"
+      @touchcancel="onSheetUp"
+    >
       <view class="grabber" />
       <text v-if="title" class="title">{{ title }}</text>
       <!-- 只阻止冒泡：默认行为要留着，否则内部滚不动 -->
-      <scroll-view class="scroll" scroll-y @touchmove.stop>
+      <!--
+        不 stop：手势要冒泡到卡片上判断该滚还是该拖。
+        也不 prevent：默认行为留着，否则内部滚不动。
+      -->
+      <scroll-view ref="scrollRef" class="scroll" scroll-y>
         <view class="inner" :class="{ 'no-footer': !$slots.footer }"><slot /></view>
       </scroll-view>
       <!-- 主操作固定在底部，永远不随内容长度滚走 -->
@@ -161,6 +321,11 @@ function onMaskTap() {
   animation: rise 0.3s cubic-bezier(0.32, 0.72, 0, 1);
   /* 提前给合成层，别让第一帧才去提升图层 */
   will-change: transform;
+  /* 松手后弹回/滑出用同一条曲线；拖动中要跟手，所以那时不能有过渡 */
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.sheet.dragging {
+  transition: none;
 }
 
 .grabber {
