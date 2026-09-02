@@ -125,8 +125,29 @@ export type EjectWarningCode =
    */
   | 'hasBrim'
 
+/**
+ * error 表示这一条会让收菜做不成，warn 是「能做但要有心理准备」，
+ * info 只是把将要发生的事说清楚。分级放在服务端 —— 哪条算硬伤属于
+ * 领域判断，不该让每个客户端各猜一遍。
+ */
+export type EjectWarningLevel = 'error' | 'warn' | 'info'
+
+const LEVELS: Record<EjectWarningCode, EjectWarningLevel> = {
+  tooFlat: 'error',
+  noApproachRoom: 'error',
+  noSafeHomePoint: 'error',
+  hasBrim: 'warn',
+  mayRotate: 'warn',
+  mayTipOver: 'warn',
+  tooTallForGantry: 'warn',
+  alreadyAtEdge: 'warn',
+  // 不是问题，是告知：会先回零，且探测点已经避开了所有件
+  homingHazard: 'info',
+}
+
 export interface EjectWarning {
   code: EjectWarningCode
+  level: EjectWarningLevel
   objectId?: number
   params?: Record<string, string | number>
 }
@@ -266,7 +287,7 @@ export function planEject(
 
   // 整盘最高点都够不到，后面算什么都没意义
   if (geom.maxZ <= o.pushZ) {
-    warnings.push({ code: 'tooFlat', params: { maxZ: r2(geom.maxZ), pushZ: o.pushZ } })
+    warnings.push({ code: 'tooFlat', level: LEVELS.tooFlat, params: { maxZ: r2(geom.maxZ), pushZ: o.pushZ } })
   }
 
   /*
@@ -274,7 +295,7 @@ export function planEject(
    * 主体被推出去，没扯断的 brim 又把它拉了回来。
    */
   if (o.brimWidth > 0 && objects.length > 0) {
-    warnings.push({ code: 'hasBrim', params: { width: o.brimWidth, pushZ: o.pushZ } })
+    warnings.push({ code: 'hasBrim', level: LEVELS.hasBrim, params: { width: o.brimWidth, pushZ: o.pushZ } })
   }
 
   /*
@@ -294,6 +315,7 @@ export function planEject(
   if (objects.length > 0 && geom.maxZ > o.pushZ + HEIGHT_TO_ROD) {
     warnings.push({
       code: 'tooTallForGantry',
+      level: LEVELS.tooTallForGantry,
       params: { maxZ: r2(geom.maxZ), limit: r2(o.pushZ + HEIGHT_TO_ROD) },
     })
   }
@@ -305,10 +327,10 @@ export function planEject(
     homeAt = safeHomePoint(objects, geom.bed)
     if (!homeAt) {
       // 没有能避开件的探测位置，硬回零就是撞机 —— 不生成任何动作
-      warnings.push({ code: 'noSafeHomePoint' })
+      warnings.push({ code: 'noSafeHomePoint', level: LEVELS.noSafeHomePoint })
       return { order: [], gcode: [], warnings }
     }
-    warnings.push({ code: 'homingHazard', params: { x: homeAt.x, y: homeAt.y } })
+    warnings.push({ code: 'homingHazard', level: LEVELS.homingHazard, params: { x: homeAt.x, y: homeAt.y } })
   }
 
   for (const obj of frontFirst(objects)) {
@@ -320,6 +342,7 @@ export function planEject(
       // 绕不到背后就只能放弃这一个，硬来会把喷嘴顶到件上
       warnings.push({
         code: 'noApproachRoom',
+        level: LEVELS.noApproachRoom,
         objectId: obj.id,
         params: { needY: startY, bedDepth: geom.bed.depth },
       })
@@ -331,6 +354,7 @@ export function planEject(
     if (depth > 0 && geom.maxZ > depth * 2) {
       warnings.push({
         code: 'mayTipOver',
+        level: LEVELS.mayTipOver,
         objectId: obj.id,
         params: { height: r2(geom.maxZ), depth: r2(depth) },
       })
@@ -344,13 +368,14 @@ export function planEject(
     if (depth > 0 && width > depth * 3) {
       warnings.push({
         code: 'mayRotate',
+        level: LEVELS.mayRotate,
         objectId: obj.id,
         params: { width: r2(width), depth: r2(depth) },
       })
     }
 
     if (ymin - o.exitY < 20) {
-      warnings.push({ code: 'alreadyAtEdge', objectId: obj.id, params: { ymin: r2(ymin) } })
+      warnings.push({ code: 'alreadyAtEdge', level: LEVELS.alreadyAtEdge, objectId: obj.id, params: { ymin: r2(ymin) } })
     }
 
     order.push({ id: obj.id, name: obj.name, pushX, startY })

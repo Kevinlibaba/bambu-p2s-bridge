@@ -173,6 +173,26 @@ async function openHarvest() {
   }
 }
 
+/** error 排前面 —— 做不成的事要先看到，info 只是告知，垫底 */
+const LEVEL_ORDER: Record<string, number> = { error: 0, warn: 1, info: 2 }
+const hSortedWarnings = computed(() =>
+  [...(hPlan.value?.warnings ?? [])].sort(
+    (a, b) => (LEVEL_ORDER[a.level] ?? 9) - (LEVEL_ORDER[b.level] ?? 9),
+  ),
+)
+
+/** 按钮灰着时到底卡在哪一条。空字符串表示可以按 */
+const hBlockReason = computed(() => {
+  const p = hPlan.value
+  if (!p) return ''
+  if (hRunning.value) return t('harvest.busyHint')
+  if (!p.order.length) return t('harvest.nothing')
+  const bad = p.warnings.find((w) => w.level === 'error')
+  if (bad) return t('harvestWarn.' + bad.code, bad.params || {})
+  if (p.bedTemp > HARVEST_BED_MAX) return t('harvest.tooHot', { max: HARVEST_BED_MAX })
+  return ''
+})
+
 async function toggleArm() {
   const on = !hAuto.value?.armed
   hBusy.value = true
@@ -487,11 +507,14 @@ async function send(c: Command, confirmText?: string) {
             <text class="fact">{{ t('monitor.layers', { cur: s?.layer ?? 0, total: s?.totalLayers ?? 0 }) }}</text>
             <text class="sep">·</text>
             <text class="fact">{{ t('monitor.remaining', { value: eta }) }}</text>
-            <!-- 收菜。预约中给个点亮的状态，一眼能看出这一单打完会自己动 -->
-            <view class="harvest-btn" :class="{ on: hAuto?.armed }" @click="openHarvest">
-              <text class="harvest-t">{{ hAuto?.armed ? t('harvest.armed') : t('harvest.title') }}</text>
-              <!-- 实验标记：不点开也知道这条不是成熟功能 -->
-              <text v-if="!hAuto?.armed" class="harvest-beta">β</text>
+            <!--
+              收菜。预约中整颗点亮，一眼能看出这一单打完机器会自己动。
+              β 常驻 —— 这是唯一一个会让机器压着实物移动的功能，
+              不该等到点开才知道它是实验性的。
+            -->
+            <view class="hbtn" :class="{ on: hAuto?.armed }" @click="openHarvest">
+              <text class="hbtn-t">{{ hAuto?.armed ? t('harvest.armed') : t('harvest.title') }}</text>
+              <text class="hbtn-beta">β</text>
             </view>
           </view>
         </view>
@@ -554,17 +577,15 @@ async function send(c: Command, confirmText?: string) {
 
         <template v-else-if="hPlan">
           <!--
-            实验功能的警告放在最前面：在看到任何参数之前先知道风险。
-            内容是实测中真的发生过的事，不是套话。
+            警告放在最前面：在看到任何参数之前先知道风险。内容是实测中
+            真的发生过的事，不是套话。用浅色底而不是描边 —— 描边在深色
+            模式下会显得刺眼，而这块要长期存在，不是一次性弹窗。
+            原来的 intro 和它说的是同一件事，删掉，不重复占版面。
           -->
-          <view class="card warn-card">
-            <view class="line stack">
-              <text class="k warn">⚠︎ {{ t('harvest.expTitle') }}</text>
-              <text class="sub">{{ t('harvest.expBody') }}</text>
-            </view>
+          <view class="hwarn">
+            <text class="hwarn-t">{{ t('harvest.expTitle') }}</text>
+            <text class="hwarn-b">{{ t('harvest.expBody') }}</text>
           </view>
-
-          <text class="cap">{{ t('harvest.intro') }}</text>
 
           <view class="card sheet-card">
             <view class="line">
@@ -586,40 +607,46 @@ async function send(c: Command, confirmText?: string) {
           <template v-if="hPlan.warnings.length">
             <text class="grouphead">{{ t('harvest.warnings') }}</text>
             <view class="card sheet-card">
-              <view v-for="(w, i) in hPlan.warnings" :key="w.code + i">
+              <view v-for="(w, i) in hSortedWarnings" :key="w.code + i">
                 <view v-if="i > 0" class="hsep" />
                 <view class="line stack">
-                  <text class="k">{{ t('harvestWarn.' + w.code, w.params || {}) }}</text>
+                  <view class="chk">
+                    <text class="chk-dot" :class="w.level" />
+                    <text class="chk-t">{{ t('harvestWarn.' + w.code, w.params || {}) }}</text>
+                  </view>
                 </view>
               </view>
             </view>
           </template>
 
-          <!-- 预约：打印中时这是唯一能做的事 -->
+          <!--
+            预约用开关而不是可点的行 —— 它是个持续状态，不是一次动作。
+            打印进行中时这是唯一能做的事，所以放在主按钮上方。
+          -->
           <view class="card sheet-card">
-            <view class="line stack tappable" @click="toggleArm">
-              <view class="row">
-                <text class="k" :class="hAuto?.armed ? 'accent' : ''">
-                  {{ hAuto?.armed ? t('harvest.cancel') : t('harvest.auto') }}
-                </text>
-              </view>
-              <text class="sub">
-                {{ hAuto?.armed
-                  ? t('harvest.autoOn')
-                  : t('harvest.autoHint', { t: hAuto?.bedTarget ?? 30 }) }}
-              </text>
+            <view class="line">
+              <text class="k">{{ t('harvest.auto') }}</text>
+              <switch
+                class="sw" :checked="!!hAuto?.armed" :disabled="hBusy"
+                color="#2997ff" @change="toggleArm"
+              />
+            </view>
+            <view class="hsep" />
+            <view class="line stack">
+              <text class="sub">{{ t('harvest.autoHint', { t: hAuto?.bedTarget ?? 30 }) }}</text>
               <text class="sub warn">{{ t('harvest.expAuto') }}</text>
             </view>
           </view>
 
           <button
-            class="pill go" :disabled="hBusy || hRunning || hBedHot || !hPlan.order.length"
+            class="pill go" :disabled="hBusy || !!hBlockReason"
             @click="doHarvest"
           >
             {{ hBusy ? t('harvest.working') : t('harvest.now') }}
           </button>
-          <text class="note">
-            {{ hRunning ? t('harvest.busyHint') : t('harvest.note') }}
+          <!-- 按钮灰着的时候必须说清楚为什么，否则只能干瞪眼 -->
+          <text class="note" :class="{ warn: !!hBlockReason }">
+            {{ hBlockReason || t('harvest.note') }}
           </text>
         </template>
       </Sheet>
@@ -871,17 +898,28 @@ async function send(c: Command, confirmText?: string) {
 .task { display: block; font-size: 32rpx; color: var(--ink); margin-top: 32rpx;
   letter-spacing: -0.02em; line-height: 1.35; }
 .facts { display: flex; align-items: center; margin-top: 12rpx; }
-/* 收菜按钮：贴在层数/剩余那一行的最右端 */
-.harvest-btn {
-  margin-left: auto; padding: 8rpx 22rpx; border-radius: 999rpx;
-  background: var(--fill); flex-shrink: 0;
+/*
+ * 收菜按钮：贴在层数/剩余那一行的最右端。
+ * 那一行是次要信息（灰字），所以按钮不能太抢 —— 用填充底而不是强调色，
+ * 只有预约中才整颗点亮。
+ */
+.hbtn {
+  margin-left: auto; flex-shrink: 0;
+  display: flex; align-items: baseline;
+  padding: 10rpx 26rpx; border-radius: 999rpx;
+  /* 用强调色淡底，和 app 里其他动作一个语言。--fill 在浅色下几乎看不出是按钮 */
+  background: var(--accent-dim);
 }
-.harvest-btn.on { background: var(--accent); }
-.harvest-btn:active { opacity: 0.6; }
-.harvest-btn { display: flex; align-items: center; }
-.harvest-t { font-size: 24rpx; color: var(--ink-2); letter-spacing: -0.01em; }
-.harvest-beta { font-size: 19rpx; color: var(--warning); margin-left: 8rpx; line-height: 1; }
-.harvest-btn.on .harvest-t { color: #fff; }
+.hbtn:active { opacity: 0.55; }
+.hbtn-t { font-size: 25rpx; color: var(--accent); letter-spacing: -0.02em; }
+/* β 上标：这是唯一会让机器压着实物移动的功能，标记常驻 */
+.hbtn-beta {
+  font-size: 18rpx; line-height: 1; margin-left: 7rpx;
+  color: var(--warning); position: relative; top: -6rpx;
+}
+.hbtn.on { background: var(--accent); }
+.hbtn.on .hbtn-t { color: #fff; }
+.hbtn.on .hbtn-beta { color: rgba(255, 255, 255, 0.75); }
 /* 详情卡里几处覆盖 */
 .line.stack .sub { display: block; font-size: 25rpx; color: var(--ink-2);
   margin-top: 8rpx; line-height: 1.45; }
@@ -890,10 +928,29 @@ async function send(c: Command, confirmText?: string) {
 .v.warn { color: var(--warning); }
 .v.ell { max-width: 60%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pill.go { background: var(--accent); color: #fff; width: 100%; margin: 32rpx 0 0; }
-/* 警告卡：用警示色描边，和普通卡片区分开，扫一眼就知道这条不一样 */
-.warn-card { margin-top: 24rpx; border: 2rpx solid var(--warning); }
-.k.warn { color: var(--warning); }
-.sub.warn { color: var(--warning); }
+/*
+ * 实验功能警告。浅色底而不是描边：这块要长期存在于每次打开的弹层里，
+ * 描边在深色模式下会显得刺眼。
+ */
+.hwarn {
+  margin-top: 24rpx; padding: 26rpx 28rpx; border-radius: 20rpx;
+  background: var(--warning-bg);
+}
+.hwarn-t { display: block; font-size: 27rpx; color: var(--warning);
+  letter-spacing: -0.02em; margin-bottom: 10rpx; }
+.hwarn-b { display: block; font-size: 25rpx; color: var(--ink-2); line-height: 1.5; }
+/* 特异性要压过 .line.stack .sub，否则这条提示会被染回灰色 */
+.line.stack .sub.warn { color: var(--warning); }
+.note.warn { color: var(--warning); }
+.sw { transform: scale(0.82); transform-origin: right center; }
+/* 告警按等级上色，与文件页的开打自检保持同一套语言 */
+.chk { display: flex; align-items: flex-start; }
+.chk-dot { width: 14rpx; height: 14rpx; border-radius: 50%; margin: 12rpx 18rpx 0 0;
+  flex-shrink: 0; background: var(--ink-3); }
+.chk-dot.error { background: var(--critical); }
+.chk-dot.warn { background: var(--warning); }
+.chk-t { flex: 1; font-size: 27rpx; color: var(--ink); line-height: 1.5;
+  letter-spacing: -0.01em; }
 .fact { font-size: 26rpx; color: var(--ink-2); letter-spacing: -0.01em; }
 .sep { font-size: 26rpx; color: var(--ink-3); margin: 0 14rpx; }
 

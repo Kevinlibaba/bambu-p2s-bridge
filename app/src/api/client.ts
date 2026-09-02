@@ -388,6 +388,8 @@ export const fetchTemps = (minutes = 60) =>
 /** 收菜（推件）。桥接自己从「刚打完的那一单」解出轮廓，前端不需要知道 bbox */
 export interface HarvestWarning {
   code: string
+  /** error 做不成 / warn 能做但要留神 / info 只是告知。分级由桥接给 */
+  level: 'error' | 'warn' | 'info'
   objectId?: number
   params?: Record<string, string | number>
 }

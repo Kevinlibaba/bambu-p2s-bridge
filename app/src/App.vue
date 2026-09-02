@@ -42,6 +42,8 @@ page {
   --accent-dim: rgba(41, 151, 255, 0.16);
   --good: #30d158;
   --warning: #ff9f0a;
+  /* 警示块的底色。和 --accent-dim 同一个套路：同色低透明度 */
+  --warning-bg: rgba(255, 159, 10, 0.14);
   --critical: #ff453a;
 
   background-color: var(--bg);
@@ -66,6 +68,7 @@ page {
     --accent-dim: rgba(0, 102, 204, 0.1);
     --good: #248a3d;
     --warning: #b25000;
+    --warning-bg: rgba(178, 80, 0, 0.09);
     --critical: #d70015;
   }
 }
@@ -85,6 +88,8 @@ page {
   --accent-dim: rgba(41, 151, 255, 0.16);
   --good: #30d158;
   --warning: #ff9f0a;
+  /* 警示块的底色。和 --accent-dim 同一个套路：同色低透明度 */
+  --warning-bg: rgba(255, 159, 10, 0.14);
   --critical: #ff453a;
   color: var(--ink);
 }
@@ -103,6 +108,7 @@ page {
   --accent-dim: rgba(0, 102, 204, 0.1);
   --good: #248a3d;
   --warning: #b25000;
+  --warning-bg: rgba(178, 80, 0, 0.09);
   --critical: #d70015;
   color: var(--ink);
 }

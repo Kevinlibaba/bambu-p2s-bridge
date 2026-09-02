@@ -443,7 +443,8 @@
     "busyHint": "A print is running, so you can only arm it for later",
     "expTitle": "Experimental — use with care",
     "expBody": "This drives the toolhead against your part. During testing it knocked the toolhead’s front cover off. Shape matters a lot: a part with a brim will not move, and a long thin one spins in place.",
-    "expAuto": "The \"harvest when the print finishes\" path has never run end to end on a real machine — unit tests only so far."
+    "expAuto": "The \"harvest when the print finishes\" path has never run end to end on a real machine — unit tests only so far.",
+    "nothing": "Nothing on this plate to push"
   },
   "harvestWarn": {
     "tooFlat": "Part is too short for the nozzle to reach",
