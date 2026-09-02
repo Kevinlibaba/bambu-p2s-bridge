@@ -70,8 +70,11 @@ const CLOSE_RATIO = 0.25
  */
 const RUBBER_C = 0.1
 
+/* 滑出关闭的时长。必须和 .sheet.dismissing 的过渡时长一致 */
+const DISMISS_MS = 220
 const dragY = ref(0)
 const dragging = ref(false)
+const dismissing = ref(false)
 /* uni-app 里 <view> 上的 ref 拿到的可能是组件代理而不是 DOM 元素 */
 const cardRef = ref<{ $el?: HTMLElement } | HTMLElement | null>(null)
 const scrollRef = ref<{ $el?: HTMLElement } | HTMLElement | null>(null)
@@ -155,10 +158,20 @@ function onSheetDown(e: TouchEvent) {
 }
 
 function onSheetMove(e: TouchEvent) {
-  if (!armed) return
   const p = pointOf(e)
   if (!p) return
   const dy = p.y - startY
+
+  /*
+   * 只有真的在拖卡片时才 preventDefault。
+   *
+   * 原来在模板上写死 .prevent，等于对每一次 touchmove 都拦 —— 内部滚动
+   * 被彻底掐死。而防「滑动穿透到背后页面」只需要在拖卡片的时候拦；
+   * 手指在滚动区里往回滚时不拦，scroll-view 才滚得动。
+   */
+  if (!armed) return
+  if (e.cancelable) e.preventDefault()
+
   // 往上拖：橡皮筋，且永远不越过打开位置
   dragY.value = dy >= 0 ? dy : -((-dy) * sheetH * RUBBER_C) / (sheetH + RUBBER_C * -dy)
   if (Math.abs(dy) > 4) dragging.value = true
@@ -172,9 +185,19 @@ function onSheetUp() {
   const velocity = dy / dt
   dragging.value = false
   if (dy > 0 && (velocity >= VELOCITY_DISMISS || dy >= sheetH * CLOSE_RATIO)) {
-    // 从当前位置继续往下滑出去，而不是先跳回原位再播关闭动画
+    /*
+     * 从当前位置继续往下滑出去，而不是先跳回原位再播关闭动画。
+     *
+     * 卸载必须等滑出走完。原来过渡 300ms 却 180ms 就 emit close，
+     * 卡片滑到一半被抽走、遮罩跟着消失，底部标签栏就那么闪出来一下。
+     */
+    dismissing.value = true
     dragY.value = sheetH
-    setTimeout(() => { dragY.value = 0; emit('close') }, 180)
+    setTimeout(() => {
+      dragY.value = 0
+      dismissing.value = false
+      emit('close')
+    }, DISMISS_MS)
     return
   }
   dragY.value = 0
@@ -254,6 +277,7 @@ function onMaskTap() {
   <view
     v-if="visible"
     class="mask"
+    :class="{ dismissing }"
     :style="maskStyle"
     @click="onMaskTap"
     @touchstart="onMaskDown"
@@ -264,11 +288,11 @@ function onMaskTap() {
     <view
       ref="cardRef"
       class="sheet"
-      :class="{ dragging }"
+      :class="{ dragging, dismissing }"
       :style="sheetStyle"
       @click.stop
       @touchstart="onSheetDown"
-      @touchmove.stop.prevent="onSheetMove"
+      @touchmove.stop="onSheetMove"
       @touchend="onSheetUp"
       @touchcancel="onSheetUp"
     >
@@ -299,6 +323,17 @@ function onMaskTap() {
   align-items: flex-end;
   animation: fade 0.2s ease;
 }
+/*
+ * 滑出关闭时遮罩要跟着一起淡出。
+ *
+ * 遮罩透明度是从 dragY 算的：拖动中逐帧变化，跟手，不需要过渡；
+ * 但松手那一下 dragY 一次性跳到卡片高度，没有过渡的话透明度会在一帧里
+ * 从 0.7 直接掉到 0 —— 变暗瞬间消失、背后的页面和底部标签栏「闪」一下，
+ * 而卡片还在慢慢往下滑。时长与 DISMISS_MS 对齐。
+ */
+.mask.dismissing {
+  transition: opacity 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+}
 
 /*
  * 高度不写死：卡片是一个上限受约束的弹性列，
@@ -326,6 +361,10 @@ function onMaskTap() {
 }
 .sheet.dragging {
   transition: none;
+}
+/* 滑出用略快的时长，和 DISMISS_MS 对齐；改这里要一起改那个常量 */
+.sheet.dismissing {
+  transition: transform 0.22s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 .grabber {
