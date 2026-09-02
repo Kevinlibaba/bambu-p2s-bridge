@@ -22,6 +22,7 @@ import type { PrinterState } from '../printer/state.js'
 import { planEject, type EjectOptions, type PlateObject } from '../eject/plan.js'
 import { readEjectSource, EjectSourceError, type EjectSource } from '../eject/source.js'
 import { resolveJobFile } from '../history/resolve.js'
+import { rootListing } from '../history/enrich.js'
 import * as ftp from '../printer/ftp.js'
 import type { History } from '../history/index.js'
 import type { AutoHarvest } from '../eject/auto.js'
@@ -155,10 +156,13 @@ async function resolveSource(
   return { ...src, path, plate: plate ?? 1 }
 }
 
-/** 按归一化后的名字在打印机根目录里找回源文件 —— taskName 把下划线换成了空格 */
+/**
+ * 按归一化后的名字在打印机根目录里找回源文件 —— taskName 把下划线换成了空格。
+ * 用共享的带缓存列表：每次都真列一遍目录要多花约 170ms，而这条路径是
+ * 「点开收菜」的必经之处，那点延迟直接体现为界面上的停顿。
+ */
 async function resolveLastFile(name: string): Promise<string | null> {
-  const root = await ftp.listDir('/')
-  return resolveJobFile(name, root.map((f) => ({ name: f.name, isDirectory: f.isDirectory })))
+  return resolveJobFile(name, await rootListing())
 }
 
 export function registerEjectRoutes(

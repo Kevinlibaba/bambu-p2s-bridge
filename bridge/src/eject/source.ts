@@ -109,7 +109,40 @@ export class EjectSourceError extends Error {
   }
 }
 
+/*
+ * 解析结果缓存。
+ *
+ * 每次都重读要走三次 FTP 范围读，实测 350-400ms；而同一个文件的同一盘，
+ * 轮廓、最高点、有没有 brim 都不会变。界面上「点开收菜」等这 400ms 会
+ * 明显感觉到卡 —— 弹层空着滑上来、停一拍、内容才蹦出来。
+ *
+ * 文件被替换而名字不变的情况给个 TTL 兜底，不做失效通知那么复杂的东西。
+ */
+const CACHE_TTL_MS = 10 * 60_000
+const CACHE_MAX = 16
+const cache = new Map<string, { at: number; value: EjectSource }>()
+
+/** 仅供测试 */
+export function clearEjectSourceCache(): void {
+  cache.clear()
+}
+
 export async function readEjectSource(path: string, plate: number): Promise<EjectSource> {
+  const key = `${path}|${plate}`
+  const hit = cache.get(key)
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value
+
+  const value = await readEjectSourceUncached(path, plate)
+  cache.set(key, { at: Date.now(), value })
+  while (cache.size > CACHE_MAX) {
+    const oldest = cache.keys().next()
+    if (oldest.done) break
+    cache.delete(oldest.value)
+  }
+  return value
+}
+
+async function readEjectSourceUncached(path: string, plate: number): Promise<EjectSource> {
   const read = async (start: number, end: number) =>
     (await ftp.readRange(path, { start, end })).data
   const tail = await ftp.readRange(path, { suffix: 96 * 1024 })

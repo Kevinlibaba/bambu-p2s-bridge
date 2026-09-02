@@ -50,6 +50,21 @@ export function resetCache(): void {
   videoCache = null
 }
 
+/**
+ * 带缓存的根目录列表。
+ *
+ * 「按归一化后的名字找回源文件」这件事历史列表和收菜都要做，各列一次目录
+ * 就是白花一次 FTP 往返（实测约 170ms）。共用同一份缓存。
+ */
+export async function rootListing(): Promise<Candidate[]> {
+  return cachedList<Candidate[]>(
+    rootCache,
+    async () => (await ftp.listDir('/')).map((f) => ({ name: f.name, isDirectory: f.isDirectory })),
+    (c) => { rootCache = c },
+    [],
+  )
+}
+
 export async function enrich(
   jobs: (JobWindow & { name: string })[],
 ): Promise<Map<string, JobExtras>> {
@@ -57,12 +72,7 @@ export async function enrich(
   if (jobs.length === 0) return out
 
   const [root, videos] = await Promise.all([
-    cachedList<Candidate[]>(
-      rootCache,
-      async () => (await ftp.listDir('/')).map((f) => ({ name: f.name, isDirectory: f.isDirectory })),
-      (c) => { rootCache = c },
-      [],
-    ),
+    rootListing(),
     cachedList<VideoFile[]>(
       videoCache,
       async () => (await ftp.listDir('/timelapse'))

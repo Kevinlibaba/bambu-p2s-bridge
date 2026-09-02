@@ -146,7 +146,8 @@ const hAuto = ref<HarvestAuto | null>(null)
 const hErr = ref('')
 const hBusy = ref(false)
 const hRunning = computed(() => ['RUNNING', 'PREPARE', 'SLICING', 'PAUSE'].includes(s.value?.state ?? ''))
-const hBedHot = computed(() => (hPlan.value?.bedTemp ?? 0) > HARVEST_BED_MAX || hRunning.value)
+const hBedNow = computed(() => Math.round(s.value?.bed.cur ?? 0))
+const hBedHot = computed(() => hBedNow.value > HARVEST_BED_MAX || hRunning.value)
 /** 桥接只给 path/plate，「第 N 盘」这句话按当前语言在这里拼 */
 const hSource = computed(() => {
   const p = hPlan.value
@@ -162,30 +163,26 @@ async function refreshAuto() {
 }
 
 /*
- * 弹层的上滑动画是 300ms。取计划要走 FTP（读 zip 尾部、盘信息、gcode 头部），
- * 响应回来时若正好在动画中途，换布局那一下就会掉帧。所以等动画走完再发请求：
- * 静态部分（警告、标题）先跟着动画一起上来，数据部分随后填入。
+ * 打开时不清空上一次的结果。
+ *
+ * 取计划要走 FTP，实测 350-400ms。清空再等的话，弹层会空着滑上来、
+ * 停一拍、内容才蹦出来 —— 那个停顿就是「卡顿」的来源，不是掉帧
+ * （降频 8 倍实测一帧不掉）。旁边的烘干之所以顺，是因为它的数据本来
+ * 就在 printer.summary 里，开口即有。
+ *
+ * 所以照它的路子来：上次的结果先摆着，后台再刷新。第一次打开仍然要等，
+ * 之后每次都是即开即有。
  */
-const SHEET_ANIM_MS = 320
-
-function afterAnim(fn: () => void) {
-  setTimeout(fn, SHEET_ANIM_MS)
-}
-
 async function openHarvest() {
   hSheet.value = true
-  hPlan.value = null
   hErr.value = ''
-  afterAnim(() => {
-    void refreshAuto()
-    void (async () => {
-      try {
-        hPlan.value = await planHarvest()
-      } catch (e) {
-        hErr.value = (e as Error).message
-      }
-    })()
-  })
+  try {
+    hPlan.value = await planHarvest()
+  } catch (e) {
+    // 有旧结果就继续用旧的，别把已经显示出来的内容换成一句错误
+    if (!hPlan.value) hErr.value = (e as Error).message
+  }
+  void refreshAuto()
 }
 
 /** error 排前面 —— 做不成的事要先看到，info 只是告知，垫底 */
@@ -204,7 +201,7 @@ const hBlockReason = computed(() => {
   if (!p.order.length) return t('harvest.nothing')
   const bad = p.warnings.find((w) => w.level === 'error')
   if (bad) return t('harvestWarn.' + bad.code, bad.params || {})
-  if (p.bedTemp > HARVEST_BED_MAX) return t('harvest.tooHot', { max: HARVEST_BED_MAX })
+  if (hBedNow.value > HARVEST_BED_MAX) return t('harvest.tooHot', { max: HARVEST_BED_MAX })
   return ''
 })
 
@@ -584,8 +581,8 @@ async function send(c: Command, confirmText?: string) {
         <!-- 烘干控制 -->
       <!-- 错误详情：文案来自 Bambu 官方错误库，桥接侧代查 -->
       <Sheet :visible="hSheet" :title="t('harvest.title')" @close="hSheet = false">
-        <!-- 动画走完之前不转圈：Spinner 自己也在耗帧，正是要省下的那部分 -->
-        <view v-if="!hPlan && !hErr" class="busy ph" />
+        <!-- 只有从没取到过计划时才是空的；有旧结果就直接显示旧的 -->
+        <view v-if="!hPlan && !hErr" class="busy"><Spinner :size="40" /></view>
 
         <view v-else-if="hErr" class="card sheet-card">
           <view class="line"><text class="k dim">{{ hErr }}</text></view>
@@ -615,7 +612,8 @@ async function send(c: Command, confirmText?: string) {
             <view class="hsep" />
             <view class="line">
               <text class="k">{{ t('harvest.bedTemp') }}</text>
-              <text class="v" :class="hBedHot ? 'warn' : ''">{{ hPlan.bedTemp }}℃</text>
+              <!-- 用实时状态里的温度，不等计划返回；它每秒都在变，取快照反而不准 -->
+              <text class="v" :class="hBedHot ? 'warn' : ''">{{ hBedNow }}℃</text>
             </view>
           </view>
 
@@ -951,8 +949,7 @@ async function send(c: Command, confirmText?: string) {
 }
 .hwarn-t { display: block; font-size: 27rpx; color: var(--warning);
   letter-spacing: -0.02em; }
-/* 数据没到之前占住高度，免得内容填进来时整块往下跳 */
-.busy.ph { height: 320rpx; }
+
 /* 特异性要压过 .line.stack .sub，否则这条提示会被染回灰色 */
 .line.stack .sub.warn { color: var(--warning); }
 .note.warn { color: var(--warning); }
