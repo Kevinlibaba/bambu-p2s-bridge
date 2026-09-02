@@ -34,12 +34,25 @@ test('横移高度要高过整盘最高点', () => {
   assert.ok(line(p, /^G0 Z47 F1200/), '42 + 5 的间隙')
 })
 
-test('降低电机电流与恢复必须成对出现 —— 这是卡住时不硬顶的保障', () => {
+/*
+ * 降电流只该包住「推」这一下。45% 电流下以 F12000 走位有丢步风险，
+ * 而它要防的是件没脱开时硬顶 —— 那只发生在推的过程里。
+ */
+test('降电流紧贴着推，走位在满电流下完成', () => {
   const p = planEject([obj(1, [10, 20, 50, 70])], BED)
+  const travel = p.gcode.findIndex((l) => l.startsWith('G0 X'))
   const lo = p.gcode.findIndex((l) => l.startsWith('M17 X0.8'))
-  const hi = p.gcode.findIndex((l) => l.startsWith('M17 R'))
-  assert.ok(lo >= 0 && hi > lo, '降电流要在推之前，恢复要在最后')
-  assert.ok(p.gcode.findIndex((l) => l.startsWith('G1 Y0')) < hi, '推的动作要夹在这两者之间')
+  const push = p.gcode.findIndex((l) => l.startsWith('G1 Y0'))
+  const hi = p.gcode.findIndex((l, i) => i > push && l.startsWith('M17 R'))
+  assert.ok(travel < lo, '走位要在降电流之前完成')
+  assert.ok(lo < push && push < hi, '推被降电流与恢复夹住')
+})
+
+test('每个件都各自降一次、恢复一次，末尾还有一道兜底', () => {
+  const p = planEject([obj(1, [10, 20, 50, 70]), obj(2, [10, 120, 50, 170])], BED)
+  assert.equal(p.gcode.filter((l) => l.startsWith('M17 X0.8')).length, 2)
+  assert.equal(p.gcode.filter((l) => l.startsWith('M17 R')).length, 3, '两次恢复 + 一次兜底')
+  assert.ok(p.gcode[p.gcode.length - 2].startsWith('M17 R'), '最后一定以恢复电流收尾')
 })
 
 test('推之前一定要等热床冷透', () => {

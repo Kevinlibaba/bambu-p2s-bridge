@@ -743,6 +743,24 @@ anything that moves the toolhead after a job:
 moves `bed_target_temper` 0 → 30. So the command channel is not the constraint; the homing
 state is.
 
+**Verified on the machine (2026-09-02, empty bed):**
+
+- A **multi-line** `gcode_line` payload is accepted while `gcode_state = IDLE`; the whole
+  block runs. `G28`, `G0`, `G1`, `M17` all execute.
+- **`home_flag` bits 0/1/2 are the X/Y/Z homed flags.** Watching a `G28` run, the low
+  nibble went `…98` → `…9E` → `…9F`, i.e. the three bits set one axis at a time. Before
+  homing they are all clear, which is how you can tell a released machine from a homed one.
+- Homing takes roughly 30 s from cold.
+- With the machine already homed, a sequence **without** `G28` moves immediately — which is
+  the whole premise of injecting the block before `M18`.
+- XY moves land where you ask. Commanding X=20 → X=220 → X=20 with everything else held
+  constant flips the brightness of the top-right image segments (59 → 174 → 60) and reverses
+  the sign of the change in 8 of 8 horizontal segments. Position is repeatable.
+
+Not yet verified, because it needs a real part stuck to the plate: whether the part
+releases, whether the reduced motor current actually skips steps instead of shoving, and
+the `M190 R` vs `S` cooling-wait semantics.
+
 ---
 
 ### 5.5 Slicing an unsliced 3MF yourself
