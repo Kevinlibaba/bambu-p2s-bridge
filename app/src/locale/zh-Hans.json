@@ -312,7 +312,10 @@
     "hoursMinutes": "{h} 小时 {m} 分",
     "unknownTime": "耗时未知",
     "noCurve": "这一单没有温度记录",
-    "curveFailed": "温度曲线加载失败"
+    "curveFailed": "温度曲线加载失败",
+    "timeline": "时间轴",
+    "noEvents": "这一单没有记录到事件",
+    "timelapse": "延时录像"
   },
   "chart": {
     "nozzle": "喷嘴",
@@ -401,5 +404,15 @@
     "76": "打印前预挤出",
     "77": "准备 AMS",
     "unknown": "阶段 {n}"
+  },
+  "event": {
+    "printStarted": "开始打印",
+    "printDone": "打印完成",
+    "printFailed": "打印失败",
+    "printPaused": "已暂停",
+    "error": "报错",
+    "dryDone": "烘干完成",
+    "offline": "打印机离线",
+    "online": "连接恢复"
   }
 }

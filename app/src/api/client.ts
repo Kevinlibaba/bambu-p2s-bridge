@@ -345,7 +345,10 @@ export interface JobRecord {
   weightG: number | null
   estimateMin: number | null
   /** 桥接是在打印中途起来的，耗时无从得知 */
-  partial: boolean
+  partial: boolean  /** 源 3mf 在打印机上的路径。桥接按归一化后的名字在目录里找出来的 */
+  file3mf?: string
+  /** 这一单的延时录像文件名，位于 /timelapse 下 */
+  video?: string
 }
 
 export interface HistoryStatsRow {
@@ -382,6 +385,18 @@ export const fetchTemps = (minutes = 60) =>
  * available 为 false 表示这一单跑在温度落盘上线之前 —— 是「没有记录」，
  * 不是「加载失败」，前端要分开说。
  */
+export interface LoggedEvent {
+  t: number
+  /** 事件类型。文案在前端出，桥接只给类型 */
+  kind: string
+  /** 错误类事件带错误码 */
+  code?: string
+}
+
+/** 某一单期间发生过什么。和温度曲线叠起来看才能定位问题 */
+export const fetchJobEvents = (jobId: string) =>
+  request<{ events: LoggedEvent[] }>(`/api/history/events?job=${encodeURIComponent(jobId)}`)
+
 export const fetchJobTemps = (jobId: string) =>
   request<{ samples: TempSample[]; available: boolean }>(
     `/api/history/temps?job=${encodeURIComponent(jobId)}`,

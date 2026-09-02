@@ -34,6 +34,8 @@ export const config = {
     tempsDir: process.env.TEMPS_DIR ?? '/data/temps',
     /** 温度曲线保留天数 */
     tempsKeepDays: Number(process.env.TEMPS_KEEP_DAYS ?? 60),
+    /** 事件流水按天分文件放这里，用来还原某一单的时间轴 */
+    eventsDir: process.env.EVENTS_DIR ?? '/data/events',
   },
   notify: {
     enabled: process.env.NOTIFY_ENABLED !== 'false',

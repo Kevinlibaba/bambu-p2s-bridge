@@ -312,7 +312,10 @@
     "hoursMinutes": "{h} 小時 {m} 分",
     "unknownTime": "耗時未知",
     "noCurve": "這一單沒有溫度記錄",
-    "curveFailed": "溫度曲線載入失敗"
+    "curveFailed": "溫度曲線載入失敗",
+    "timeline": "時間軸",
+    "noEvents": "這一單沒有記錄到事件",
+    "timelapse": "縮時錄影"
   },
   "chart": {
     "nozzle": "噴嘴",
@@ -401,5 +404,15 @@
     "76": "列印前預擠出",
     "77": "準備 AMS",
     "unknown": "階段 {n}"
+  },
+  "event": {
+    "printStarted": "開始列印",
+    "printDone": "列印完成",
+    "printFailed": "列印失敗",
+    "printPaused": "已暫停",
+    "error": "報錯",
+    "dryDone": "烘乾完成",
+    "offline": "印表機離線",
+    "online": "連線恢復"
   }
 }

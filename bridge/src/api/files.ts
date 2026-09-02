@@ -24,6 +24,21 @@ import {
   describeThreeMf,
   plateImageEntry,
 } from '../printer/threemf.js'
+import { PlateCache, QueueFullError } from './platecache.js'
+
+/** 该盘没有预览图。缓存层不区分错误类型，用一个自有类型传出来 */
+class NoPlateImage extends Error {
+  constructor() {
+    super('该盘没有预览图')
+    this.name = 'NoPlateImage'
+  }
+}
+
+/*
+ * 进程级共享。缩略图在历史列表里会被整屏同时索取，缓存必须跨请求存活，
+ * 否则合并在途请求这件事根本无从谈起。
+ */
+const plateCache = new PlateCache()
 
 export interface FileBackend {
   listDir(path: string): Promise<ftp.RemoteFile[]>
@@ -118,6 +133,8 @@ export function registerFileRoutes(
     if (e instanceof ftp.TooManyReadsError) return reply.code(503).send({ error: e.message })
     if (e instanceof ftp.NotAFileError) return reply.code(e.status).send({ error: e.message })
     if (e instanceof ZipFormatError) return reply.code(422).send({ error: e.message })
+    if (e instanceof NoPlateImage) return reply.code(404).send({ error: e.message })
+    if (e instanceof QueueFullError) return reply.code(503).send({ error: e.message })
     // 路径不合法是客户端的问题，别兜底成「FTPS 失败」—— 那会把人引向排查网络
     if (e instanceof ftp.BadPathError) return reply.code(400).send({ error: e.message })
     return reply.code(502).send({ error: `FTPS 失败: ${(e as Error).message}` })
@@ -286,17 +303,25 @@ export function registerFileRoutes(
       const plate = Number(raw ?? 1)
       if (!Number.isInteger(plate) || plate < 1) throw new BadRequest('plate 必须是正整数')
 
-      const { src, entries } = await openZip(path)
-      const entry = plateImageEntry(entries, plate)
-      if (!entry) return reply.code(404).send({ error: '该盘没有预览图' })
-
-      const data = await readEntry(src, entry, MAX_PLATE_IMAGE_BYTES)
+      /*
+       * 走缓存。历史列表一屏七八张缩略图，每张要两次 FTP 读，而打印机
+       * 同时只接受 4 个 —— 不缓存不合并的话整屏一起 503。
+       */
+      const img = await plateCache.get(`${path}|${plate}`, async () => {
+        const { src, entries } = await openZip(path)
+        const entry = plateImageEntry(entries, plate)
+        if (!entry) throw new NoPlateImage()
+        return {
+          data: await readEntry(src, entry, MAX_PLATE_IMAGE_BYTES),
+          contentType: 'image/png',
+        }
+      })
       return reply
-        .header('content-type', 'image/png')
-        .header('content-length', String(data.length))
+        .header('content-type', img.contentType)
+        .header('content-length', String(img.data.length))
         // 包内容按路径固定，短缓存能挡掉切盘时的重复取图
         .header('cache-control', 'private, max-age=300')
-        .send(data)
+        .send(img.data)
     } catch (e) {
       return fail(reply, e)
     }

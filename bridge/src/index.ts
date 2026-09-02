@@ -6,10 +6,12 @@ import { Notifier } from './notify/index.js'
 import { History } from './history/index.js'
 import { lookupPlate } from './history/lookup.js'
 import { Temps } from './history/temps.js'
+import { EventLog } from './history/eventlog.js'
 
 const state = new PrinterState()
 const mqtt = new PrinterMqtt(state)
-const notifier = new Notifier(state)
+const events = new EventLog(config.history.eventsDir, config.history.tempsKeepDays)
+const notifier = new Notifier(state, events)
 const history = new History(state, lookupPlate)
 const temps = new Temps(state, 10_000, 1080, config.history.tempsDir, 6, config.history.tempsKeepDays)
 
@@ -17,11 +19,12 @@ async function main() {
   if (!config.api.token) {
     console.warn('[警告] 未设置 API_TOKEN —— 接口无鉴权，仅限本地调试')
   }
+  await events.start()
   await notifier.start()
   await history.start()
   await temps.start()
   mqtt.start()
-  const app = await buildServer(state, mqtt, notifier, history, temps)
+  const app = await buildServer(state, mqtt, notifier, history, temps, events)
   await app.listen({ port: config.api.port, host: config.api.host })
   console.log(`[api] 监听 ${config.api.host}:${config.api.port}`)
   console.log(`[api] 打印机 ${config.printer.host} (${config.printer.serial})`)

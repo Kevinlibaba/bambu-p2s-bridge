@@ -85,9 +85,42 @@ export class History {
 
   async start(): Promise<void> {
     await this.load()
+    void this.backfill()
     this.state.on('update', (s: Summary) => {
       void this.feed(s)
     })
+  }
+
+  /**
+   * 补齐旧记录里缺失的克重与预估时长。
+   *
+   * 这些值是任务结束当时查一次就写死进 JSONL 的。之前的查法直接拿任务名
+   * 拼路径，而打印机把文件名里的下划线换成了空格，于是凡是带下划线的单
+   * 都查不到 —— 界面上那句「N 单查不到耗材用量」就是这么来的。
+   * 查法修好之后，旧记录仍然是 null，得回填一次。
+   *
+   * 只改内存不重写文件：这件事每次启动做一遍就行，没必要为它承担
+   * 重写用户历史数据的风险。有上限，避免几百单启动时把 FTP 打满。
+   */
+  private async backfill(limit = 30): Promise<void> {
+    if (!this.lookup) return
+    const todo = this.jobs
+      .filter((j) => !j.partial && j.weightG === null && j.estimateMin === null)
+      .slice(-limit)
+    let ok = 0
+    for (const j of todo) {
+      try {
+        const got = await this.lookup(j.name, j.plate)
+        if (got && (got.weightG !== null || got.estimateMin !== null)) {
+          j.weightG = got.weightG
+          j.estimateMin = got.estimateMin
+          ok++
+        }
+      } catch {
+        // 单条失败不影响其余
+      }
+    }
+    if (ok > 0) console.log(`[history] 回填了 ${ok}/${todo.length} 单的耗材与预估时长`)
   }
 
   private async load(): Promise<void> {

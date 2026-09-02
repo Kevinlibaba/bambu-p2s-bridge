@@ -312,7 +312,10 @@
     "hoursMinutes": "{h} h {m} min",
     "unknownTime": "duration unknown",
     "noCurve": "No temperature data for this job",
-    "curveFailed": "Could not load the temperature curve"
+    "curveFailed": "Could not load the temperature curve",
+    "timeline": "Timeline",
+    "noEvents": "No events recorded for this job",
+    "timelapse": "Timelapse"
   },
   "chart": {
     "nozzle": "Nozzle",
@@ -401,5 +404,15 @@
     "76": "Pre-extrusion",
     "77": "Preparing the AMS",
     "unknown": "Stage {n}"
+  },
+  "event": {
+    "printStarted": "Print started",
+    "printDone": "Print finished",
+    "printFailed": "Print failed",
+    "printPaused": "Paused",
+    "error": "Error",
+    "dryDone": "Drying finished",
+    "offline": "Printer offline",
+    "online": "Back online"
   }
 }

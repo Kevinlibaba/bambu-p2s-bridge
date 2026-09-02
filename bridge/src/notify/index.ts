@@ -12,6 +12,7 @@ import { describe, toBambuLang } from '../printer/errors.js'
 import { detect, NOTIFY_KINDS, type NotifyEvent, type NotifyKind } from './events.js'
 import { configuredSinks, deliver, vapidReady, vapidSubjectProblem } from './sinks.js'
 import { PushStore } from './store.js'
+import type { EventLog } from '../history/eventlog.js'
 
 /** 同一件事的冷却时间。打印机报错时会每秒重复上报同一个码 */
 const COOLDOWN_MS = 10 * 60 * 1000
@@ -29,7 +30,11 @@ export class Notifier {
   private lastAt = new Map<string, number>()
   private history: NotifyRecord[] = []
 
-  constructor(private readonly state: PrinterState) {
+  constructor(
+    private readonly state: PrinterState,
+    /** 事件流水。缺省不记，测试里不需要碰盘 */
+    private readonly log?: EventLog,
+  ) {
     this.store = new PushStore(config.notify.storePath)
   }
 
@@ -62,6 +67,9 @@ export class Notifier {
       return
     }
     for (const e of events) {
+      // 先记流水，再谈要不要推送 —— 用户关掉某类推送，不代表事后
+      // 不想在时间轴上看到它发生过
+      if (this.log) await this.log.append(e)
       if (!this.enabled(e.kind)) continue
       const last = this.lastAt.get(e.key) ?? 0
       if (Date.now() - last < COOLDOWN_MS) continue

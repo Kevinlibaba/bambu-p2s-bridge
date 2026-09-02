@@ -4,20 +4,38 @@
 import type { FastifyInstance } from 'fastify'
 import type { History } from '../history/index.js'
 import type { Temps } from '../history/temps.js'
+import type { EventLog } from '../history/eventlog.js'
+import { enrich, type JobExtras } from '../history/enrich.js'
 
 export function registerHistoryRoutes(
   app: FastifyInstance,
   history: History,
   temps: Temps,
+  events: EventLog,
 ): void {
   app.get('/api/history', async (req) => {
     const raw = Number((req.query as { limit?: string } | undefined)?.limit ?? 50)
     const limit = Number.isFinite(raw) ? Math.min(Math.max(Math.trunc(raw), 1), 500) : 50
+    const jobs = history.list(limit)
+    /*
+     * 延时录像和源 3mf 都要去 FTP 列目录才知道，列不出来就安静降级 ——
+     * 少一个缩略图是小事，让整个历史页打不开是大事。
+     */
+    const extras = await enrich(jobs).catch(() => new Map<string, JobExtras>())
     return {
-      jobs: history.list(limit),
+      jobs: jobs.map((j) => ({ ...j, ...(extras.get(j.id) ?? {}) })),
       running: history.running(),
       stats: history.stats(),
     }
+  })
+
+  /** 某一单期间发生过什么。和温度曲线叠起来看才能定位问题 */
+  app.get('/api/history/events', async (req, reply) => {
+    const id = (req.query as { job?: string } | undefined)?.job
+    if (!id) return reply.code(400).send({ error: '缺少 job 参数' })
+    const job = history.find(id)
+    if (!job) return reply.code(404).send({ error: '没有这个任务' })
+    return { events: await events.range(job.startedAt, job.endedAt) }
   })
 
   /** 温度曲线。默认给最近一小时，够看当下这一单的走势 */

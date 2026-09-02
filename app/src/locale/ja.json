@@ -312,7 +312,10 @@
     "hoursMinutes": "{h} 時間 {m} 分",
     "unknownTime": "所要時間不明",
     "noCurve": "このジョブの温度記録はありません",
-    "curveFailed": "温度グラフを読み込めませんでした"
+    "curveFailed": "温度グラフを読み込めませんでした",
+    "timeline": "タイムライン",
+    "noEvents": "このジョブのイベント記録はありません",
+    "timelapse": "タイムラプス"
   },
   "chart": {
     "nozzle": "ノズル",
@@ -401,5 +404,15 @@
     "76": "印刷前の予備押出",
     "77": "AMS 準備中",
     "unknown": "ステージ {n}"
+  },
+  "event": {
+    "printStarted": "印刷開始",
+    "printDone": "印刷完了",
+    "printFailed": "印刷失敗",
+    "printPaused": "一時停止",
+    "error": "エラー",
+    "dryDone": "乾燥完了",
+    "offline": "プリンターオフライン",
+    "online": "接続復帰"
   }
 }

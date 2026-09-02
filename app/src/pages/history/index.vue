@@ -10,8 +10,8 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
 import {
-  fetchHistory, fetchJobTemps, configured,
-  type HistoryPayload, type JobRecord, type TempSample,
+  fetchHistory, fetchJobTemps, fetchJobEvents, configured, api,
+  type HistoryPayload, type JobRecord, type TempSample, type LoggedEvent,
 } from '../../api/client'
 import { themeClass, applyChrome } from '../../store/prefs'
 import Spinner from '../../components/Spinner.vue'
@@ -34,10 +34,31 @@ const sel = ref<JobRecord | null>(null)
 const temps = ref<TempSample[]>([])
 const tempsState = ref<'loading' | 'ok' | 'none' | 'error'>('loading')
 
+const events = ref<LoggedEvent[]>([])
+
+/** 源 3mf 还在打印机上时才有缩略图；文件被删了就没有，这很常见 */
+function thumb(j: JobRecord): string {
+  return j.file3mf && j.plate !== null ? api.plateUrl(j.file3mf, j.plate) : ''
+}
+const selThumb = computed(() => (sel.value ? thumb(sel.value) : ''))
+const videoUrl = computed(() =>
+  sel.value?.video ? api.mediaUrl(`/timelapse/${sel.value.video}`) : '')
+
+const hhmm = (t: number) => {
+  const d = new Date(t)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+/** 桥接只给事件类型，文案在这里出 —— 界面语言不该由桥接决定 */
+const eventLabel = (e: LoggedEvent) =>
+  t(`event.${e.kind}`, e.kind) + (e.code ? ` · ${e.code}` : '')
+
 async function openJob(j: JobRecord) {
   sel.value = j
   temps.value = []
+  events.value = []
   tempsState.value = 'loading'
+  // 曲线和事件各自加载，一个失败不该拖累另一个
+  void fetchJobEvents(j.id).then((r) => { events.value = r.events }).catch(() => {})
   try {
     const r = await fetchJobTemps(j.id)
     temps.value = r.samples
@@ -141,12 +162,16 @@ function sub(j: JobRecord): string {
       <view v-else class="card">
         <view v-for="(j, i) in jobs" :key="j.id + i">
           <view v-if="i > 0" class="hsep" />
-          <view class="line stack tappable" @click="openJob(j)">
-            <view class="row">
-              <text class="dot" :class="j.result" />
-              <text class="name">{{ j.name || t('history.unnamed') }}</text>
+          <view class="line tappable jrow" @click="openJob(j)">
+            <image v-if="thumb(j)" class="jthumb" :src="thumb(j)" mode="aspectFit" />
+            <view v-else class="jthumb ph" />
+            <view class="jmeta">
+              <view class="row">
+                <text class="dot" :class="j.result" />
+                <text class="name">{{ j.name || t('history.unnamed') }}</text>
+              </view>
+              <text class="sub">{{ sub(j) }}</text>
             </view>
-            <text class="sub">{{ sub(j) }}</text>
           </view>
         </view>
       </view>
@@ -154,6 +179,9 @@ function sub(j: JobRecord): string {
 
     <Sheet :visible="!!sel" :title="sel?.name || t('history.unnamed')" @close="sel = null">
       <text class="cap">{{ sel ? sub(sel) : '' }}</text>
+
+      <image v-if="selThumb" class="shot" :src="selThumb" mode="aspectFit" />
+
       <view v-if="tempsState === 'loading'" class="busy"><Spinner :size="40" /></view>
       <view v-else-if="tempsState === 'ok'" class="chart">
         <TempChart id="histchart" :samples="temps" />
@@ -165,6 +193,27 @@ function sub(j: JobRecord): string {
           </text>
         </view>
       </view>
+
+      <!-- 事件时间轴。和上面的曲线共用一段时间，对着看才能定位问题 -->
+      <text class="grouphead">{{ t('history.timeline') }}</text>
+      <view class="card sheet-card">
+        <view v-if="!events.length" class="line">
+          <text class="k dim">{{ t('history.noEvents') }}</text>
+        </view>
+        <view v-for="(e, i) in events" :key="e.t + e.kind">
+          <view v-if="i > 0" class="hsep" />
+          <view class="line">
+            <text class="k">{{ eventLabel(e) }}</text>
+            <text class="v">{{ hhmm(e.t) }}</text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 延时录像。打印机不给关联信息，是按结束时间撞出来的 -->
+      <template v-if="videoUrl">
+        <text class="grouphead">{{ t('history.timelapse') }}</text>
+        <video class="player" :src="videoUrl" controls object-fit="contain" />
+      </template>
     </Sheet>
   </view>
 </template>
@@ -198,6 +247,15 @@ function sub(j: JobRecord): string {
 .tappable:active { opacity: 0.55; }
 .sheet-card { margin-top: 24rpx; }
 .chart { margin-top: 24rpx; }
+.jrow { align-items: center; }
+.jthumb { width: 88rpx; height: 88rpx; margin-right: 24rpx; border-radius: 12rpx;
+  background: var(--fill); flex-shrink: 0; }
+.jthumb.ph { opacity: 0.45; }
+.jmeta { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.shot { width: 100%; height: 320rpx; margin-top: 24rpx; border-radius: 16rpx;
+  background: var(--fill); }
+.player { width: 100%; height: 420rpx; margin-top: 24rpx; border-radius: 16rpx;
+  background: #000; }
 .v { font-size: 28rpx; color: var(--ink-2); letter-spacing: -0.02em; }
 .v.accent { color: var(--accent); }
 
