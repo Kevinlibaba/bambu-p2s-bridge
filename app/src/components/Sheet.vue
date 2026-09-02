@@ -6,44 +6,29 @@ const props = defineProps<{ visible: boolean; title?: string }>()
 const emit = defineEmits<{ (e: 'close'): void }>()
 
 /*
- * 防止滑动穿透到背后的页面。两道防线，缺一不可：
+ * 防止滑动穿透到背后的页面。三道防线：
  *
- * 1) 事件层（下方模板上的 .stop.prevent）——遮罩与卡片的非滚动区域吞掉 touchmove。
- *    在 Chrome 上这一道就够了，但 **iOS Safari 靠不住**：一旦手势被判定为页面
- *    滚动，后续 touchmove 的 preventDefault 会被忽略。
+ * 1) 事件层 —— 遮罩的 touchmove 直接 prevent；卡片在真的被拖动时才 prevent
+ *    （不能无条件拦，否则内部滚动被掐死，这个坑踩过）。
+ * 2) 滚动链 —— 滚动区上的 overscroll-behavior: contain，滚到边界就停，
+ *    不把滚动传给背后的页面。
+ * 3) 布局层 —— 这里，锁住 html 的滚动。
  *
- * 2) 布局层（这里）——把 body 固定住。这是各家弹窗库通用的做法，正是为了绕开
- *    上面那个 WebKit 行为。用 position:fixed 而不是 overflow:hidden，因为本页的
- *    滚动发生在 viewport 上，overflow:hidden 加在 body 上不起作用（实测确认）。
- *    固定时用负 top 保住原位置，关闭后再滚回去，所以不会跳。
+ * 第 3 道曾经存在过，现在去掉了 —— 两种写法都有比它要解决的问题更糟的副作用：
+ *
+ *   body { position: fixed }   body 被拿出文档流、页面高度塌陷。iOS 上
+ *                              bottom:0 的固定元素（uni-app 的底部标签栏）
+ *                              会跟着上移，关闭时归位 —— 就是「标签闪一下」。
+ *   html { overflow: hidden }  不塌陷布局，但**滚动位置被清零**（实测
+ *                              scrollY 300 → 0）。这比闪一下更糟。
+ *
+ * 现在靠 touch-action 兜底：直接告诉浏览器这片区域的触摸不产生滚动。
+ * 这正是 touch-action 的用途，而且是在手势分类**之前**生效的 ——
+ * 不像 preventDefault，一旦手势已被判定为页面滚动就会被忽略
+ * （那恰恰是当初引入 body-fixed 的理由）。
+ * 好处是全程不动任何布局，固定元素没有理由移动。
  */
-let savedY = 0
-let locked = false
 
-function lockPage(on: boolean) {
-  // #ifdef H5
-  if (typeof document === 'undefined' || on === locked) return
-  const b = document.body
-  if (on) {
-    savedY = window.scrollY || document.documentElement.scrollTop || 0
-    b.style.position = 'fixed'
-    b.style.top = `-${savedY}px`
-    b.style.left = '0'
-    b.style.right = '0'
-    b.style.width = '100%'
-  } else {
-    b.style.position = ''
-    b.style.top = ''
-    b.style.left = ''
-    b.style.right = ''
-    b.style.width = ''
-    window.scrollTo(0, savedY)
-  }
-  locked = on
-  // #endif
-}
-
-watch(() => props.visible, (v) => lockPage(v), { immediate: true })
 
 /*
  * 下滑关闭。
@@ -202,13 +187,22 @@ const maskStyle = computed(() => {
 })
 
 /*
- * 页面被切走时必须解锁。uni-app 会缓存页面而不是卸载它，所以 onUnmounted
- * 不会触发 —— 卡片开着时后退或切标签页，body 的 position:fixed 会留在那里，
- * 整个应用从此都滚不动。
+ * 页面被切走时把拖动状态复位。uni-app 会缓存页面而不是卸载它，所以
+ * onUnmounted 不一定触发 —— 卡片开着时后退或切标签页，残留的 dragY
+ * 会让下次打开时卡片从半路开始。
+ *
+ * 这里原来还要「解锁页面」：那时是把 body 设成 position:fixed，忘了解锁
+ * 整个应用就再也滚不动。现在不锁布局了，所以只剩状态需要清。
  */
-onHide(() => lockPage(false))
-onUnload(() => lockPage(false))
-onUnmounted(() => lockPage(false))
+function resetDrag() {
+  dragY.value = 0
+  dragging.value = false
+  dismissing.value = false
+  armed = false
+}
+onHide(resetDrag)
+onUnload(resetDrag)
+onUnmounted(resetDrag)
 
 function swallow() { /* 生效的是模板上的 .stop.prevent 修饰符 */ }
 
@@ -277,7 +271,6 @@ function beginClose() {
   if (sheetH <= 0) sheetH = measureCard()
   dismissing.value = true
   dragY.value = sheetH
-  lockPage(false)
   setTimeout(() => {
     dragY.value = 0
     dismissing.value = false
@@ -336,6 +329,9 @@ function beginClose() {
   display: flex;
   align-items: flex-end;
   animation: fade 0.2s ease;
+  /* 遮罩上的手势不产生滚动，也不把滚动链传给背后 */
+  touch-action: none;
+  overscroll-behavior: none;
 }
 /*
  * 滑出关闭时遮罩要跟着一起淡出。
@@ -370,6 +366,8 @@ function beginClose() {
   animation: rise 0.3s cubic-bezier(0.32, 0.72, 0, 1);
   /* 提前给合成层，别让第一帧才去提升图层 */
   will-change: transform;
+  /* 卡片上的触摸不产生页面滚动；滚动区自己再放行竖向 */
+  touch-action: none;
   /* 松手后弹回/滑出用同一条曲线；拖动中要跟手，所以那时不能有过渡 */
   transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
 }
@@ -403,6 +401,8 @@ function beginClose() {
 .scroll {
   /* 滚到边界就停，不把滚动链传给背后的页面 */
   overscroll-behavior: contain;
+  /* 卡片整体禁掉了触摸滚动，这里单独放行竖向，否则内部滚不动 */
+  touch-action: pan-y;
   flex: 0 1 auto;
   min-height: 0;
 }
