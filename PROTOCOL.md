@@ -829,6 +829,39 @@ so the contact face is the short one. All of them are guesses until they run.
 Also still untested: the reduced motor current has never had to protect anything, because
 nothing has jammed yet.
 
+#### The pusher is not a point — it knocked the toolhead's front cover off
+
+This one cost hardware. The route moved the toolhead to 10 mm behind the part and *then*
+dropped Z. Ten millimetres is behind the **nozzle**; it is nowhere near behind the
+**toolhead**. The machine's own profile says so:
+
+| Field (P2S 0.4 nozzle profile) | Value | What it means here |
+|---|---|---|
+| `nozzle_height` | **4.2** | the nozzle tip sits only 4.2 mm below the surrounding structure |
+| `extruder_clearance_radius` | **72** | horizontal envelope of the whole head |
+
+So when Z came down 10 mm behind the part, the head's body was directly over it. Raising
+the bed drove the **front cover** into an 11.2 mm part and popped it off. The force sensor
+tripped and the rest of the sequence was abandoned — which is also why the earlier attempt
+looked like "the push ran but moved nothing".
+
+Three rules follow, all of them derived from those two numbers rather than guessed:
+
+1. **Descend to push height far from the part, then translate in.** Never move next to the
+   part and then drop Z. Approach distance must be `extruder_clearance_radius` plus margin
+   (72 + 15 here), not something chosen for the nozzle alone.
+2. **Push height is bounded from both sides.** To have the *nozzle* touch the part rather
+   than the body, `z ≥ H − 4.2`. To make the part slide instead of tip, `z` must stay below
+   the centre of mass, roughly `H / 2`. Both hold only when **`H < 2 × 4.2 = 8.4 mm`**.
+   Taller parts work only if their rear face slopes away, which is exactly why the 40 mm
+   funnel in run 1 moved and the 11.2 mm bar did not.
+3. **Reachable area shrinks.** The head has to fit behind the part, so a part's rear edge
+   must be at `bed depth − 72 − 15 = 169 mm` or less.
+
+Rule 1 also applies to Z homing: the probe point needs the same 72 mm of clearance, not the
+15 mm originally used. Getting that wrong sets Z zero one part-height too high and the
+nozzle then sails over the part without touching it.
+
 Still unverified: whether the reduced motor current actually skips steps rather than
 shoving — this run never tested it, because the part came free. And `M190 R` vs `S`
 semantics remain untested; this run deliberately did not rely on them, waiting for the

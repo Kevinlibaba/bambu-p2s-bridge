@@ -10,10 +10,15 @@ const obj = (id: number, bbox: [number, number, number, number], name = `o${id}`
 const codes = (p: ReturnType<typeof planEject>) => p.warnings.map((w) => w.code).sort()
 const line = (p: ReturnType<typeof planEject>, re: RegExp) => p.gcode.find((l) => re.test(l))
 
-test('起点落在件正后方，X 取 bbox 中心', () => {
+/*
+ * 起点要退到「整个打印头都在件后方」，不是「喷嘴在件后方」。
+ * 打印头半径 72mm（机器配置里的 extruder_clearance_radius），
+ * 只退 10mm 的话，降 Z 时壳体会先压到件上。
+ */
+test('起点按打印头半径退到件后方，X 取 bbox 中心', () => {
   const p = planEject([obj(1, [100, 80, 140, 160])], BED)
-  assert.deepEqual(p.order, [{ id: 1, name: 'o1', pushX: 120, startY: 170 }])
-  assert.match(line(p, /^G0 X120 Y170/)!, /F12000/)
+  assert.deepEqual(p.order, [{ id: 1, name: 'o1', pushX: 120, startY: 247 }])
+  assert.match(line(p, /^G0 X120 Y247/)!, /F12000/)
   assert.ok(line(p, /^G1 Y0 F1000/), '要一路推到前沿')
 })
 
@@ -23,10 +28,24 @@ test('起点落在件正后方，X 取 bbox 中心', () => {
  */
 test('多个件按从前到后的顺序推', () => {
   const p = planEject(
-    [obj(1, [10, 150, 50, 200], '后'), obj(2, [10, 20, 50, 70], '前'), obj(3, [10, 90, 50, 130], '中')],
+    [obj(1, [10, 120, 50, 160], '后'), obj(2, [10, 20, 50, 60], '前'), obj(3, [10, 75, 50, 105], '中')],
     BED,
   )
   assert.deepEqual(p.order.map((o) => o.name), ['前', '中', '后'])
+})
+
+/*
+ * 打印头要整个退到件后方才能降 Z，而它半径 72mm。所以件的后缘必须落在
+ * 床深 − 72 = 184mm 以内，再靠后就绕不过去了。这条约束是把 approach
+ * 从随手取的 10mm 改成机器声明的 72mm 之后才暴露出来的。
+ */
+test('件的后缘超过 169mm 就够不着了', () => {
+  const ok = planEject([obj(1, [10, 130, 50, 168])], BED)
+  assert.equal(ok.order.length, 1, '168mm 还够得着')
+
+  const bad = planEject([obj(1, [10, 130, 50, 170])], BED)
+  assert.equal(bad.order.length, 0, '170mm 够不着')
+  assert.ok(bad.warnings.some((w) => w.code === 'noApproachRoom'))
 })
 
 test('横移高度要高过整盘最高点', () => {
@@ -49,7 +68,8 @@ test('降电流紧贴着推，走位在满电流下完成', () => {
 })
 
 test('每个件都各自降一次、恢复一次，末尾还有一道兜底', () => {
-  const p = planEject([obj(1, [10, 20, 50, 70]), obj(2, [10, 120, 50, 170])], BED)
+  const p = planEject([obj(1, [10, 20, 50, 60]), obj(2, [10, 110, 50, 160])], BED)
+  assert.equal(p.order.length, 2, '两个件都该够得着')
   assert.equal(p.gcode.filter((l) => l.startsWith('M17 X0.8')).length, 2)
   assert.equal(p.gcode.filter((l) => l.startsWith('M17 R')).length, 3, '两次恢复 + 一次兜底')
   assert.ok(p.gcode[p.gcode.length - 2].startsWith('M17 R'), '最后一定以恢复电流收尾')
@@ -63,12 +83,12 @@ test('推之前一定要等热床冷透', () => {
 })
 
 test('整盘最高点低于推的高度时报 tooFlat —— 喷嘴够不到件', () => {
-  const p = planEject([obj(1, [10, 20, 50, 70])], { ...BED, maxZ: 0.6 })
+  const p = planEject([obj(1, [10, 20, 50, 70])], { ...BED, maxZ: 0.6 }, { pushZ: 1 })
   assert.ok(codes(p).includes('tooFlat'))
 })
 
 test('件贴着后沿时放弃它，而不是把喷嘴顶上去', () => {
-  const p = planEject([obj(1, [10, 20, 50, 252])], BED)
+  const p = planEject([obj(1, [10, 20, 50, 200])], BED)
   assert.equal(p.order.length, 0, '绕不到背后就不生成动作')
   assert.ok(codes(p).includes('noApproachRoom'))
   assert.deepEqual(p.gcode, [], '没有可推的件就不该吐出任何 G-code')
@@ -97,18 +117,38 @@ test('已经贴在前沿的件提示行程很短', () => {
  * 件压在中心时直接发 G28 就是把喷嘴扎进件里。实测遇到过：一个
  * 69×79mm 的漏斗居中摆放，正好把 (128,128) 罩住。
  */
-test('件没压住床中心时，仍在中心探 Z', () => {
-  assert.deepEqual(safeHomePoint([obj(1, [10, 20, 50, 70])], BED.bed), { x: 128, y: 128 })
-})
+/*
+ * Z 回零是床往上升到触发力传感器。喷嘴不是一个点 —— 打印头是个几十毫米
+ * 大的组件，件只要在它的投影范围内就会先顶上去，Z 基准直接偏掉一个件高。
+ * 真机上就是这么栽的：11.2mm 的件、探测点只离它 21mm，后面 G0 Z1 实际
+ * 停在板面上方 12mm，喷嘴从件顶掠过，推了个空。
+ */
+const clearanceOf = (pt: { x: number; y: number }, b: [number, number, number, number]) => {
+  const dx = Math.max(b[0] - pt.x, 0, pt.x - b[2])
+  const dy = Math.max(b[1] - pt.y, 0, pt.y - b[3])
+  return Math.hypot(dx, dy)
+}
 
-test('件压住床中心时，换一个避开它的探测点', () => {
-  const pt = safeHomePoint([obj(1, [93, 87, 162, 166])], BED.bed)!
+test('探测点要离件足够远，21mm 那种距离必须被拒绝', () => {
+  const bar: [number, number, number, number] = [86.5, 96.7, 142.7, 106.7]
+  const pt = safeHomePoint([obj(1, bar)], BED.bed)!
   assert.ok(pt, '应当找得到落点')
-  const inside = pt.x > 93 - 15 && pt.x < 162 + 15 && pt.y > 87 - 15 && pt.y < 166 + 15
-  assert.ok(!inside, `落点 ${JSON.stringify(pt)} 仍在件的范围内`)
+  assert.ok(clearanceOf(pt, bar) >= 70,
+    `落点 ${JSON.stringify(pt)} 离件只有 ${clearanceOf(pt, bar).toFixed(1)}mm`)
 })
 
-test('件铺满整床时找不到落点 —— 宁可什么都不做', () => {
+test('没有件时用默认的床中心', () => {
+  assert.deepEqual(safeHomePoint([], BED.bed), { x: 128, y: 128 })
+})
+
+test('选的是离件最远的点，不是最靠近中心的点', () => {
+  const bar: [number, number, number, number] = [86.5, 96.7, 142.7, 106.7]
+  const pt = safeHomePoint([obj(1, bar)], BED.bed)!
+  // 中心 (128,128) 离件只有 21mm，绝不能被选中
+  assert.ok(!(pt.x === 128 && pt.y === 128))
+})
+
+test('件占掉大半个床时找不到足够远的落点 —— 宁可什么都不做', () => {
   const p = planEject([obj(1, [5, 5, 251, 251])], BED, { mode: 'standalone' })
   assert.ok(codes(p).includes('noSafeHomePoint'))
   assert.deepEqual(p.gcode, [], '撞机风险面前不生成任何动作')
@@ -183,4 +223,57 @@ test('又长又窄的件告警会打转', () => {
 
 test('接近方形的件不报打转', () => {
   assert.ok(!codes(planEject([obj(1, [93, 87, 162, 166])], BED)).includes('mayRotate'))
+})
+
+/*
+ * 机器配置声明 nozzle_height = 4.2：喷嘴只比周围结构低这么多。
+ * 要让喷嘴而不是壳体接触件，推的高度得 ≥ 件高 − 4.2；
+ * 要让件滑而不是翻，又得低于重心（件高的一半）。
+ * 两者同时成立需要 件高 < 8.4mm。真机上 11.2mm 的件就卡在做不到的区间。
+ */
+test('矮件：推的高度取最低的 1mm，不报高度问题', () => {
+  const p = planEject([obj(1, [10, 20, 50, 70])], { ...BED, maxZ: 4 })
+  assert.ok(line(p, /^G0 Z1 F900/), '4mm 高的件，喷嘴探出量就够让位')
+  assert.ok(!codes(p).includes('tooTallForNozzle'))
+})
+
+test('高件：推的高度自动抬到让壳体越过件顶', () => {
+  const p = planEject([obj(1, [10, 20, 50, 70])], { ...BED, maxZ: 11.2 })
+  // 11.2 - 4.2 = 7
+  assert.ok(line(p, /^G0 Z7 F900/), '推的高度应抬到 7mm')
+})
+
+test('件高超过 2×4.2 时报 tooTallForNozzle —— 接触点会落在重心之上', () => {
+  const p = planEject([obj(1, [10, 20, 50, 70])], { ...BED, maxZ: 11.2 })
+  assert.ok(codes(p).includes('tooTallForNozzle'))
+  const w = p.warnings.find((x) => x.code === 'tooTallForNozzle')!
+  assert.equal(w.params!.pushZ, 7)
+  assert.equal(w.params!.com, 5.6)
+})
+
+test('8mm 以下的件两个条件都满足，不告警', () => {
+  const p = planEject([obj(1, [10, 20, 50, 70])], { ...BED, maxZ: 8 })
+  assert.ok(!codes(p).includes('tooTallForNozzle'), '8mm 应当刚好可行')
+})
+
+test('Z 探测点的余量用机器声明的打印头半径 72mm', () => {
+  const bar: [number, number, number, number] = [86.5, 96.7, 142.7, 106.7]
+  const pt = safeHomePoint([obj(1, bar)], BED.bed)!
+  assert.ok(clearanceOf(pt, bar) >= 72)
+})
+
+/*
+ * 事故复盘：退 10mm 就降 Z，壳体正压在件上方，抬床顶掉了前盖。
+ * 顺序必须是「先在远处降到推的高度，再平移过去推」。
+ */
+test('降 Z 必须发生在远离件的位置，而不是件旁边', () => {
+  const p = planEject([obj(1, [86.5, 96.7, 142.7, 106.7])], { ...BED, maxZ: 11.2 })
+  const xy = p.gcode.findIndex((l) => l.startsWith('G0 X'))
+  const down = p.gcode.findIndex((l, i) => i > xy && /^G0 Z[\d.]+ F900/.test(l))
+  const push = p.gcode.findIndex((l) => l.startsWith('G1 Y0'))
+  assert.ok(xy < down && down < push, '顺序应为 走位 → 降 Z → 平移推')
+
+  const startY = Number(/Y([\d.]+)/.exec(p.gcode[xy])![1])
+  assert.ok(startY - 106.7 >= 86.9,
+    `降 Z 的位置离件只有 ${(startY - 106.7).toFixed(1)}mm，不足打印头半径 72 + 余量 15`)
 })

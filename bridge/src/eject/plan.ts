@@ -32,7 +32,11 @@ export interface EjectGeometry {
 }
 
 export interface EjectOptions {
-  /** 推的时候喷嘴离板面多高。太高会推倒件，太低会蹭到板 */
+  /**
+   * 推的时候喷嘴离板面多高。缺省会按件高自动算：
+   * 既要高到让壳体越过件顶（≥ 件高 − 4.2），又要低到在重心之下。
+   * 显式给值就用给的值，不再自动推算。
+   */
   pushZ?: number
   /** 横移高度 = maxZ + 这个间隙 */
   clearance?: number
@@ -40,7 +44,18 @@ export interface EjectOptions {
   bedTarget?: number
   /** 推进速度 mm/min。慢一点，给件脱开的时间 */
   pushFeed?: number
-  /** 起点落在件后方多少 mm */
+  /**
+   * 起点落在件后方多少 mm。
+   *
+   * 缺省是打印头半径 + 余量（72 + 15），不是随手取的 10mm。
+   *
+   * 「退到件后方」得让**整个打印头**都在件后方 —— 只让喷嘴在后方是不够的：
+   * 降 Z 的那一刻壳体正压在件上方，抬床顶上去的是壳体。真机上就是这么
+   * 把前盖顶掉的：退 10mm、降 Z，前盖直接撞在 11.2mm 高的件上。
+   *
+   * 顺序也因此固定为「先在远处降到推的高度，再平移过去推」，
+   * 而不是「先移到件旁边再降 Z」。
+   */
   approach?: number
   /** 推到哪个 Y。0 是前沿 */
   exitY?: number
@@ -74,6 +89,15 @@ export type EjectWarningCode =
    * 往前滑。实测：56×10mm 的长条转了 60-70 度。
    */
   | 'mayRotate'
+  /**
+   * 件太高，喷嘴够不着而壳体先撞上。
+   *
+   * 喷嘴只比周围结构低 nozzle_height（P2S 是 4.2mm）。要让喷嘴而不是壳体
+   * 接触件，推的高度必须 ≥ 件高 − 4.2；可要让件滑而不是翻，推的高度又得
+   * 低于重心（约件高的一半）。两者同时成立需要 件高 < 2 × 4.2 = 8.4mm。
+   * 超过这个高度，除非件的后壁像方锥那样向内倾斜、自己让开壳体。
+   */
+  | 'tooTallForNozzle'
   /** 件已经压在前沿上，推出去的行程很短 */
   | 'alreadyAtEdge'
   /** standalone 模式必须先回零，而 Z 探测点默认在床中心 —— 见 safeHomePoint */
@@ -102,12 +126,35 @@ export interface EjectPlan {
   warnings: EjectWarning[]
 }
 
+/*
+ * 打印头的物理包络，取自 P2S 机器配置（切片器做「按件顺序打印」时用的
+ * 就是这几个值，是机器自己声明的，不是估的）：
+ *
+ *   nozzle_height              4.2   喷嘴尖比周围结构低多少
+ *   extruder_clearance_radius  72    打印头本体半径
+ *
+ * 「推头是个点」这个隐含假设就是在这里破掉的。喷嘴只探出 4.2mm，
+ * 件只要比这高，顶上去的就是壳体而不是喷嘴 —— 真机上 11.2mm 的件在
+ * Z=1 推，件顶高出喷嘴尖 10.2mm，全程是壳体在蹭，件只挪了几毫米。
+ */
+const NOZZLE_PROTRUSION = 4.2
+const TOOLHEAD_RADIUS = 72
+
+/**
+ * 在包络半径之外再留的余量。
+ *
+ * 72 是「刚好擦到」的距离，零余量。真机上顶掉过一次前盖，代价不是
+ * 「重试一下」而是拆装维修，所以这里宁可保守。代价是可推区域缩小：
+ * 件的后缘必须在 床深 − 72 − 15 = 169mm 以内。
+ */
+const TOOLHEAD_MARGIN = 15
+
 const DEFAULTS: Required<EjectOptions> = {
   pushZ: 1,
   clearance: 5,
   bedTarget: 25,
   pushFeed: 1000,
-  approach: 10,
+  approach: TOOLHEAD_RADIUS + TOOLHEAD_MARGIN,
   exitY: 0,
   mode: 'endGcode',
   brimWidth: 0,
@@ -127,41 +174,56 @@ const r2 = (n: number) => Math.round(n * 100) / 100
  */
 const DEFAULT_Z_PROBE = { x: 128, y: 128 }
 
-/** Z 探测点离件至少留这么多余量 */
-const PROBE_MARGIN = 15
 
 /**
- * 找一个能避开所有件的 Z 探测位置。
+ * Z 探测点离件至少留这么多余量。
  *
- * 既然 G28 Z 探测当前 XY，那就先挪到空地再探。优先靠近床中心的候选点：
- * 边角处热床平整度稍差，Z 基准会有偏差，能不用就不用。
+ * 一开始取的 15mm，只考虑了「喷嘴落点别压在件上」—— 这是错的。
+ * Z 回零是床往上升到触发力传感器，而喷嘴不是一个点：打印头是个几十毫米
+ * 大的组件。件只要在这个组件的投影范围内，就会先于喷嘴顶上去，
+ * 力传感器照样触发，于是 Z=0 被设在高出板面「件高」那么多的位置。
+ *
+ * 实测代价：11.2mm 高的件、探测点离它 21mm，Z 基准整整高了一个件高，
+ * 后面 G0 Z1 实际停在板面上方 12mm，喷嘴从件顶掠过，推了个空。
+ * 从画面上看「推了但件没动」，很容易误判成附着力问题。
+ */
+const PROBE_MARGIN = TOOLHEAD_RADIUS
+
+/** 点到某个 bbox 的最短距离，点在框内时为 0 */
+function distToBox(x: number, y: number, [xmin, ymin, xmax, ymax]: Bbox): number {
+  const dx = Math.max(xmin - x, 0, x - xmax)
+  const dy = Math.max(ymin - y, 0, y - ymax)
+  return Math.hypot(dx, dy)
+}
+
+/**
+ * 找一个能安全探 Z 的位置。
+ *
+ * 既然 G28 Z 探的是当前 XY，那就先挪到空地再探。选点的标准是
+ * **离所有件尽可能远**，而不是「尽可能靠近床中心」—— 后者是我一开始的
+ * 想法（边角平整度差、Z 基准会偏），但那点偏差是零点几毫米，
+ * 而探测点离件太近的代价是整整一个件高，差了两个数量级。
  */
 export function safeHomePoint(
   objects: PlateObject[],
   bed: { width: number; depth: number },
   margin = PROBE_MARGIN,
 ): { x: number; y: number } | null {
-  const hits = (x: number, y: number) =>
-    objects.some((o) => {
-      const [xmin, ymin, xmax, ymax] = o.bbox
-      return x > xmin - margin && x < xmax + margin && y > ymin - margin && y < ymax + margin
-    })
+  if (objects.length === 0) return { ...DEFAULT_Z_PROBE }
 
-  if (!hits(DEFAULT_Z_PROBE.x, DEFAULT_Z_PROBE.y)) return { ...DEFAULT_Z_PROBE }
+  const clearance = (x: number, y: number) =>
+    Math.min(...objects.map((o) => distToBox(x, y, o.bbox)))
 
-  // 由内向外找：先在中心附近绕，实在不行才退到边角
-  const cx = bed.width / 2
-  const cy = bed.depth / 2
   const edge = 25
-  for (const r of [40, 60, 80, 100]) {
-    for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-      const x = r2(cx + dx * r)
-      const y = r2(cy + dy * r)
-      if (x < edge || y < edge || x > bed.width - edge || y > bed.depth - edge) continue
-      if (!hits(x, y)) return { x, y }
+  let best: { x: number; y: number; d: number } | null = null
+  for (let x = edge; x <= bed.width - edge; x += 10) {
+    for (let y = edge; y <= bed.depth - edge; y += 10) {
+      const d = clearance(x, y)
+      if (!best || d > best.d) best = { x, y, d }
     }
   }
-  return null
+  if (!best || best.d < margin) return null
+  return { x: best.x, y: best.y }
 }
 
 /**
@@ -195,6 +257,35 @@ export function planEject(
    */
   if (o.brimWidth > 0 && objects.length > 0) {
     warnings.push({ code: 'hasBrim', params: { width: o.brimWidth, pushZ: o.pushZ } })
+  }
+
+  /*
+   * 推的高度。
+   *
+   * 下限：喷嘴不能蹭板，至少留 1mm。
+   * 下限之二：件顶必须能从壳体底下过去，也就是 z ≥ 件高 − 喷嘴探出量。
+   * 上限：z 要低于重心（约件高一半），否则推的是上半身，件会翻。
+   *
+   * 两个下限撞上上限时无解 —— 那正是 tooTallForNozzle 要报的情况。
+   */
+  const needForBody = r2(Math.max(1, geom.maxZ - NOZZLE_PROTRUSION))
+  const pushZ = opts.pushZ !== undefined ? o.pushZ : needForBody
+  o.pushZ = pushZ
+
+  if (objects.length > 0 && geom.maxZ > 1) {
+    if (needForBody >= geom.maxZ) {
+      // 壳体让位所需的高度已经超过件本身，喷嘴根本碰不到件
+      warnings.push({
+        code: 'tooTallForNozzle',
+        params: { maxZ: r2(geom.maxZ), needZ: needForBody, nozzle: NOZZLE_PROTRUSION },
+      })
+    } else if (pushZ > geom.maxZ / 2) {
+      // 能碰到，但接触点在重心之上 —— 会翻，不会滑
+      warnings.push({
+        code: 'tooTallForNozzle',
+        params: { maxZ: r2(geom.maxZ), pushZ, com: r2(geom.maxZ / 2) },
+      })
+    }
   }
 
   const safeZ = r2(Math.max(geom.maxZ + o.clearance, o.pushZ + o.clearance))
