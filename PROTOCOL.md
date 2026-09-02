@@ -747,9 +747,15 @@ state is.
 
 - A **multi-line** `gcode_line` payload is accepted while `gcode_state = IDLE`; the whole
   block runs. `G28`, `G0`, `G1`, `M17` all execute.
-- **`home_flag` bits 0/1/2 are the X/Y/Z homed flags.** Watching a `G28` run, the low
-  nibble went `…98` → `…9E` → `…9F`, i.e. the three bits set one axis at a time. Before
-  homing they are all clear, which is how you can tell a released machine from a homed one.
+- **`home_flag` bits 0/1/2 track homing, but bit 0 is Z — not X.** A full `G28` walks the
+  low nibble `…98` → `…9E` → `…9F`, which on its own looks like "one bit per axis in XYZ
+  order". Sending `G28 X` alone settles the question: it sets bits 1 and 2 and leaves
+  bit 0 clear. Since `G28 X` cannot have homed Z, **bit 0 is Z and bits 1/2 are X/Y**, and
+  the full-`G28` progression is simply X/Y first, then Z — exactly the order the machine's
+  own start G-code uses. All three clear means the steppers were released.
+- **`G28 X` homes X *and* Y.** Two bits go high, not one. Verified independently by
+  commanding `G1 X128 Y68` then `G1 X128 Y188` and watching the toolhead move between the
+  two in the chamber camera.
 - Homing takes roughly 30 s from cold.
 - With the machine already homed, a sequence **without** `G28` moves immediately — which is
   the whole premise of injecting the block before `M18`.
@@ -757,9 +763,27 @@ state is.
   constant flips the brightness of the top-right image segments (59 → 174 → 60) and reverses
   the sign of the change in 8 of 8 horizontal segments. Position is repeatable.
 
-Not yet verified, because it needs a real part stuck to the plate: whether the part
-releases, whether the reduced motor current actually skips steps instead of shoving, and
-the `M190 R` vs `S` cooling-wait semantics.
+#### First run against a real part
+
+A 69×79×40 mm hollow PLA pyramid, printed centred, bed allowed to fall to 28 °C (chamber
+ambient — it will not go lower unaided), pushed at Z = 1 mm with `M17 X0.8 Y0.8 Z0.5`
+wrapping only the push stroke:
+
+- **The part released.** 28 °C was cold enough on a textured PEI plate; nothing had to be
+  pried. So the cooling step is the load-bearing precondition it was assumed to be, and
+  ambient is a workable target — you do not need the 25 °C the community G-code asks for.
+- **It travelled nearly the full sweep but did not fall off.** It ended tipped forward at
+  the front edge instead of sliding clear. Pushing the *rear* face to Y = 0 should put a
+  79 mm-deep part entirely past the edge; what appears to happen instead is that the part
+  tips as its centre of mass crosses the edge, after which a nozzle at Z = 1 mm is under
+  the part rather than behind it and stops driving it. **Height works against you at the
+  very end**, not during the slide.
+- No error, no HMS entry, no audible stall.
+
+Still unverified: whether the reduced motor current actually skips steps rather than
+shoving — this run never tested it, because the part came free. And `M190 R` vs `S`
+semantics remain untested; this run deliberately did not rely on them, waiting for the
+bed to cool out-of-band instead.
 
 #### `G28` probes Z at the bed centre — which is where your part is
 

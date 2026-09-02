@@ -88,10 +88,15 @@ export function registerEjectRoutes(
       let gcode = cool ? plan.gcode : plan.gcode.filter((l) => !/^M(190|140|106 P2)\b/.test(l))
 
       if (body.homeOnly) {
-        // 只保留回零那一段：到 G28 Z 为止
+        /*
+         * 停在 G28 Z **之前**。
+         *
+         * 这一步存在的全部意义就是：在探 Z 之前先确认 X/Y 真的归零了、
+         * 打印头真的停在了避开件的位置。把 G28 Z 也发出去就等于白检查了。
+         */
         const end = gcode.findIndex((l) => l.startsWith('G28 Z'))
         if (end < 0) throw new EjectError('这个模式下没有回零步骤，homeOnly 无意义')
-        gcode = gcode.slice(0, end + 1)
+        gcode = gcode.slice(0, end)
       }
 
       if (plan.order.length === 0) {
