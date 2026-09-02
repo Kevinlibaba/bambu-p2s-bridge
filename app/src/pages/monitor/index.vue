@@ -490,6 +490,8 @@ async function send(c: Command, confirmText?: string) {
             <!-- 收菜。预约中给个点亮的状态，一眼能看出这一单打完会自己动 -->
             <view class="harvest-btn" :class="{ on: hAuto?.armed }" @click="openHarvest">
               <text class="harvest-t">{{ hAuto?.armed ? t('harvest.armed') : t('harvest.title') }}</text>
+              <!-- 实验标记：不点开也知道这条不是成熟功能 -->
+              <text v-if="!hAuto?.armed" class="harvest-beta">β</text>
             </view>
           </view>
         </view>
@@ -551,6 +553,17 @@ async function send(c: Command, confirmText?: string) {
         </view>
 
         <template v-else-if="hPlan">
+          <!--
+            实验功能的警告放在最前面：在看到任何参数之前先知道风险。
+            内容是实测中真的发生过的事，不是套话。
+          -->
+          <view class="card warn-card">
+            <view class="line stack">
+              <text class="k warn">⚠︎ {{ t('harvest.expTitle') }}</text>
+              <text class="sub">{{ t('harvest.expBody') }}</text>
+            </view>
+          </view>
+
           <text class="cap">{{ t('harvest.intro') }}</text>
 
           <view class="card sheet-card">
@@ -595,6 +608,7 @@ async function send(c: Command, confirmText?: string) {
                   ? t('harvest.autoOn')
                   : t('harvest.autoHint', { t: hAuto?.bedTarget ?? 30 }) }}
               </text>
+              <text class="sub warn">{{ t('harvest.expAuto') }}</text>
             </view>
           </view>
 
@@ -864,7 +878,9 @@ async function send(c: Command, confirmText?: string) {
 }
 .harvest-btn.on { background: var(--accent); }
 .harvest-btn:active { opacity: 0.6; }
+.harvest-btn { display: flex; align-items: center; }
 .harvest-t { font-size: 24rpx; color: var(--ink-2); letter-spacing: -0.01em; }
+.harvest-beta { font-size: 19rpx; color: var(--warning); margin-left: 8rpx; line-height: 1; }
 .harvest-btn.on .harvest-t { color: #fff; }
 /* 详情卡里几处覆盖 */
 .line.stack .sub { display: block; font-size: 25rpx; color: var(--ink-2);
@@ -874,6 +890,10 @@ async function send(c: Command, confirmText?: string) {
 .v.warn { color: var(--warning); }
 .v.ell { max-width: 60%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .pill.go { background: var(--accent); color: #fff; width: 100%; margin: 32rpx 0 0; }
+/* 警告卡：用警示色描边，和普通卡片区分开，扫一眼就知道这条不一样 */
+.warn-card { margin-top: 24rpx; border: 2rpx solid var(--warning); }
+.k.warn { color: var(--warning); }
+.sub.warn { color: var(--warning); }
 .fact { font-size: 26rpx; color: var(--ink-2); letter-spacing: -0.01em; }
 .sep { font-size: 26rpx; color: var(--ink-3); margin: 0 14rpx; }
 

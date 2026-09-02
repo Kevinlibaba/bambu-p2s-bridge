@@ -430,7 +430,7 @@
     "go": "Harvest",
     "working": "Working…",
     "started": "Sent — the machine is moving",
-    "confirm": "Start the harvest? The toolhead homes first, then sweeps the part off the plate.",
+    "confirm": "Start the harvest? The toolhead homes first, then pushes the part off the plate.\nThis is experimental — stay by the machine and be ready to cut power.",
     "note": "This moves the machine. Watch it the first time.",
     "plateN": "plate {n}",
     "auto": "Harvest when this print finishes",
@@ -440,7 +440,10 @@
     "now": "Harvest now",
     "armed": "Armed",
     "cancel": "Cancel",
-    "busyHint": "A print is running, so you can only arm it for later"
+    "busyHint": "A print is running, so you can only arm it for later",
+    "expTitle": "Experimental — use with care",
+    "expBody": "This drives the toolhead against your part. During testing it knocked the toolhead’s front cover off. Shape matters a lot: a part with a brim will not move, and a long thin one spins in place.",
+    "expAuto": "The \"harvest when the print finishes\" path has never run end to end on a real machine — unit tests only so far."
   },
   "harvestWarn": {
     "tooFlat": "Part is too short for the nozzle to reach",

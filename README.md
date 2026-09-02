@@ -53,6 +53,28 @@ printer talking to a cloud, this gives you the phone app back on your own terms.
 | [`probes/`](./probes) | Dependency-free Python scripts that verify each printer protocol. Run these first. |
 | [`PROTOCOL.md`](./PROTOCOL.md) | **Reverse-engineering notes for the P2S LAN protocol.** The P2S uses a new-generation state schema that existing libraries don't fully parse. |
 
+> ### ⚠︎ "Harvest" (part ejection) is experimental
+>
+> The app can push a finished part off the plate with the toolhead. It works — but it is
+> the one feature here that moves the machine against a physical object, and getting it
+> wrong costs hardware rather than a retry.
+>
+> What has actually happened during development, all documented in
+> [PROTOCOL.md §5.4b](./PROTOCOL.md):
+>
+> - **It knocked the toolhead's front cover off.** The route dropped Z ten millimetres
+>   behind the part — behind the *nozzle*, nowhere near behind the *head*, which has a
+>   72 mm envelope.
+> - A part with a **brim** does not come off; the brim tethers it and snaps it back.
+> - A **long thin** part spins in place instead of sliding.
+> - Z homing probes at the bed centre, so a centred part gets the nozzle driven into it
+>   unless the probe point is moved.
+>
+> All four are guarded against now, and the sequence that works is written down. But the
+> reduced-motor-current protection has never actually had to save anything, and the
+> "harvest automatically when this print finishes" path has only ever run in unit tests.
+> **Stand next to the machine the first few times.**
+
 ---
 
 ## Why a bridge instead of talking to the printer directly
