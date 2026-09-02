@@ -46,6 +46,16 @@ export interface EjectRequest {
   cool?: boolean
   /** 不显式确认就只回 G-code，不下发 */
   confirm?: boolean
+  /**
+   * 只发回零那一段就停。
+   *
+   * 用来在真正动 Z 之前先确认 X/Y 确实归零了。机器自己的启动 G-code
+   * 是「G28 X 之后直接 G1 X128 Y128」，看上去 G28 X 会把 Y 也带上，
+   * 但那是推断不是实证。万一 Y 没归零而固件又接受了移动，Z 探测就会
+   * 落到计划外的位置 —— 件正好在那儿的话就是撞机。分两步走，中间查
+   * home_flag，比赌一把便宜得多。
+   */
+  homeOnly?: boolean
 }
 
 const BED = { width: 256, depth: 256 }
@@ -75,7 +85,14 @@ export function registerEjectRoutes(
 
       // 冷却是安全措施，去掉它要显式说，并且只在空跑时有意义
       const cool = body.cool !== false
-      const gcode = cool ? plan.gcode : plan.gcode.filter((l) => !/^M(190|140|106 P2)\b/.test(l))
+      let gcode = cool ? plan.gcode : plan.gcode.filter((l) => !/^M(190|140|106 P2)\b/.test(l))
+
+      if (body.homeOnly) {
+        // 只保留回零那一段：到 G28 Z 为止
+        const end = gcode.findIndex((l) => l.startsWith('G28 Z'))
+        if (end < 0) throw new EjectError('这个模式下没有回零步骤，homeOnly 无意义')
+        gcode = gcode.slice(0, end + 1)
+      }
 
       if (plan.order.length === 0) {
         return reply.code(409).send({ error: '没有可推的件', warnings: plan.warnings })

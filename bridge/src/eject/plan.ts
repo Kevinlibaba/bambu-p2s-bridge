@@ -65,8 +65,10 @@ export type EjectWarningCode =
   | 'mayTipOver'
   /** 件已经压在前沿上，推出去的行程很短 */
   | 'alreadyAtEdge'
-  /** standalone 模式必须先 G28，而 Z 轴回零靠喷嘴触碰热床，件压在探测点上就是撞击 */
+  /** standalone 模式必须先回零，而 Z 探测点默认在床中心 —— 见 safeHomePoint */
   | 'homingHazard'
+  /** 找不到能避开所有件的 Z 探测位置，standalone 模式无法安全执行 */
+  | 'noSafeHomePoint'
 
 export interface EjectWarning {
   code: EjectWarningCode
@@ -95,6 +97,55 @@ const DEFAULTS: Required<EjectOptions> = {
 const r2 = (n: number) => Math.round(n * 100) / 100
 
 /**
+ * P2S 的 Z 轴回零就发生在这里 —— 床正中心。
+ *
+ * 取自机器自己的启动 G-code：
+ *   G1 X128 Y128 F30000
+ *   G28 Z P0 T400
+ * 也就是说 G28 Z 探测的是**当前 XY 位置**，机器只是习惯性先挪到中心。
+ * 件如果压在中心，直接发 G28 就是把喷嘴扎进件里 —— 实测遇到过：
+ * 一个 69×79mm 的件居中摆放，正好把 (128,128) 罩住。
+ */
+const DEFAULT_Z_PROBE = { x: 128, y: 128 }
+
+/** Z 探测点离件至少留这么多余量 */
+const PROBE_MARGIN = 15
+
+/**
+ * 找一个能避开所有件的 Z 探测位置。
+ *
+ * 既然 G28 Z 探测当前 XY，那就先挪到空地再探。优先靠近床中心的候选点：
+ * 边角处热床平整度稍差，Z 基准会有偏差，能不用就不用。
+ */
+export function safeHomePoint(
+  objects: PlateObject[],
+  bed: { width: number; depth: number },
+  margin = PROBE_MARGIN,
+): { x: number; y: number } | null {
+  const hits = (x: number, y: number) =>
+    objects.some((o) => {
+      const [xmin, ymin, xmax, ymax] = o.bbox
+      return x > xmin - margin && x < xmax + margin && y > ymin - margin && y < ymax + margin
+    })
+
+  if (!hits(DEFAULT_Z_PROBE.x, DEFAULT_Z_PROBE.y)) return { ...DEFAULT_Z_PROBE }
+
+  // 由内向外找：先在中心附近绕，实在不行才退到边角
+  const cx = bed.width / 2
+  const cy = bed.depth / 2
+  const edge = 25
+  for (const r of [40, 60, 80, 100]) {
+    for (const [dx, dy] of [[0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+      const x = r2(cx + dx * r)
+      const y = r2(cy + dy * r)
+      if (x < edge || y < edge || x > bed.width - edge || y > bed.depth - edge) continue
+      if (!hits(x, y)) return { x, y }
+    }
+  }
+  return null
+}
+
+/**
  * 推的顺序：Y 最小的先推。
  *
  * 推的方向是 -Y（朝前门）。若先推后面的件，它一路会撞上前面那个；
@@ -121,8 +172,15 @@ export function planEject(
 
   const safeZ = r2(Math.max(geom.maxZ + o.clearance, o.pushZ + o.clearance))
 
+  let homeAt: { x: number; y: number } | null = null
   if (o.mode === 'standalone' && objects.length > 0) {
-    warnings.push({ code: 'homingHazard' })
+    homeAt = safeHomePoint(objects, geom.bed)
+    if (!homeAt) {
+      // 没有能避开件的探测位置，硬回零就是撞机 —— 不生成任何动作
+      warnings.push({ code: 'noSafeHomePoint' })
+      return { order: [], gcode: [], warnings }
+    }
+    warnings.push({ code: 'homingHazard', params: { x: homeAt.x, y: homeAt.y } })
   }
 
   for (const obj of frontFirst(objects)) {
@@ -157,23 +215,34 @@ export function planEject(
     order.push({ id: obj.id, name: obj.name, pushX, startY })
   }
 
-  return { order, gcode: render(order, safeZ, o), warnings }
+  return { order, gcode: render(order, safeZ, o, homeAt), warnings }
 }
 
 function render(
   order: EjectPlan['order'],
   safeZ: number,
   o: Required<EjectOptions>,
+  homeAt: { x: number; y: number } | null = null,
 ): string[] {
   if (order.length === 0) return []
   const g: string[] = ['; ==== 推件开始 ====']
 
-  if (o.mode === 'standalone') {
-    // 打印早已结束、M18 把电机放了，不回零固件不会接受任何 G1
+  if (o.mode === 'standalone' && homeAt) {
+    /*
+     * 打印早已结束、M18 把电机放了，不回零固件不会接受任何 G1。
+     *
+     * 但不能直接发 G28：这台机器的 Z 回零在床正中心探测（机器自己的
+     * 启动 G-code 就是 G1 X128 Y128 然后 G28 Z），件压在那里就是撞机。
+     * 好在从那段 G-code 也能看出 G28 Z 探的是**当前 XY** —— 机器只是
+     * 习惯性先挪到中心。所以照它的做法来，只把落点换成避开件的空地：
+     *   G28 X  →  挪到空地  →  G28 Z
+     * 先回 X/Y 是安全的：此时床还停在低位，横移碰不到件。
+     */
     g.push(
       '; standalone：打印已结束，电机被 M18 放掉了，必须先回零',
-      '; 注意 Z 轴回零靠喷嘴触碰热床 —— 件压在探测点上会撞',
-      'G28',
+      'G28 X ; 只回 X/Y。此时床还在低位，横移不会碰到件',
+      `G1 X${homeAt.x} Y${homeAt.y} F6000 ; 挪到避开所有件的空地再探 Z`,
+      'G28 Z P0 ; 在当前位置探 Z —— 默认的床中心可能正压着件',
     )
   }
 

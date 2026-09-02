@@ -761,6 +761,33 @@ Not yet verified, because it needs a real part stuck to the plate: whether the p
 releases, whether the reduced motor current actually skips steps instead of shoving, and
 the `M190 R` vs `S` cooling-wait semantics.
 
+#### `G28` probes Z at the bed centre — which is where your part is
+
+The machine's own start G-code gives the location away:
+
+```gcode
+G1 X128 Y128 F30000
+G28 Z P0 T400
+```
+
+Two things follow. **`G28 Z` probes at the current XY** — the machine merely moves to the
+centre out of habit. And a bare `G28` after a print will drive the nozzle down onto
+whatever is sitting at (128, 128), which for a centred part is the part itself. A 69×79 mm
+funnel printed in the middle of the plate covers that point completely.
+
+The way out is to copy the machine's own sequence and change only the destination:
+
+```gcode
+G28 X                    ; X/Y only — the bed is still parked low, so travel clears the part
+G1 X<clear> Y<clear> F6000
+G28 Z P0                 ; probe here instead of the centre
+```
+
+Whether `G28 X` also homes Y is an inference from that same snippet, not something the
+docs state. Worth confirming against `home_flag` bits 0/1 before relying on it — if Y is
+left unhomed and the firmware still accepts the move, the probe lands somewhere you did
+not choose.
+
 ---
 
 ### 5.5 Slicing an unsliced 3MF yourself

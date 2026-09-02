@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { planEject, type PlateObject, type EjectGeometry } from '../src/eject/plan.js'
+import { planEject, safeHomePoint, type PlateObject, type EjectGeometry } from '../src/eject/plan.js'
 
 const BED: EjectGeometry = { bed: { width: 256, depth: 256 }, maxZ: 30 }
 
@@ -91,12 +91,38 @@ test('已经贴在前沿的件提示行程很短', () => {
  * 所以事后单独下发必须先 G28 —— 而 Z 轴回零靠喷嘴触碰热床，
  * 件压在探测点上就是一次撞击。这条风险必须显式吐给用户。
  */
-test('standalone 模式要带 G28，并且报出回中撞击风险', () => {
-  const p = planEject([obj(1, [10, 20, 50, 70])], BED, { mode: 'standalone' })
-  assert.ok(p.gcode.includes('G28'))
+/*
+ * 这台机器的 Z 回零在床正中心探测 —— 机器自己的启动 G-code 就是
+ *   G1 X128 Y128 / G28 Z P0 T400
+ * 件压在中心时直接发 G28 就是把喷嘴扎进件里。实测遇到过：一个
+ * 69×79mm 的漏斗居中摆放，正好把 (128,128) 罩住。
+ */
+test('件没压住床中心时，仍在中心探 Z', () => {
+  assert.deepEqual(safeHomePoint([obj(1, [10, 20, 50, 70])], BED.bed), { x: 128, y: 128 })
+})
+
+test('件压住床中心时，换一个避开它的探测点', () => {
+  const pt = safeHomePoint([obj(1, [93, 87, 162, 166])], BED.bed)!
+  assert.ok(pt, '应当找得到落点')
+  const inside = pt.x > 93 - 15 && pt.x < 162 + 15 && pt.y > 87 - 15 && pt.y < 166 + 15
+  assert.ok(!inside, `落点 ${JSON.stringify(pt)} 仍在件的范围内`)
+})
+
+test('件铺满整床时找不到落点 —— 宁可什么都不做', () => {
+  const p = planEject([obj(1, [5, 5, 251, 251])], BED, { mode: 'standalone' })
+  assert.ok(codes(p).includes('noSafeHomePoint'))
+  assert.deepEqual(p.gcode, [], '撞机风险面前不生成任何动作')
+})
+
+test('standalone 模式按机器自己的做法回零：先 X，挪到空地，再探 Z', () => {
+  const p = planEject([obj(1, [93, 87, 162, 166])], BED, { mode: 'standalone' })
+  const gx = p.gcode.findIndex((l) => l.startsWith('G28 X'))
+  const move = p.gcode.findIndex((l) => l.startsWith('G1 X'))
+  const gz = p.gcode.findIndex((l) => l.startsWith('G28 Z'))
+  assert.ok(gx >= 0 && move > gx && gz > move, '顺序必须是 G28 X → 移动 → G28 Z')
+  assert.ok(!p.gcode.some((l) => l.trim() === 'G28'), '不能出现裸的 G28 —— 那会在床中心探测')
   assert.ok(codes(p).includes('homingHazard'))
-  assert.ok(p.gcode.indexOf('G28') < p.gcode.findIndex((l) => l.startsWith('G0 Z')),
-    '回零必须在任何移动之前')
+  assert.ok(gz < p.gcode.findIndex((l) => l.startsWith('G0 Z')), '回零必须在任何 Z 移动之前')
 })
 
 test('endGcode 模式不含 G28，也不报回中风险', () => {
