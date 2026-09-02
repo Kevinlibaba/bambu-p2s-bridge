@@ -185,19 +185,7 @@ function onSheetUp() {
   const velocity = dy / dt
   dragging.value = false
   if (dy > 0 && (velocity >= VELOCITY_DISMISS || dy >= sheetH * CLOSE_RATIO)) {
-    /*
-     * 从当前位置继续往下滑出去，而不是先跳回原位再播关闭动画。
-     *
-     * 卸载必须等滑出走完。原来过渡 300ms 却 180ms 就 emit close，
-     * 卡片滑到一半被抽走、遮罩跟着消失，底部标签栏就那么闪出来一下。
-     */
-    dismissing.value = true
-    dragY.value = sheetH
-    setTimeout(() => {
-      dragY.value = 0
-      dismissing.value = false
-      emit('close')
-    }, DISMISS_MS)
+    beginClose()
     return
   }
   dragY.value = 0
@@ -267,8 +255,34 @@ function onMaskMove(e: TouchEvent) {
 }
 
 function onMaskTap() {
-  if (!dragged) emit('close')
+  if (!dragged) beginClose()
   dragged = false
+}
+
+/**
+ * 统一的关闭流程：卡片滑出 → 到底之后才卸载。
+ *
+ * 页面解锁刻意提前到滑出**开始**的那一刻，而不是等卸载。
+ *
+ * body 的 position 从 fixed 切回 static 会引发一次重排，iOS Safari 上
+ * fixed 元素（底部标签栏就是）会因此重新定位、闪一下。放在开头做，
+ * 那一下就藏在还暗着的遮罩底下；等遮罩透明时布局早已稳定。
+ * 此时手指已经松开，不必再担心滑动穿透。
+ *
+ * 这条路径 headless 上复现不出来（tab 栏全程不动、遮罩平滑淡出），
+ * 所以是针对 iOS 已知行为下的手，没有实测佐证。
+ */
+function beginClose() {
+  if (dismissing.value) return
+  if (sheetH <= 0) sheetH = measureCard()
+  dismissing.value = true
+  dragY.value = sheetH
+  lockPage(false)
+  setTimeout(() => {
+    dragY.value = 0
+    dismissing.value = false
+    emit('close')
+  }, DISMISS_MS)
 }
 </script>
 
@@ -387,6 +401,8 @@ function onMaskTap() {
  * flex:0 1 auto（可缩不可涨），不是 flex:1。min-height:0 让它真的能缩。
  */
 .scroll {
+  /* 滚到边界就停，不把滚动链传给背后的页面 */
+  overscroll-behavior: contain;
   flex: 0 1 auto;
   min-height: 0;
 }
