@@ -240,9 +240,6 @@ export function registerEjectRoutes(
         gcode = gcode.slice(0, end)
       }
 
-      if (plan.order.length === 0) {
-        return reply.code(409).send({ error: '没有可推的件', warnings: plan.warnings })
-      }
 
       /*
        * 只回数据，不回拼好的中文 —— 「第 N 盘」这种话由前端按当前语言出，
@@ -257,9 +254,18 @@ export function registerEjectRoutes(
         brimWidth,
       }
 
+      /*
+       * 算不出可推的件时**不要**直接报错。
+       *
+       * 原来这里返回 409「没有可推的件」，把算好的告警一起丢了 —— 用户只看到
+       * 一句结论，不知道是因为件太靠后够不着、还是太矮喷嘴碰不到。
+       * 照常把计划和告警发回去，让界面按 error 级告警说明原因，
+       * 按钮那边本来就会因为 order 为空而禁用。
+       */
       if (!body.confirm) {
         return { dryRun: true, cool, ...info, order: plan.order, warnings: plan.warnings, gcode }
       }
+      if (plan.order.length === 0) throw new EjectError('没有可推的件', 409)
 
       const s = state.summary()
       if (!mqtt.connected) throw new EjectError('打印机未连接', 503)
