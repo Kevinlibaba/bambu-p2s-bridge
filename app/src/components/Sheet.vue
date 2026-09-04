@@ -180,10 +180,20 @@ const sheetStyle = computed(() =>
   dragY.value === 0 ? '' : `transform: translateY(${dragY.value.toFixed(1)}px);`,
 )
 /* 遮罩跟着一起淡出，手指还没松就能看出「再拖一点就关了」 */
+/* 遮罩最暗时的不透明度。改这里要一起改 CSS 里 .mask 的底色和 dim 关键帧 */
+const DIM_MAX = 0.5
+
+/*
+ * 变暗只动背景色的 alpha，绝不动 opacity。
+ *
+ * 卡片是遮罩的子元素，而 opacity 会作用于整棵子树 —— 用 opacity 淡出的话，
+ * 卡片自己也跟着变半透明，下滑过程中能透出背后的页面，看起来就是「闪」。
+ * 这是实测反馈出来的：关闭动画里页面呈半透明。
+ */
 const maskStyle = computed(() => {
   if (dragY.value <= 0 || sheetH === 0) return ''
   const k = Math.max(0, 1 - dragY.value / sheetH)
-  return `opacity: ${k.toFixed(2)};`
+  return `background-color: rgba(0, 0, 0, ${(DIM_MAX * k).toFixed(3)});`
 })
 
 /*
@@ -328,7 +338,8 @@ function beginClose() {
   background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: flex-end;
-  animation: fade 0.2s ease;
+  /* 淡入同理：只让底色变暗，卡片始终不透明地滑上来 */
+  animation: dim 0.2s ease;
   /* 遮罩上的手势不产生滚动，也不把滚动链传给背后 */
   touch-action: none;
   overscroll-behavior: none;
@@ -342,7 +353,7 @@ function beginClose() {
  * 而卡片还在慢慢往下滑。时长与 DISMISS_MS 对齐。
  */
 .mask.dismissing {
-  transition: opacity 0.22s cubic-bezier(0.32, 0.72, 0, 1);
+  transition: background-color 0.22s cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 /*
@@ -445,7 +456,10 @@ function beginClose() {
   border-top: 1rpx solid var(--separator);
 }
 
-@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dim {
+  from { background-color: rgba(0, 0, 0, 0); }
+  to { background-color: rgba(0, 0, 0, 0.5); }
+}
 @keyframes rise {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
