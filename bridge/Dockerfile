@@ -26,6 +26,18 @@ RUN npm run build
 FROM node:20-slim
 WORKDIR /app
 ENV NODE_ENV=production
+
+# BambuStudio 的 AppImage 自带 FFmpeg，但不带 GTK/WebKit 那一串系统库。
+# 少了它们 bin/bambu-studio 连动态链接都过不去（libfontconfig.so.1 找不到），
+# 跟有没有图形界面无关 —— CLI 切片同样要链接。
+#
+# 这一层放在 COPY 之前：代码改动不会让它失效，重建时走缓存。
+# 切片器本体（540MB）不进镜像，由 compose 从宿主机挂载，见 SLICER_ROOT。
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends \
+      libwebkit2gtk-4.1-0 libgtk-3-0 libglu1-mesa \
+ && rm -rf /var/lib/apt/lists/*
+
 COPY bridge/package*.json ./
 RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
 COPY --from=build /app/dist ./dist

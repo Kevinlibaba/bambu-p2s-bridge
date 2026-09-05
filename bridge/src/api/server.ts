@@ -17,6 +17,7 @@ import { registerNotifyRoutes } from './notify.js'
 import type { Notifier } from '../notify/index.js'
 import { registerHistoryRoutes } from './history.js'
 import { registerEjectRoutes } from './eject.js'
+import { registerSliceRoutes } from './slice.js'
 import type { EventLog } from '../history/eventlog.js'
 import type { AutoHarvest } from '../eject/auto.js'
 import type { History } from '../history/index.js'
@@ -109,6 +110,7 @@ export async function buildServer(
   registerNotifyRoutes(app, notifier)
   registerHistoryRoutes(app, history, temps, events)
   registerEjectRoutes(app, state, mqtt, history, auto)
+  registerSliceRoutes(app, state)
 
   // ---- 摄像头：在 go2rtc 前面做鉴权代理 ----
   // go2rtc 本身无认证，因此它只监听 127.0.0.1，外部一律经这里

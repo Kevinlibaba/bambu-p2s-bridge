@@ -21,5 +21,9 @@ services:
     volumes:
       # 推送订阅与打印历史落在这里，容器重建后要保住
       - ./data:/data
+      # BambuStudio 解包后 540MB，不进镜像 —— 进了镜像每次重建都要重传一遍，
+      # 而它是个几乎不变的第三方产物。只读挂载，切片时只从里面读 profile 和二进制。
+      # 目录不存在时切片功能自动关闭（见 config.slicer.root），其余功能不受影响。
+      - /opt/slicer:/opt/slicer:ro
     depends_on:
       - go2rtc

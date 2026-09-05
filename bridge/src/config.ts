@@ -37,6 +37,21 @@ export const config = {
     /** 事件流水按天分文件放这里，用来还原某一单的时间轴 */
     eventsDir: process.env.EVENTS_DIR ?? '/data/events',
   },
+  slicer: {
+    /**
+     * BambuStudio AppImage 解包后的目录（含 AppRun 和 resources/profiles）。
+     * 由 compose 从宿主机只读挂载，不进镜像。目录不在就把切片功能整个关掉 ——
+     * 少一个功能，好过让接口在运行时才炸。
+     */
+    root: process.env.SLICER_ROOT ?? '/opt/slicer/squashfs-root',
+    /** 切片工作目录。放在 /data 下，跟着数据卷走，容器重建不丢半成品 */
+    workDir: process.env.SLICER_WORK_DIR ?? '/data/slice',
+    /**
+     * 单次切片超时。实测 2 核容器上 4.5MB 模型约 21 秒，大模型会长得多；
+     * 但没有上限的话一个畸形文件就能把工作目录和 CPU 一直占着。
+     */
+    timeoutMs: Number(process.env.SLICER_TIMEOUT_MS ?? 15 * 60_000),
+  },
   notify: {
     enabled: process.env.NOTIFY_ENABLED !== 'false',
     /** 逗号分隔的事件类型，或 all */
