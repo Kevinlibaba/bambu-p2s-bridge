@@ -4,9 +4,9 @@ import { useI18n } from 'vue-i18n'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
 import {
   api, configured, uploadFile, importUrl, deleteFile, startPrint, fetchPrintPlan,
-  startSlice, fetchSliceJob,
+  startSlice, fetchSliceJob, fetchSliceOptions,
   type RemoteFile, type ThreeMfInfo, type PrintPlan, type PlanTray, type PreflightCheck,
-  type SliceJob,
+  type SliceJob, type SliceOptions, type SliceParams,
 } from '../../api/client'
 import { themeClass, applyChrome } from '../../store/prefs'
 import { confirm, toast } from '../../util/dialog'
@@ -365,6 +365,8 @@ function open(f: RemoteFile) {
 function close() {
   sel.value = null
   model.value = null
+  sliceOpts.value = null
+  sliceParams.value = {}
 }
 
 async function loadModel() {
@@ -551,11 +553,97 @@ const canSlice = computed(
  */
 const sliceHere = computed(() => !!sliceJob.value && sliceJob.value.source === selPath.value)
 
+/*
+ * 切片参数：默认全部沿用模型作者的设置，用户想改哪项改哪项。
+ *
+ * 不做成「选一套预设」是有原因的 —— 预设是整套的，换过去会连支撑一起换掉
+ * （标准工艺里 enable_support=0）。想要「层薄一点」的人不该因此丢掉作者
+ * 开的支撑。逐项覆盖没有这个副作用：没动的项，桥接一个字都不会写。
+ */
+const sliceOpts = ref<SliceOptions | null>(null)
+const sliceParams = ref<SliceParams>({})
+
+/** 作者原本的设置。用来标出「这项被改过」，以及一键恢复 */
+const authorParams = computed<SliceParams>(() => sliceOpts.value?.current ?? {})
+
+const paramsDirty = computed(() => {
+  const a = authorParams.value
+  const p = sliceParams.value
+  return (Object.keys(p) as (keyof SliceParams)[]).some((k) => p[k] !== a[k])
+})
+
+/** 某一项是否被改过 —— 界面上给它一个标记，免得改完自己都忘了动过什么 */
+function changed(k: keyof SliceParams): boolean {
+  return sliceParams.value[k] !== authorParams.value[k]
+}
+
+function resetParams() {
+  sliceParams.value = { ...authorParams.value }
+}
+
+/*
+ * 直接取反，不读事件对象 —— uni-app 包装过的事件在类型上拿不到 detail，
+ * 而且 checked 已经绑在这个值上了，事件里那个值跟取反的结果一样。
+ */
+function toggleParam(k: 'supports' | 'brim') {
+  sliceParams.value = { ...sliceParams.value, [k]: !sliceParams.value[k] }
+}
+
+async function loadSliceOpts() {
+  sliceOpts.value = null
+  try {
+    sliceOpts.value = await fetchSliceOptions(selPath.value)
+    resetParams()
+  } catch {
+    // 切片器没装或读不到配置。入口本来就不会出现，这里安静收场
+  }
+}
+
+const LAYER_STEP = 0.02
+function stepLayer(d: number) {
+  const r = sliceOpts.value?.layerRange
+  const cur = sliceParams.value.layerHeight ?? authorParams.value.layerHeight ?? 0.2
+  // 浮点加减会攒出 0.13999999999，两位小数够用也够准
+  let v = Math.round((cur + d * LAYER_STEP) * 100) / 100
+  if (r) v = Math.min(r.max, Math.max(r.min, v))
+  sliceParams.value = { ...sliceParams.value, layerHeight: v }
+}
+
+function stepInfill(d: number) {
+  const cur = sliceParams.value.infillDensity ?? authorParams.value.infillDensity ?? 15
+  sliceParams.value = {
+    ...sliceParams.value,
+    infillDensity: Math.min(100, Math.max(0, cur + d * 5)),
+  }
+}
+
+function stepWalls(d: number) {
+  const cur = sliceParams.value.wallLoops ?? authorParams.value.wallLoops ?? 2
+  sliceParams.value = { ...sliceParams.value, wallLoops: Math.min(10, Math.max(1, cur + d)) }
+}
+
+const layerAtMin = computed(() => {
+  const r = sliceOpts.value?.layerRange
+  return !!r && (sliceParams.value.layerHeight ?? 0) <= r.min
+})
+const layerAtMax = computed(() => {
+  const r = sliceOpts.value?.layerRange
+  return !!r && (sliceParams.value.layerHeight ?? 0) >= r.max
+})
+
 /** 各阶段的说法。切片那一段最久，其余几秒就过去了 */
 const slicePhaseText = computed(() => {
   const p = sliceJob.value?.phase
   if (!p) return ''
   return t(`slice.phase.${p}`)
+})
+
+/*
+ * canSlice 要等自检结果回来才知道，所以挂 watch 而不是在 open() 里直接拉 ——
+ * 那时还不知道这个文件是不是未切片的。
+ */
+watch(canSlice, (on) => {
+  if (on && !sliceOpts.value) void loadSliceOpts()
 })
 
 let slicePoll = 0
@@ -592,9 +680,17 @@ function pollSlice(id: string) {
 async function sliceSelected() {
   const f = sel.value
   if (!f || slicing.value) return
-  if (!(await confirm(t('slice.title'), t('slice.desc', { name: f.name }), true))) return
+  const desc = paramsDirty.value
+    ? t('slice.descChanged', { name: f.name })
+    : t('slice.desc', { name: f.name })
+  if (!(await confirm(t('slice.title'), desc, true))) return
   try {
-    const j = await startSlice({ path: selPath.value, plate: plate.value?.index ?? 1 })
+    const j = await startSlice({
+      path: selPath.value,
+      plate: plate.value?.index ?? 1,
+      // 全部发上去，桥接那边只留真正跟作者不同的几项
+      params: paramsDirty.value ? sliceParams.value : undefined,
+    })
     sliceJob.value = j
     pollSlice(j.id)
   } catch (e) {
@@ -796,6 +892,81 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
         </template>
       </template>
 
+      <!--
+        切片参数。默认全是模型作者定的值，改哪项覆盖哪项 —— 没动的项桥接
+        一个字都不会写，所以支撑、填充这些不会被顺带改掉。
+      -->
+      <template v-if="canSlice && sliceOpts">
+        <view class="grouphead-row">
+          <text class="grouphead">{{ t('slice.paramsGroup') }}</text>
+          <text v-if="paramsDirty" class="reset" @click="resetParams">{{ t('slice.reset') }}</text>
+        </view>
+        <view class="card sheet-card">
+          <view class="line">
+            <text class="k">
+              {{ t('slice.layerHeight') }}<text v-if="changed('layerHeight')" class="dot">·</text>
+            </text>
+            <view class="trail">
+              <text class="v num">{{ sliceParams.layerHeight?.toFixed(2) }} mm</text>
+              <view class="stepper">
+                <text class="sbtn" :class="{ off: layerAtMin }" @click="stepLayer(-1)">−</text>
+                <view class="svsep" />
+                <text class="sbtn" :class="{ off: layerAtMax }" @click="stepLayer(1)">＋</text>
+              </view>
+            </view>
+          </view>
+          <view class="hsep" />
+          <view class="line">
+            <text class="k">
+              {{ t('slice.infill') }}<text v-if="changed('infillDensity')" class="dot">·</text>
+            </text>
+            <view class="trail">
+              <text class="v num">{{ sliceParams.infillDensity }}%</text>
+              <view class="stepper">
+                <text class="sbtn" :class="{ off: (sliceParams.infillDensity ?? 0) <= 0 }"
+                  @click="stepInfill(-1)">−</text>
+                <view class="svsep" />
+                <text class="sbtn" :class="{ off: (sliceParams.infillDensity ?? 0) >= 100 }"
+                  @click="stepInfill(1)">＋</text>
+              </view>
+            </view>
+          </view>
+          <view class="hsep" />
+          <view class="line">
+            <text class="k">
+              {{ t('slice.walls') }}<text v-if="changed('wallLoops')" class="dot">·</text>
+            </text>
+            <view class="trail">
+              <text class="v num">{{ sliceParams.wallLoops }}</text>
+              <view class="stepper">
+                <text class="sbtn" :class="{ off: (sliceParams.wallLoops ?? 0) <= 1 }"
+                  @click="stepWalls(-1)">−</text>
+                <view class="svsep" />
+                <text class="sbtn" :class="{ off: (sliceParams.wallLoops ?? 0) >= 10 }"
+                  @click="stepWalls(1)">＋</text>
+              </view>
+            </view>
+          </view>
+          <view class="hsep" />
+          <view class="line">
+            <text class="k">
+              {{ t('slice.supports') }}<text v-if="changed('supports')" class="dot">·</text>
+            </text>
+            <switch class="sw" :checked="!!sliceParams.supports" color="#2997ff"
+              @change="toggleParam('supports')" />
+          </view>
+          <view class="hsep" />
+          <view class="line">
+            <text class="k">
+              {{ t('slice.brim') }}<text v-if="changed('brim')" class="dot">·</text>
+            </text>
+            <switch class="sw" :checked="!!sliceParams.brim" color="#2997ff"
+              @change="toggleParam('brim')" />
+          </view>
+        </view>
+        <text class="hint">{{ paramsDirty ? t('slice.paramsChanged') : t('slice.paramsNote') }}</text>
+      </template>
+
       <!-- 通用信息 -->
       <view class="card sheet-card">
         <view class="line">
@@ -966,6 +1137,27 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 .sheet-card { margin-top: 24rpx; }
 .grouphead { display: block; font-size: 24rpx; color: var(--ink-2);
   margin: 36rpx 0 16rpx 8rpx; letter-spacing: 0.01em; }
+
+/* 分组标题跟「恢复」放同一行，标题的外边距要让给这一行 */
+.grouphead-row { display: flex; align-items: baseline; justify-content: space-between;
+  margin: 36rpx 0 16rpx; }
+.grouphead-row .grouphead { margin: 0 0 0 8rpx; }
+.reset { font-size: 24rpx; color: var(--accent); padding: 6rpx 8rpx; margin-right: 0; }
+.reset:active { opacity: 0.55; }
+
+/* 改过的项给一个小圆点 —— 一屏参数里，光看数字认不出自己动过哪些 */
+.dot { color: var(--accent); font-weight: 700; margin-left: 8rpx; font-size: 34rpx;
+  line-height: 1; vertical-align: middle; }
+
+.num { font-variant-numeric: tabular-nums; }
+.stepper { display: flex; align-items: center; margin-left: 20rpx;
+  background: var(--surface-2); border-radius: 15rpx; overflow: hidden; }
+.sbtn { width: 82rpx; height: 62rpx; line-height: 62rpx; text-align: center;
+  font-size: 32rpx; color: var(--ink); }
+.sbtn:active { background: var(--separator); }
+.sbtn.off { color: var(--ink-3); }
+.svsep { width: 1rpx; height: 34rpx; background: var(--separator); }
+.sw { transform: scale(0.82); transform-origin: right center; }
 .line { display: flex; align-items: center; justify-content: space-between; min-height: 96rpx; }
 .tappable:active { opacity: 0.55; }
 .k { font-size: 29rpx; color: var(--ink); letter-spacing: -0.02em; }

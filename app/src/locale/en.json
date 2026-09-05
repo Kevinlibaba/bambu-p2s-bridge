@@ -260,7 +260,17 @@
       "uploading": "Uploading",
       "done": "Done",
       "failed": "Failed"
-    }
+    },
+    "paramsGroup": "Print settings",
+    "reset": "Reset to author’s",
+    "layerHeight": "Layer height",
+    "infill": "Infill",
+    "walls": "Wall loops",
+    "supports": "Supports",
+    "brim": "Brim",
+    "paramsNote": "Defaults come from the model author. Changed rows get a dot; everything else is left untouched.",
+    "paramsChanged": "Only the dotted rows are overridden — the rest still slice with the author’s settings.",
+    "descChanged": "Slice \"{name}\" with your changes; everything you did not touch keeps the author’s settings. The original is kept; the result is saved as .gcode.3mf."
   },
   "dry": {
     "title": "Filament drying",

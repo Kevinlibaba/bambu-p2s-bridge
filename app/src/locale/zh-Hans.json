@@ -260,7 +260,17 @@
       "uploading": "回传中",
       "done": "完成",
       "failed": "失败"
-    }
+    },
+    "paramsGroup": "切片参数",
+    "reset": "恢复作者设置",
+    "layerHeight": "层高",
+    "infill": "填充密度",
+    "walls": "壁圈数",
+    "supports": "支撑",
+    "brim": "Brim",
+    "paramsNote": "默认沿用模型作者调好的设置。改动的项会带一个圆点，没改的一律不动。",
+    "paramsChanged": "只有带圆点的项会被覆盖，其余仍按作者的设置切。",
+    "descChanged": "按你改过的参数把「{name}」切成可打印的文件，未改动的项仍沿用模型作者的设置。原文件保留，产物另存为 .gcode.3mf。"
   },
   "dry": {
     "title": "耗材烘干",

@@ -21,6 +21,9 @@ import {
   type ProfileRef, type SettingChange,
 } from '../slice/profiles.js'
 import { runSlice } from '../slice/run.js'
+import {
+  toConfigKeys, fromConfig, changedOnly, layerRange, ParamError, type SliceParams,
+} from '../slice/overrides.js'
 import { postprocess } from '../slice/postprocess.js'
 import { verifyModel } from '../slice/verify.js'
 import { SliceQueue, SliceBusyError } from '../slice/job.js'
@@ -54,6 +57,11 @@ export interface SliceRequest {
   process?: string
   /** filament profile 的 name 列表。不给按 AMS 自动选 */
   filaments?: string[]
+  /**
+   * 在作者设置之上要改的参数。只写这里给出且**确实与作者不同**的那几项，
+   * 其余一律保持模型自带的设置。
+   */
+  params?: SliceParams
   /** 喷嘴口径，默认按打印机上报的 */
   nozzle?: number
 }
@@ -171,6 +179,12 @@ export async function filamentsForModel(
   return { picked, guessed }
 }
 
+/** 取标量。配置里这些键既可能写成标量，也可能是单元素数组 */
+function scalarOf(v: unknown): string {
+  if (Array.isArray(v)) return v.length ? String(v[0]) : ''
+  return v === undefined || v === null ? '' : String(v)
+}
+
 export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): void {
   const profiles = new Profiles(config.slicer.root)
 
@@ -178,6 +192,23 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
     if (req) return req
     const d = Number(state.summary().nozzle.diameter)
     return Number.isFinite(d) && d > 0 ? d : 0.4
+  }
+
+  /**
+   * 读出模型作者定的打印参数，给界面做默认值。
+   *
+   * 只读尾部的中央目录再取 project_settings.config 这一个条目 —— 为了几个
+   * 数字把几十 MB 拖回来不值当。
+   */
+  async function readModelParams(source: string): Promise<SliceParams | null> {
+    const tail = await ftp.readRange(source, { suffix: 96 * 1024 })
+    const src: ZipSource = withTail(tail.size, tail.start, tail.data, async (a, b) =>
+      (await ftp.readRange(source, { start: a, end: b })).data,
+    )
+    const entries = await readCentralDirectory(src)
+    const e = entries.find((x) => x.name === 'Metadata/project_settings.config')
+    if (!e) return null
+    return fromConfig(await readSettings(src, e))
   }
 
   const queue = new SliceQueue({
@@ -202,7 +233,7 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
     },
   })
 
-  app.get('/api/slice/options', async (_req, reply) => {
+  app.get<{ Querystring: { path?: string } }>('/api/slice/options', async (req, reply) => {
     try {
       const nozzle = nozzleOf()
       const [procs, index] = await Promise.all([
@@ -210,9 +241,22 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
         profiles.filamentIndex(nozzle),
       ])
       const trays = state.summary().ams
+
+      /*
+       * 带上模型作者自己的设置，界面拿它做各个控件的默认值 —— 「在作者的基础上
+       * 改」这件事，前提是先看得见作者定的是什么。
+       */
+      let current: SliceParams | null = null
+      if (req.query.path) {
+        current = await readModelParams(ftp.normalizePath(req.query.path)).catch(() => null)
+      }
+
       return {
         available: true,
         nozzle,
+        /** 层高的合法区间，随喷嘴口径变 */
+        layerRange: layerRange(nozzle),
+        current,
         processes: procs.map((p) => p.name),
         defaultProcess: DEFAULT_PROCESS,
         // 只回 AMS 里真装着的那几个，一百多个耗材列表对手机没有意义
@@ -286,12 +330,34 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
         ? await readSettings(zsrc, settingsEntry)
         : {}
 
+      /*
+       * 两条路，默认走第二条：
+       *
+       * process —— 套用一整套工艺。会覆盖几十个键（包括支撑开关），所以只在
+       *   调用方明确指名时才走，并把改掉的关键项报回去。
+       * params  —— 在作者设置之上只改指定的几项。叶子几乎是空的，合并之后
+       *   生效的就只有这几个键，其余原样保留。这是界面用的那条。
+       */
       let processJson: string | undefined
       let changes: SettingChange[] = []
+      const current = fromConfig(modelSettings)
+
       if (body.process) {
         const flat = await profiles.mergedProcess(proc)
         processJson = JSON.stringify(flat, null, 1)
         changes = notableChanges(modelSettings, flat)
+      } else if (body.params) {
+        // 界面会把所有字段都发上来（它拿作者的值做默认），只留真正变了的
+        const want = changedOnly(body.params, current)
+        const keys = toConfigKeys(want, nozzle)
+        if (Object.keys(keys).length) {
+          processJson = JSON.stringify(await profiles.processWithOverrides(proc, keys), null, 1)
+          changes = Object.entries(keys).map(([key, to]) => ({
+            key,
+            from: scalarOf(modelSettings[key]),
+            to,
+          }))
+        }
       }
 
       let filaments: ProfileRef[]
@@ -339,7 +405,7 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
       return reply.code(202).send({
         ...job,
         process: proc.name,
-        /** true = 真正应用了这套工艺；false = 沿用模型作者自己的打印设置 */
+        /** true = 套用了整套工艺；false = 以作者设置为底，最多改了 changes 里那几项 */
         processApplied: !!body.process,
         /**
          * 这套工艺改掉了模型里的哪些关键设置。
@@ -352,6 +418,7 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
         willWriteTo: outputPath(source),
       })
     } catch (e) {
+      if (e instanceof ParamError) return reply.code(400).send({ error: e.message })
       if (e instanceof SliceBusyError) return reply.code(409).send({ error: e.message })
       if (e instanceof SliceRequestError) return reply.code(e.status).send({ error: e.message })
       if (e instanceof SlicerUnavailableError) return reply.code(503).send({ error: e.message })

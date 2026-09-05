@@ -431,3 +431,124 @@ test('单元素数组按标量比，不会误报成改动', async () => {
     [{ key: 'wall_loops', from: '3', to: '2' }],
   )
 })
+
+// ---- 在作者设置之上逐项覆盖 ----
+
+/*
+ * 这条路子成立靠的是 CLI「只应用文件里字面存在的键」那个特性：把覆盖项合并进
+ * 几乎是空的工艺叶子，就只有这几个键生效。实测只覆盖 layer_height=0.12 时，
+ * 产物里 enable_support 仍是作者的 1、support_type 仍是 tree(auto)、
+ * wall_loops 仍是 3、填充仍是 15%。
+ */
+test('参数转成配置里的字面格式', async () => {
+  const { toConfigKeys } = await import('../src/slice/overrides.js')
+  assert.deepEqual(
+    toConfigKeys({ layerHeight: 0.12, infillDensity: 25, wallLoops: 4, supports: true, brim: false }, 0.4),
+    {
+      layer_height: '0.12',
+      sparse_infill_density: '25%',
+      wall_loops: '4',
+      enable_support: '1',
+      brim_type: 'no_brim',
+    },
+  )
+})
+
+test('没给的参数不写进去 —— 写了就等于覆盖了作者的值', async () => {
+  const { toConfigKeys } = await import('../src/slice/overrides.js')
+  assert.deepEqual(toConfigKeys({ layerHeight: 0.2 }, 0.4), { layer_height: '0.2' })
+  assert.deepEqual(toConfigKeys({}, 0.4), {})
+})
+
+/*
+ * 上限切片器自己会拒（Layer height cannot exceed nozzle diameter），但下限不会 ——
+ * 层高填 0.01 它会老老实实去切五千多层，跑很久而机器上什么都没发生。
+ * 所以这一关得服务端自己把住，而且要失败得快。
+ */
+test('层高超出喷嘴能力时直接拒绝', async () => {
+  const { toConfigKeys, ParamError } = await import('../src/slice/overrides.js')
+  assert.throws(() => toConfigKeys({ layerHeight: 0.5 }, 0.4), ParamError)
+  assert.throws(() => toConfigKeys({ layerHeight: 0.01 }, 0.4), /0.08-0.3/)
+  assert.throws(() => toConfigKeys({ layerHeight: NaN }, 0.4), /不是一个数/)
+})
+
+test('层高区间随喷嘴口径变', async () => {
+  const { layerRange, toConfigKeys } = await import('../src/slice/overrides.js')
+  assert.deepEqual(layerRange(0.4), { min: 0.08, max: 0.3 })
+  assert.deepEqual(layerRange(0.8), { min: 0.16, max: 0.6 })
+  // 0.4 喷嘴打不了的层高，0.8 喷嘴可以
+  assert.deepEqual(toConfigKeys({ layerHeight: 0.4 }, 0.8), { layer_height: '0.4' })
+})
+
+test('填充和壁圈数的范围也把住', async () => {
+  const { toConfigKeys } = await import('../src/slice/overrides.js')
+  assert.throws(() => toConfigKeys({ infillDensity: 150 }, 0.4), /0-100/)
+  assert.throws(() => toConfigKeys({ infillDensity: -1 }, 0.4), /0-100/)
+  assert.throws(() => toConfigKeys({ wallLoops: 0 }, 0.4), /1-10/)
+  assert.throws(() => toConfigKeys({ wallLoops: 2.5 }, 0.4), /整数/)
+  // 边界值要放行
+  assert.deepEqual(toConfigKeys({ infillDensity: 0 }, 0.4), { sparse_infill_density: '0%' })
+  assert.deepEqual(toConfigKeys({ infillDensity: 100 }, 0.4), { sparse_infill_density: '100%' })
+})
+
+test('读出作者定的参数，给界面做默认值', async () => {
+  const { fromConfig } = await import('../src/slice/overrides.js')
+  assert.deepEqual(
+    fromConfig({
+      layer_height: '0.2',
+      sparse_infill_density: '15%',
+      wall_loops: '3',
+      enable_support: '1',
+      brim_type: 'auto_brim',
+    }),
+    { layerHeight: 0.2, infillDensity: 15, wallLoops: 3, supports: true, brim: true },
+  )
+})
+
+test('作者的配置里没有的项就不给默认值，别瞎猜', async () => {
+  const { fromConfig } = await import('../src/slice/overrides.js')
+  assert.deepEqual(fromConfig({}), {})
+  assert.deepEqual(fromConfig({ layer_height: ['0.16'] }), { layerHeight: 0.16 }, '单元素数组也认')
+})
+
+/*
+ * 界面会把所有字段都发上来（它拿作者的值做默认值）。照单全收的话，每次都会
+ * 写进一堆其实没变的键 —— 那样「这次改了什么」这个信息就是假的，而且产物
+ * 跟不改参数时会有无谓的差异。
+ */
+test('只留真正改动的项', async () => {
+  const { changedOnly } = await import('../src/slice/overrides.js')
+  const author = { layerHeight: 0.2, infillDensity: 15, supports: true, wallLoops: 3 }
+  assert.deepEqual(changedOnly({ ...author }, author), {}, '一项没改就该是空的')
+  assert.deepEqual(
+    changedOnly({ ...author, layerHeight: 0.12 }, author),
+    { layerHeight: 0.12 },
+  )
+  assert.deepEqual(
+    changedOnly({ ...author, supports: false }, author),
+    { supports: false },
+    'false 是有效值，不能被当成没填',
+  )
+})
+
+test('浮点比较不被精度坑到', async () => {
+  const { changedOnly } = await import('../src/slice/overrides.js')
+  assert.deepEqual(changedOnly({ layerHeight: 0.1 + 0.2 }, { layerHeight: 0.3 }), {})
+})
+
+/*
+ * `Number('')` 是 0 而不是 NaN。填充密度 0 又是个合法取值，所以光看数字分不出
+ * 「作者设成了 0」和「作者根本没设」—— 后者被读成 0 的话，界面会显示一个
+ * 作者从没定过的默认值，用户照着确认下去就真按 0% 切了。
+ */
+test('空串不能被读成 0', async () => {
+  const { fromConfig } = await import('../src/slice/overrides.js')
+  assert.deepEqual(fromConfig({ sparse_infill_density: '' }), {})
+  assert.deepEqual(fromConfig({ sparse_infill_density: '   ' }), {})
+  assert.deepEqual(fromConfig({ sparse_infill_density: [] }), {})
+  assert.deepEqual(
+    fromConfig({ sparse_infill_density: '0%' }),
+    { infillDensity: 0 },
+    '真的写了 0% 就要认',
+  )
+})

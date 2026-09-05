@@ -224,13 +224,31 @@ export class Profiles {
   /**
    * 摊平后的工艺 profile。
    *
-   * **只在用户显式选了工艺时才用。** 默认不传摊平版是有意的：模型自带的
+   * **只在用户显式选了整套工艺时才用。** 默认不摊平是有意的：模型自带的
    * project_settings 是作者调好的，而摊平的标准 profile 会覆盖 67 个键，
    * 其中包括 `enable_support: 1 → 0` —— 把作者开的支撑关掉，悬空处直接打废。
-   * 默认传未摊平的叶子，它几乎不定义什么键，等于不覆盖，作者的设置原样保留。
    */
   async mergedProcess(ref: ProfileRef): Promise<Record<string, unknown>> {
     return flattenChain(this.dir('process'), ref.name)
+  }
+
+  /**
+   * 逐项覆盖用的工艺 profile：那个几乎是空的叶子，加上用户改动的几个键。
+   *
+   * 这是**默认路径**。叶子本身只有五十来个键且不含层高、支撑这些，所以合并
+   * 之后生效的实际就只有 overrides 里那几项，作者的其余设置原样保留 ——
+   * 实测只覆盖 layer_height 时，enable_support / support_type / wall_loops /
+   * 填充都还是作者的值。
+   *
+   * 不能另开一个文件叠上去：`--load-settings` 每种类型只收一个，多给会被
+   * `duplicate process config file` 拒掉。
+   */
+  async processWithOverrides(
+    ref: ProfileRef,
+    overrides: Record<string, string>,
+  ): Promise<Record<string, unknown>> {
+    const leaf = JSON.parse(await readFile(ref.file, 'utf8')) as Record<string, unknown>
+    return { ...leaf, ...overrides }
   }
 
   /**

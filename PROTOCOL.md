@@ -1128,6 +1128,30 @@ keys, including `enable_support: 1 → 0`. Silently turning off supports the aut
 will wreck an overhang. Bambu Studio shows the checkbox changing when you switch presets;
 a CLI pipeline has to surface that difference deliberately or not override at all.
 
+**Per-setting overrides fall out of the same rule, and are the safer way to expose
+control.** Since only literally-present keys apply, merging a handful of keys into the
+(nearly empty, 52-key) process leaf overrides exactly those and nothing else. Verified:
+overriding `layer_height` to 0.12 left `enable_support` at the author's 1, `support_type`
+at `tree(auto)`, `wall_loops` at 3 and infill at 15%, and the layer count moved 272 → 453.
+Someone asking for thinner layers does not thereby ask to lose the supports the author
+enabled — a whole-preset swap cannot express that, an override can.
+
+Do not try to stack an extra overlay file for this; `--load-settings` accepts one file per
+type and rejects a second with `duplicate process config file`. Merge into the one file.
+
+The slicer does validate override values, but not all of them usefully:
+
+| Override | Result |
+|---|---|
+| `layer_height` above nozzle diameter | rejected — `Layer height cannot exceed nozzle diameter` |
+| `layer_height` non-numeric | rejected — `Invalid value provided for parameter layer_height` |
+| `sparse_infill_density: 150%` | rejected — `not in range [0.000000,100.000000]` |
+| `layer_height: 0.01` | **accepted** — grinds through thousands of layers |
+
+That last row is the one worth guarding server-side: it is not an error, just minutes of
+CPU for a file nobody wants. Clamping layer height to 20–75% of nozzle diameter covers it
+and fails in milliseconds instead.
+
 Passing no process profile is not an option — the CLI then looks for the one the model
 names and fails:
 

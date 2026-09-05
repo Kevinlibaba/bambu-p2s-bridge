@@ -453,21 +453,38 @@ export interface SliceJob {
   willWriteTo?: string
 }
 
+/** 用户能改的几项。不填的一律沿用模型作者的设置 */
+export interface SliceParams {
+  layerHeight?: number
+  infillDensity?: number
+  supports?: boolean
+  wallLoops?: number
+  brim?: boolean
+}
+
 export interface SliceOptions {
   available: boolean
   nozzle: number
   processes: string[]
   defaultProcess: string
+  /** 层高的合法区间，随喷嘴口径变 */
+  layerRange: { min: number; max: number }
+  /** 模型作者定的参数，界面拿它做默认值。读不出来时为 null */
+  current: SliceParams | null
   amsFilaments: { trayInfoIdx: string; type: string; profile: string | null }[]
 }
 
-export const fetchSliceOptions = () => request<SliceOptions>('/api/slice/options')
+/** 带上 path 才会返回该模型作者的设置 */
+export const fetchSliceOptions = (path?: string) =>
+  request<SliceOptions>(`/api/slice/options${path ? `?path=${encodeURIComponent(path)}` : ''}`)
 
 /**
  * 提交切片。立刻返回任务号，之后靠轮询 —— 切片要几十秒到几分钟，
  * 手机上挂着这么长的请求，锁屏或切网就断了。
  */
-export const startSlice = (req: { path: string; plate?: number; process?: string }) =>
+export const startSlice = (
+  req: { path: string; plate?: number; process?: string; params?: SliceParams },
+) =>
   request<SliceJob>('/api/slice', { method: 'POST', data: req })
 
 export const fetchSliceJob = (id: string) => request<SliceJob>(`/api/slice/jobs/${id}`)
