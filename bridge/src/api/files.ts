@@ -24,7 +24,7 @@ import {
   describeThreeMf,
   plateImageEntry,
 } from '../printer/threemf.js'
-import { PlateCache, QueueFullError } from './platecache.js'
+import { plateCache, QueueFullError } from './platecache.js'
 
 /** 该盘没有预览图。缓存层不区分错误类型，用一个自有类型传出来 */
 class NoPlateImage extends Error {
@@ -38,7 +38,6 @@ class NoPlateImage extends Error {
  * 进程级共享。缩略图在历史列表里会被整屏同时索取，缓存必须跨请求存活，
  * 否则合并在途请求这件事根本无从谈起。
  */
-const plateCache = new PlateCache()
 
 export interface FileBackend {
   listDir(path: string): Promise<ftp.RemoteFile[]>
@@ -69,6 +68,9 @@ const ZIP_TAIL_BYTES = 96 * 1024
  * 缓存的是中央目录，不是文件内容 —— 主要为了让紧随元数据之后的取图请求不再读一次尾部。
  * 存活时间刻意压得很短：包被同名覆盖后，旧的偏移量会指向错的位置。
  */
+/** 列目录后预热多少个模型的预览图。列表靠前的那几个最可能被点开 */
+const WARM_MAX = 12
+
 const ZIP_CACHE_TTL_MS = 60 * 1000
 const ZIP_CACHE_MAX = 8
 
@@ -118,6 +120,50 @@ export function registerFileRoutes(
 ): void {
   const zipCache = new Map<string, ZipCacheItem>()
 
+  /** 取某一盘的预览图，走 plateCache（缓存 + 合并在途 + 限流） */
+  function loadPlate(path: string, plate: number) {
+    return plateCache.get(`${path}|${plate}`, async () => {
+      const { src, entries } = await openZip(path)
+      const entry = plateImageEntry(entries, plate)
+      if (!entry) throw new NoPlateImage()
+      return {
+        data: await readEntry(src, entry, MAX_PLATE_IMAGE_BYTES),
+        contentType: 'image/png',
+      }
+    })
+  }
+
+  /*
+   * 列目录时把前面几个模型的第一盘预览图提前取好。
+   *
+   * 首次打开一个文件，预览图要两次 FTP 读，实测约 200ms；列表刚出来时用户
+   * 大概率会点靠前的那几个。这里在后台**串行、一次一张**地预热 —— 只占
+   * 打印机 4 个并发读里的 1 个、PlateCache 2 个在途里的 1 个，用户真点开时
+   * 的请求不会被它挤住。已经在缓存里的直接跳过，所以反复进文件页几乎没开销。
+   */
+  let warming = false
+  async function warmPlates(dir: string, names: string[]): Promise<void> {
+    if (warming) return
+    warming = true
+    try {
+      for (const name of names.slice(0, WARM_MAX)) {
+        const path = dir === '/' ? `/${name}` : `${dir}/${name}`
+        if (plateCache.has(`${path}|1`)) continue
+        await loadPlate(path, 1).catch(() => {
+          /* 没图、坏包、打印机忙 —— 预热失败无所谓，真点开时会再试 */
+        })
+      }
+    } finally {
+      warming = false
+    }
+  }
+
+  /** 这个路径上的文件变了（写入/删除），两层缓存都不能再信 */
+  function forget(path: string): void {
+    zipCache.delete(path)
+    plateCache.invalidate(path)
+  }
+
   function queryPath(req: FastifyRequest): string {
     const raw = (req.query as Record<string, unknown> | undefined)?.path
     if (typeof raw !== 'string' || raw === '') throw new BadRequest('缺少 path')
@@ -152,6 +198,12 @@ export function registerFileRoutes(
     }
     try {
       const files = await backend.listDir(path)
+      void warmPlates(
+        path,
+        files
+          .filter((f) => !f.isDirectory && !f.name.startsWith('._') && /\.3mf$/i.test(f.name))
+          .map((f) => f.name),
+      )
       // 给切片文件补上「上次打印时间」，界面据此排序。
       // 这是个只读的内存查表，不额外访问打印机。
       return {
@@ -307,20 +359,20 @@ export function registerFileRoutes(
        * 走缓存。历史列表一屏七八张缩略图，每张要两次 FTP 读，而打印机
        * 同时只接受 4 个 —— 不缓存不合并的话整屏一起 503。
        */
-      const img = await plateCache.get(`${path}|${plate}`, async () => {
-        const { src, entries } = await openZip(path)
-        const entry = plateImageEntry(entries, plate)
-        if (!entry) throw new NoPlateImage()
-        return {
-          data: await readEntry(src, entry, MAX_PLATE_IMAGE_BYTES),
-          contentType: 'image/png',
-        }
-      })
+      const img = await loadPlate(path, plate)
+      /*
+       * max-age 内浏览器不发请求；过期之后带 ETag 来问一句，没变就回 304 不带
+       * body。实测历史页一屏八张缩略图 84KB，没有 ETag 的话每过一次 max-age
+       * 就整个重下。max-age 故意不放长：同名重传后 max-age 内浏览器根本不来问。
+       */
+      reply.header('etag', img.etag).header('cache-control', 'private, max-age=300')
+      const inm = req.headers['if-none-match']
+      if (inm && inm.split(',').some((t) => t.trim() === img.etag)) {
+        return reply.code(304).send()
+      }
       return reply
         .header('content-type', img.contentType)
         .header('content-length', String(img.data.length))
-        // 包内容按路径固定，短缓存能挡掉切盘时的重复取图
-        .header('cache-control', 'private, max-age=300')
         .send(img.data)
     } catch (e) {
       return fail(reply, e)
@@ -340,7 +392,7 @@ export function registerFileRoutes(
       return info
     } catch (e) {
       await backend.remove(path).catch(() => {})
-      zipCache.delete(path)
+      forget(path)
       throw e
     }
   }
@@ -354,6 +406,7 @@ export function registerFileRoutes(
       const name = safeName(mp.filename)
       const path = '/' + name
       await backend.uploadStream(path, mp.file)
+      forget(path) // 同名重传：不然 verify 会去校验缓存里旧的中央目录，预览也一直是旧图
       const info = await verifyOrRemove(path)
       return { path, name, size: await backend.stat(path).catch(() => 0), ...info }
     } catch (e) {
@@ -399,6 +452,7 @@ export function registerFileRoutes(
         path,
         Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]),
       )
+      forget(path)
       const info = await verifyOrRemove(path)
       return { path, name, size: await backend.stat(path).catch(() => 0), ...info }
     } catch (e) {
@@ -410,7 +464,7 @@ export function registerFileRoutes(
     try {
       const path = queryPath(req)
       await backend.remove(path)
-      zipCache.delete(path)
+      forget(path)
       return { ok: true, path }
     } catch (e) {
       return fail(reply, e)

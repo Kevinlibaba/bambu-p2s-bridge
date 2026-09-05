@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto'
+
 /**
  * 盘预览图的缓存。
  *
@@ -12,9 +14,23 @@
  *    让它们陆续出现，而不是一起失败。
  */
 
-export interface PlateImage {
+/** 取图函数交回来的东西。ETag 由缓存自己算，调用方不必操心 */
+export interface LoadedImage {
   data: Buffer
   contentType: string
+}
+
+export interface PlateImage extends LoadedImage {
+  /**
+   * 内容哈希，用作 HTTP 的 ETag。浏览器本地缓存过期之后可以只问一句
+   * 「还是这张吗」，没变就回 304 不带 body —— 而不是整张重下。
+   */
+  etag: string
+}
+
+/** 只用来判断「变没变」，不承担安全职责，截短即可 */
+function hashOf(data: Buffer): string {
+  return `"${createHash('sha1').update(data).digest('base64url').slice(0, 22)}"`
 }
 
 interface Entry extends PlateImage {
@@ -53,16 +69,34 @@ export class PlateCache {
     // 重新插一遍，让最近用过的排到后面 —— 淘汰时从最前面丢
     this.entries.delete(key)
     this.entries.set(key, e)
-    return { data: e.data, contentType: e.contentType }
+    return { data: e.data, contentType: e.contentType, etag: e.etag }
   }
 
-  private store(key: string, img: PlateImage): void {
-    this.entries.set(key, { ...img, at: Date.now() })
+  private store(key: string, img: LoadedImage): PlateImage {
+    const full: PlateImage = { ...img, etag: hashOf(img.data) }
+    this.entries.set(key, { ...full, at: Date.now() })
     while (this.entries.size > this.maxEntries) {
       const oldest = this.entries.keys().next()
       if (oldest.done) break
       this.entries.delete(oldest.value)
     }
+    return full
+  }
+
+  /** 缓存里有没有这一张（且没过期）。预热时用来跳过已有的 */
+  has(key: string): boolean {
+    return this.hit(key) !== null
+  }
+
+  /**
+   * 忘掉某个文件的所有盘。
+   *
+   * 文件被同名重传、删除、或切片产物落盘时必须调 —— 否则 TTL 内一直是旧图，
+   * 而这恰恰是用户在这个 App 里自己做的操作，看到旧图会以为没成功。
+   */
+  invalidate(path: string): void {
+    const prefix = `${path}|`
+    for (const k of [...this.entries.keys()]) if (k.startsWith(prefix)) this.entries.delete(k)
   }
 
   private acquire(): Promise<void> {
@@ -87,7 +121,7 @@ export class PlateCache {
   }
 
   /** @param load 真正去打印机取。只有缓存未命中且没有同 key 在途时才会被调用 */
-  async get(key: string, load: () => Promise<PlateImage>): Promise<PlateImage> {
+  async get(key: string, load: () => Promise<LoadedImage>): Promise<PlateImage> {
     const cached = this.hit(key)
     if (cached) return cached
 
@@ -100,9 +134,7 @@ export class PlateCache {
         // 排队期间可能已经有人把它取回来了
         const again = this.hit(key)
         if (again) return again
-        const img = await load()
-        this.store(key, img)
-        return img
+        return this.store(key, await load())
       } finally {
         this.release()
       }
@@ -121,6 +153,12 @@ export class PlateCache {
     return this.entries.size
   }
 }
+
+/**
+ * 全局唯一一份。files.ts 的取图路由和 slice.ts 的产物落盘都要碰它 ——
+ * 后者写完文件得让对应的预览失效。
+ */
+export const plateCache = new PlateCache()
 
 export class QueueFullError extends Error {
   constructor() {

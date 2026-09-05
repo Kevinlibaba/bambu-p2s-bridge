@@ -95,3 +95,38 @@ test('一次失败不会连累同时在等的其它 key', async () => {
   await assert.rejects(() => bad, /boom/)
   assert.equal((await good).data.toString(), 'fine', '限流槽位要被正确释放')
 })
+
+// ---- ETag / 失效 ----
+
+test('同一张图前后 ETag 一致，不同的图不同 —— 否则 304 永远命中不了', async () => {
+  const c = new PlateCache()
+  const a1 = await c.get('a', async () => ({ data: Buffer.from('图A'), contentType: 'image/png' }))
+  const a2 = await c.get('a', async () => { throw new Error('不该再取') })
+  const b1 = await c.get('b', async () => ({ data: Buffer.from('图B'), contentType: 'image/png' }))
+  assert.equal(a1.etag, a2.etag)
+  assert.notEqual(a1.etag, b1.etag)
+  assert.match(a1.etag, /^"[A-Za-z0-9_-]+"$/, 'HTTP 的 ETag 要带引号')
+})
+
+/*
+ * 同名重传后内容变了，ETag 必须跟着变，缓存也必须先被清掉 ——
+ * 否则 TTL 内一直是旧图，而那正是用户自己在 App 里做的操作。
+ */
+test('invalidate 之后重新取，内容变了 ETag 就变', async () => {
+  const c = new PlateCache()
+  const one = await c.get('/x.3mf|1', async () => ({ data: Buffer.from('旧'), contentType: 'image/png' }))
+  await c.get('/x.3mf|2', async () => ({ data: Buffer.from('第二盘'), contentType: 'image/png' }))
+  await c.get('/y.3mf|1', async () => ({ data: Buffer.from('别的文件'), contentType: 'image/png' }))
+  c.invalidate('/x.3mf')
+  assert.equal(c.has('/x.3mf|1'), false)
+  assert.equal(c.has('/x.3mf|2'), false, '同一文件的所有盘都要清')
+  assert.equal(c.has('/y.3mf|1'), true, '别的文件不受影响')
+  const two = await c.get('/x.3mf|1', async () => ({ data: Buffer.from('新'), contentType: 'image/png' }))
+  assert.notEqual(one.etag, two.etag)
+})
+
+test('has 只认没过期的', async () => {
+  const c = new PlateCache(48, -1) // 负 TTL 强制过期；给 0 同一毫秒内 0>0 为假仍算命中
+  await c.get('k', async () => ({ data: Buffer.from('x'), contentType: 'image/png' }))
+  assert.equal(c.has('k'), false)
+})

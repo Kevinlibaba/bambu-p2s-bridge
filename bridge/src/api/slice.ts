@@ -26,6 +26,7 @@ import {
 } from '../slice/overrides.js'
 import { postprocess } from '../slice/postprocess.js'
 import { verifyModel } from '../slice/verify.js'
+import { plateCache } from './platecache.js'
 import { SliceQueue, SliceBusyError } from '../slice/job.js'
 import {
   readCentralDirectory, readEntry, withTail, type ZipEntry, type ZipSource,
@@ -266,6 +267,8 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
     upload: async (file, source) => {
       const target = outputPath(source)
       await ftp.upload(target, await readFile(file))
+      // 产物可能覆盖同名旧文件，旧的预览图不能再用
+      plateCache.invalidate(target)
       return target
     },
     cleanup: async (workDir) => {

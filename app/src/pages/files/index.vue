@@ -219,8 +219,20 @@ const posterUrl = computed(() => {
 })
 
 const plate = computed(() => model.value?.plates[plateIdx.value] ?? null)
-const plateUrl = computed(() =>
-  plate.value?.hasThumbnail ? api.plateUrl(selPath.value, plate.value.index) : '')
+
+/*
+ * 元数据回来之前就先按当前盘号把图要过去。
+ *
+ * 之前要等 /api/files/3mf 回来、看到 hasThumbnail 才发图片请求，图片的加载被
+ * 整个串在元数据后面 —— 实测白等 260-400ms，而图片本身几十毫秒就到。
+ * 猜错（这个盘没有图）就是一次 404，@error 把它藏起来退回占位。
+ */
+const imgFailed = ref(false)
+const plateUrl = computed(() => {
+  if (selKind.value !== 'model' || !selPath.value || imgFailed.value) return ''
+  if (!model.value) return api.plateUrl(selPath.value, plateIdx.value + 1)
+  return plate.value?.hasThumbnail ? api.plateUrl(selPath.value, plate.value.index) : ''
+})
 
 // ---- 盘的切换 ----
 const plateCount = computed(() => model.value?.plates.length ?? 0)
@@ -228,7 +240,7 @@ const canPrev = computed(() => plateIdx.value > 0)
 const canNext = computed(() => plateIdx.value < plateCount.value - 1)
 function goPlate(delta: number) {
   const next = plateIdx.value + delta
-  if (next >= 0 && next < plateCount.value) plateIdx.value = next
+  if (next >= 0 && next < plateCount.value) { plateIdx.value = next; imgFailed.value = false }
 }
 
 /*
@@ -379,7 +391,7 @@ function looksUnsliced(name: string): boolean {
 function open(f: RemoteFile) {
   if (f.isDirectory) { load(join(path.value, f.name)); return }
   sel.value = f
-  model.value = null; modelError.value = ''; plateIdx.value = 0
+  model.value = null; modelError.value = ''; plateIdx.value = 0; imgFailed.value = false
   if (kindOf(f.name) !== 'model') return
   void loadModel()
   // 跟模型信息、自检并行去取，别排在它们后面
@@ -805,14 +817,12 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 
       <!-- 3MF：包内渲染图 + slice_info.config -->
       <template v-else-if="selKind === 'model'">
-        <view v-if="modelLoading" class="ph-box"><Spinner :size="40" /></view>
-        <view v-else-if="modelError" class="ph-box"><text class="ph-t err">{{ modelError }}</text></view>
-        <template v-else-if="model">
-
-          <view v-if="plateUrl" class="plate-wrap"
-            @touchstart="onPlateTouchStart" @touchend="onPlateTouchEnd">
-            <image class="plate" :src="plateUrl" mode="aspectFit" />
-            <template v-if="plateCount > 1">
+        <!-- 预览图先挂上，不等元数据；.plate 有固定高度，本身就是占位框 -->
+        <view v-if="modelError" class="ph-box"><text class="ph-t err">{{ modelError }}</text></view>
+        <view v-else-if="plateUrl" class="plate-wrap"
+          @touchstart="onPlateTouchStart" @touchend="onPlateTouchEnd">
+          <image class="plate" :src="plateUrl" mode="aspectFit" @error="imgFailed = true" />
+          <template v-if="plateCount > 1">
               <view class="nav prev" :class="{ off: !canPrev }"
                 :aria-label="t('files.prevPlate')" @click.stop="goPlate(-1)">
                 <text class="nav-t">‹</text>
@@ -822,9 +832,11 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
                 <text class="nav-t">›</text>
               </view>
               <view class="pager"><text class="pager-t">{{ plateIdx + 1 }} / {{ plateCount }}</text></view>
-            </template>
-          </view>
-          <view v-else class="ph-box"><text class="ph-t">{{ t('files.noPreview') }}</text></view>
+          </template>
+        </view>
+        <view v-else-if="modelLoading" class="ph-box"><Spinner :size="40" /></view>
+        <view v-else class="ph-box"><text class="ph-t">{{ t('files.noPreview') }}</text></view>
+        <template v-if="model">
 
           <view v-if="plate" class="card sheet-card">
             <view v-if="plate.prediction" class="line">
