@@ -254,6 +254,7 @@
     "phase": {
       "queued": "Queued",
       "downloading": "Fetching",
+      "verifying": "Verifying",
       "slicing": "Slicing",
       "patching": "Patching",
       "uploading": "Uploading",

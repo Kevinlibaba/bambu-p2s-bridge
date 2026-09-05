@@ -19,6 +19,7 @@ import type { PrinterState } from '../printer/state.js'
 import { Profiles, SlicerUnavailableError, type ProfileRef } from '../slice/profiles.js'
 import { runSlice } from '../slice/run.js'
 import { postprocess } from '../slice/postprocess.js'
+import { verifyModel } from '../slice/verify.js'
 import { SliceQueue, SliceBusyError } from '../slice/job.js'
 import { readCentralDirectory, readEntry, withTail, type ZipSource } from '../util/zip.js'
 
@@ -161,6 +162,7 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
       await writeFile(local, await ftp.download(source))
       return local
     },
+    verify: verifyModel,
     patch: async (file) => {
       await postprocess(file)
     },

@@ -12,7 +12,8 @@
  * 任务记录只在内存里。重启就没了 —— 这是有意的：重启后那个半成品也没了，
  * 留一条「进行中」的假记录只会误导人。
  */
-export type SlicePhase = 'queued' | 'downloading' | 'slicing' | 'patching' | 'uploading' | 'done' | 'failed'
+export type SlicePhase =
+  | 'queued' | 'downloading' | 'verifying' | 'slicing' | 'patching' | 'uploading' | 'done' | 'failed'
 
 export interface SliceJob {
   id: string
@@ -41,6 +42,14 @@ export type SliceFn = (model: string, workDir: string) => Promise<{ file: string
 export interface SliceSteps {
   /** 把源文件从打印机取到本地，返回本地路径 */
   download: (source: string, workDir: string) => Promise<string>
+  /**
+   * 取回来之后先验完整性再切。
+   *
+   * 切片器碰到损坏的文件只会报 XML 解析错（`not well-formed at line 28283`），
+   * 那句话会把人引向「模型有问题」，而实际上是文件坏了 —— 该做的是重新上传。
+   * 放在切片之前，还能省掉一次几十秒的白跑。
+   */
+  verify: (file: string) => Promise<void>
   /** 补 printer_model_id 之类 */
   patch: (file: string) => Promise<void>
   /** 传回打印机，返回打印机上的路径 */
@@ -128,6 +137,9 @@ export class SliceQueue {
     try {
       job.phase = 'downloading'
       const model = await this.steps.download(job.source, workDir)
+
+      job.phase = 'verifying'
+      await this.steps.verify(model)
 
       job.phase = 'slicing'
       const sliced = await slice(model, workDir)

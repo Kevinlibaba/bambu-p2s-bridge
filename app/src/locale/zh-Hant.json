@@ -254,6 +254,7 @@
     "phase": {
       "queued": "排隊中",
       "downloading": "取檔案",
+      "verifying": "校驗檔案",
       "slicing": "切片中",
       "patching": "補資訊",
       "uploading": "回傳中",

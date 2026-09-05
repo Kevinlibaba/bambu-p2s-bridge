@@ -254,6 +254,7 @@
     "phase": {
       "queued": "待機中",
       "downloading": "取得中",
+      "verifying": "検証中",
       "slicing": "スライス中",
       "patching": "情報補完",
       "uploading": "転送中",

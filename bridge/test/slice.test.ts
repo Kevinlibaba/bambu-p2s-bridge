@@ -134,6 +134,7 @@ function rig(over: Partial<SliceSteps> = {}) {
   const steps: SliceSteps = {
     workDirFor: (id) => `/tmp/${id}`,
     download: async () => { calls.push('download'); return '/tmp/m.3mf' },
+    verify: async () => { calls.push('verify') },
     patch: async () => { calls.push('patch') },
     upload: async () => { calls.push('upload'); return '/out.gcode.3mf' },
     cleanup: async () => { calls.push('cleanup') },
@@ -152,7 +153,7 @@ test('走完整条链路并记下切片耗时', async () => {
   assert.notEqual(job.phase, 'done', '提交后立刻返回，不等切完')
   assert.deepEqual(r.calls, ['download'], '返回时只启动了第一步')
   await r.settle(); await r.settle()
-  assert.deepEqual(r.calls, ['download', 'slice', 'patch', 'upload', 'cleanup'])
+  assert.deepEqual(r.calls, ['download', 'verify', 'slice', 'patch', 'upload', 'cleanup'])
   assert.equal(r.q.get(job.id)!.phase, 'done')
   assert.equal(r.q.get(job.id)!.output, '/out.gcode.3mf')
   assert.equal(r.q.get(job.id)!.sliceMs, 1234)
@@ -318,4 +319,19 @@ test('连类型都不认识时退到 PLA Basic，仍然占住位置', async () =
 test('模型什么都没声明就返回空，由调用方兜底', async () => {
   const got = await filamentsForModel(LOOKUP, 0.4, { ids: [], types: [] })
   assert.deepEqual(got.picked, [])
+})
+
+/*
+ * 损坏的文件要在切片之前就被拦下。切片器碰到它只会报一句 XML 解析错误
+ * （not well-formed at line 28283），那句话会把人引向「模型有问题」，
+ * 而正确的动作是重新上传这个文件。顺带省掉一次几十秒的白跑。
+ */
+test('文件损坏时在切片之前就拦下，不白跑一次切片', async () => {
+  const r = rig({ verify: async () => { throw new Error('模型数据已损坏，请重新上传这个文件') } })
+  const job = r.q.start('/a.3mf', r.slice)
+  await r.settle(); await r.settle()
+  const j = r.q.get(job.id)!
+  assert.equal(j.phase, 'failed')
+  assert.match(j.error!, /重新上传/)
+  assert.ok(!r.calls.includes('slice'), '不该真的去切')
 })
