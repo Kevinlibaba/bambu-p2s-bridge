@@ -43,6 +43,13 @@ const BUSY = new Set(['RUNNING', 'PREPARE', 'SLICING'])
 
 /** 默认工艺。P2S 上 0.20mm Standard 是出厂默认，也是最常用的 */
 const DEFAULT_PROCESS = '0.20mm Standard @BBL P2S'
+/*
+ * 作者设置的缓存。同名文件被换掉的情况给个 TTL 兜底，不做失效通知那么复杂的东西 ——
+ * 跟 eject/source.ts 里那份缓存同样的取舍。
+ */
+const PARAMS_TTL_MS = 10 * 60_000
+const PARAMS_CACHE_MAX = 32
+
 /** project_settings.config 的读取上限。实测几十 KB */
 const MAX_SETTINGS_BYTES = 4 * 1024 * 1024
 /** 查不到对应 profile 时的兜底耗材 */
@@ -179,6 +186,13 @@ export async function filamentsForModel(
   return { picked, guessed }
 }
 
+interface ModelInfo {
+  /** 还没切过，可以切 */
+  sliceable: boolean
+  /** 作者定的打印参数，读不出来为 null */
+  params: SliceParams | null
+}
+
 /** 取标量。配置里这些键既可能写成标量，也可能是单元素数组 */
 function scalarOf(v: unknown): string {
   if (Array.isArray(v)) return v.length ? String(v[0]) : ''
@@ -198,17 +212,43 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
    * 读出模型作者定的打印参数，给界面做默认值。
    *
    * 只读尾部的中央目录再取 project_settings.config 这一个条目 —— 为了几个
-   * 数字把几十 MB 拖回来不值当。
+   * 数字把几十 MB 拖回来不值当。即便如此仍要走两三次 FTP 往返，实测约 190ms，
+   * 所以带缓存：同一个文件的作者设置不会变，而界面每次点开都要问一遍。
+   *
+   * 缓存的必要性是实测出来的 —— 不缓存的话弹层打开约 1 秒后参数卡才蹦出来，
+   * 内容往下跳一大截，看着就是卡了一下。
    */
-  async function readModelParams(source: string): Promise<SliceParams | null> {
+  const paramsCache = new Map<string, { at: number; value: ModelInfo }>()
+
+  /**
+   * 顺带回答「这个文件能不能切」。
+   *
+   * 中央目录本来就读了，判断有没有 plate_N.gcode 是白得的 —— 而界面拿这个
+   * 决定显示「切片」还是「打印」。之前它是从打印前自检里推的，那要等
+   * `/api/print/plan`（实测 550ms），比这里晚一截，参数卡就得跟着一起等。
+   */
+  async function readModelInfo(source: string): Promise<ModelInfo> {
+    const hit = paramsCache.get(source)
+    if (hit && Date.now() - hit.at < PARAMS_TTL_MS) return hit.value
+
     const tail = await ftp.readRange(source, { suffix: 96 * 1024 })
     const src: ZipSource = withTail(tail.size, tail.start, tail.data, async (a, b) =>
       (await ftp.readRange(source, { start: a, end: b })).data,
     )
     const entries = await readCentralDirectory(src)
     const e = entries.find((x) => x.name === 'Metadata/project_settings.config')
-    if (!e) return null
-    return fromConfig(await readSettings(src, e))
+    const value: ModelInfo = {
+      sliceable: !isSliced(entries.map((x) => x.name)),
+      params: e ? await readSettings(src, e).then(fromConfig) : null,
+    }
+
+    paramsCache.set(source, { at: Date.now(), value })
+    while (paramsCache.size > PARAMS_CACHE_MAX) {
+      const oldest = paramsCache.keys().next()
+      if (oldest.done) break
+      paramsCache.delete(oldest.value)
+    }
+    return value
   }
 
   const queue = new SliceQueue({
@@ -246,9 +286,9 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
        * 带上模型作者自己的设置，界面拿它做各个控件的默认值 —— 「在作者的基础上
        * 改」这件事，前提是先看得见作者定的是什么。
        */
-      let current: SliceParams | null = null
+      let info: ModelInfo | null = null
       if (req.query.path) {
-        current = await readModelParams(ftp.normalizePath(req.query.path)).catch(() => null)
+        info = await readModelInfo(ftp.normalizePath(req.query.path)).catch(() => null)
       }
 
       return {
@@ -256,7 +296,9 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
         nozzle,
         /** 层高的合法区间，随喷嘴口径变 */
         layerRange: layerRange(nozzle),
-        current,
+        /** 这个文件能不能切（已经切过的就不能）。没给 path 时为 null */
+        sliceable: info ? info.sliceable : null,
+        current: info?.params ?? null,
         processes: procs.map((p) => p.name),
         defaultProcess: DEFAULT_PROCESS,
         // 只回 AMS 里真装着的那几个，一百多个耗材列表对手机没有意义

@@ -285,7 +285,7 @@ async function loadPlan() {
    */
   planLoading.value = true
   try {
-    plan.value = await fetchPrintPlan(selPath.value, plate.value?.index ?? 1)
+    plan.value = await fetchPrintPlan(selPath.value, plateNo.value)
   } catch {
     plan.value = null // 预演失败不该挡住看文件，开打时桥接还会再校验一次
   } finally {
@@ -293,7 +293,15 @@ async function loadPlan() {
   }
 }
 
-watch([selPath, () => plate.value?.index], () => void loadPlan())
+/*
+ * 实际会用的盘号。model 还没加载出来时 plate 是空的，而请求里本来就按第 1 盘发 ——
+ * 直接 watch `plate.value?.index` 的话，它从 undefined 变成 1 会再触发一次，
+ * 两次请求的参数其实一模一样。实测因此白花 600ms，而这 600ms 正好压在
+ * 弹层刚打开、用户在看的时候。
+ */
+const plateNo = computed(() => plate.value?.index ?? 1)
+
+watch([selPath, plateNo], () => void loadPlan())
 
 const usableTrays = computed(() => (plan.value?.trays ?? []).filter((t) => !t.empty))
 
@@ -355,11 +363,27 @@ function checkText(c: PreflightCheck): string {
   return t(`files.check.${c.code}`, { ...p, slot: slotName } as Record<string, unknown>)
 }
 
+/**
+ * 光看名字像不像未切片的原始模型。
+ *
+ * 权威判断是桥接给的自检结果（notSliced），但那要等一次往返。而「要不要提前
+ * 去取切片参数」这个决定等不起 —— 等自检回来再去取，参数卡会在弹层打开约
+ * 一秒后才蹦出来，内容往下跳一大截。名字这个判据在实际文件上是准的，
+ * 猜错的代价也只是多一次（或少一次提前的）请求，卡片显不显示仍由自检说了算。
+ */
+function looksUnsliced(name: string): boolean {
+  const n = name.toLowerCase()
+  return n.endsWith('.3mf') && !n.endsWith('.gcode.3mf')
+}
+
 function open(f: RemoteFile) {
   if (f.isDirectory) { load(join(path.value, f.name)); return }
   sel.value = f
   model.value = null; modelError.value = ''; plateIdx.value = 0
-  if (kindOf(f.name) === 'model') void loadModel()
+  if (kindOf(f.name) !== 'model') return
+  void loadModel()
+  // 跟模型信息、自检并行去取，别排在它们后面
+  if (looksUnsliced(f.name)) void loadSliceOpts()
 }
 
 function close() {
@@ -506,8 +530,6 @@ async function printSelected() {
   const notSliced = checks.value.find((c) => c.code === 'notSliced')
   if (notSliced) { toast(checkText(notSliced)); return }
   if (!planReady.value) { toast(t('files.pickSlotFirst')); return }
-  const plateNo = plate.value?.index ?? 1
-
   // 自检有阻断项时，把问题原样摆出来再问一次，答应了才带 force 下发
   const stop = blockingChecks.value
   const unsliced = stop.find((c) => c.code === 'notSliced')
@@ -519,13 +541,13 @@ async function printSelected() {
   if (stop.length) {
     const list = stop.map((c) => `· ${checkText(c)}`).join('\n')
     if (!(await confirm(t('files.checkTitle'), `${list}\n\n${t('files.checkForce')}`, true))) return
-  } else if (!(await confirm(t('print.title'), t('print.desc', { name: f.name, plate: plateNo }), true))) {
+  } else if (!(await confirm(t('print.title'), t('print.desc', { name: f.name, plate: plateNo.value }), true))) {
     return
   }
 
   try {
     await startPrint({
-      path: selPath.value, plate: plateNo, slots: chosenSlots(),
+      path: selPath.value, plate: plateNo.value, slots: chosenSlots(),
       force: stop.length > 0,
     })
     toast(t('print.started'))
@@ -544,9 +566,17 @@ const sliceJob = ref<SliceJob | null>(null)
 const slicing = computed(
   () => !!sliceJob.value && !['done', 'failed'].includes(sliceJob.value.phase),
 )
-const canSlice = computed(
-  () => selKind.value === 'model' && checks.value.some((c) => c.code === 'notSliced'),
-)
+/*
+ * 能不能切，优先信 /api/slice/options —— 它读中央目录时顺手就知道了，而且跟
+ * 模型信息并行发出。退到自检结果是为了兜住文件名骗人的情况（比如叫
+ * `x.gcode.3mf` 其实没切过），那条路要等 /api/print/plan，实测慢 550ms。
+ */
+const canSlice = computed(() => {
+  if (selKind.value !== 'model') return false
+  const s = sliceOpts.value?.sliceable
+  if (s !== null && s !== undefined) return s
+  return checks.value.some((c) => c.code === 'notSliced')
+})
 /*
  * 进度只在「正看着的就是这个文件」时显示。任务是按文件路径记的，
  * 换选一个文件还看到上一个的进度会很误导。
@@ -639,8 +669,8 @@ const slicePhaseText = computed(() => {
 })
 
 /*
- * canSlice 要等自检结果回来才知道，所以挂 watch 而不是在 open() 里直接拉 ——
- * 那时还不知道这个文件是不是未切片的。
+ * 兜底：文件名叫 `x.gcode.3mf` 但其实没切过，open() 里就不会提前去拉参数。
+ * 等自检说了实话再补一次 —— 这条路慢，但它本来就是罕见情况。
  */
 watch(canSlice, (on) => {
   if (on && !sliceOpts.value) void loadSliceOpts()

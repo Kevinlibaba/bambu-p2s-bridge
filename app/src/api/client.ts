@@ -469,6 +469,8 @@ export interface SliceOptions {
   defaultProcess: string
   /** 层高的合法区间，随喷嘴口径变 */
   layerRange: { min: number; max: number }
+  /** 这个文件能不能切（已经切过的就不能）。没带 path 查询时为 null */
+  sliceable: boolean | null
   /** 模型作者定的参数，界面拿它做默认值。读不出来时为 null */
   current: SliceParams | null
   amsFilaments: { trayInfoIdx: string; type: string; profile: string | null }[]

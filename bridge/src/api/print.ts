@@ -19,7 +19,7 @@ import * as ftp from '../printer/ftp.js'
 import type { PrinterMqtt } from '../printer/mqtt.js'
 import type { PrinterState, AmsTray } from '../printer/state.js'
 import { ZipFormatError, readCentralDirectory, withTail } from '../util/zip.js'
-import { describeThreeMf } from '../printer/threemf.js'
+import { describeThreeMf, type ThreeMfInfo } from '../printer/threemf.js'
 import type { ThreeMfPlate, ThreeMfFilament } from '../printer/threemf.js'
 import { preflight, blocking, type Check } from './preflight.js'
 
@@ -127,6 +127,13 @@ export function buildMapping(
   return mapping
 }
 
+/*
+ * 3MF 解析结果的缓存参数。TTL 与 files.ts 的 zipCache 取同一个值 ——
+ * 同一份数据、同样的陈旧风险，没有理由用两套标准。
+ */
+const DESCRIBE_TTL_MS = 60 * 1000
+const DESCRIBE_CACHE_MAX = 8
+
 export function registerPrintRoutes(
   app: FastifyInstance,
   mqtt: PrinterMqtt,
@@ -134,7 +141,45 @@ export function registerPrintRoutes(
   backend: Pick<typeof ftp, 'stat' | 'readRange' | 'normalizePath'> = ftp,
 ): void {
   /** 校验路径、确认文件在卡上、定位到请求的那个盘。开打与预演共用。 */
-  async function locate(rawPath: unknown, rawPlate: unknown) {
+  /*
+   * 3MF 的解析结果缓存。
+   *
+   * 打开一个文件的预览要同时打 /api/files/3mf、/api/print/plan、/api/slice/options，
+   * 三个都在读同一个文件的同一份中央目录。前两个之前各读各的，实测 plan 要
+   * 550ms，而它回来之前弹层里的自检、以及依赖自检的东西都得等着 —— 界面上
+   * 就是内容一跳一跳地长出来。
+   *
+   * 只缓存 3mf 里的东西（盘、耗材），不碰 AMS 料盘状态 —— 那个必须是实时的。
+   * TTL 与 files.ts 里的 zipCache 取同一个值，保持一致的陈旧容忍度。
+   */
+  const describeCache = new Map<string, { at: number; info: ThreeMfInfo }>()
+
+  async function describe(path: string, fresh = false): Promise<ThreeMfInfo> {
+    const hit = describeCache.get(path)
+    if (!fresh && hit && Date.now() - hit.at < DESCRIBE_TTL_MS) return hit.info
+
+    const read = async (start: number, end: number) =>
+      (await backend.readRange(path, { start, end })).data
+    const tail = await backend.readRange(path, { suffix: 96 * 1024 })
+    const src = withTail(tail.size, tail.start, tail.data, read)
+    const entries = await readCentralDirectory(src)
+    const info = await describeThreeMf(src, entries)
+
+    describeCache.set(path, { at: Date.now(), info })
+    while (describeCache.size > DESCRIBE_CACHE_MAX) {
+      const oldest = describeCache.keys().next()
+      if (oldest.done) break
+      describeCache.delete(oldest.value)
+    }
+    return info
+  }
+
+  /**
+   * @param fresh 跳过缓存重新读。**开打这条路必须传 true** —— 同名文件被换掉
+   *   之后，拿旧的耗材信息去配 AMS 映射会真的按错的料打出来。预览读到略旧的
+   *   信息只是显示问题，开打不是。
+   */
+  async function locate(rawPath: unknown, rawPlate: unknown, fresh = false) {
     let path: string
     try {
       path = backend.normalizePath(String(rawPath ?? ''))
@@ -155,12 +200,7 @@ export function registerPrintRoutes(
     let plateCount = 0
     let target: ThreeMfPlate | undefined
     try {
-      const read = async (start: number, end: number) =>
-        (await backend.readRange(path, { start, end })).data
-      const tail = await backend.readRange(path, { suffix: 96 * 1024 })
-      const src = withTail(tail.size, tail.start, tail.data, read)
-      const entries = await readCentralDirectory(src)
-      const info = await describeThreeMf(src, entries)
+      const info = await describe(path, fresh)
       plateCount = info.plates.length
       target = info.plates.find((p) => p.index === plate)
     } catch (e) {
@@ -247,7 +287,8 @@ export function registerPrintRoutes(
       }
       if (!mqtt.connected) throw new PrintError('打印机未连接', 503)
 
-      const { path, plate, plateCount, target } = await locate(body.path, body.plate ?? 1)
+      // 开打不吃缓存：这一步是不可逆的，必须照文件此刻的真实内容来
+      const { path, plate, plateCount, target } = await locate(body.path, body.plate ?? 1, true)
 
       const trays = state.summary().ams
 

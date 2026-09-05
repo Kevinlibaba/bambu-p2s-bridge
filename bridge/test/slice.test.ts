@@ -552,3 +552,23 @@ test('空串不能被读成 0', async () => {
     '真的写了 0% 就要认',
   )
 })
+
+/*
+ * 打开一个文件的预览会同时打三个接口，都在读同一份中央目录。缓存是为了
+ * 让第二次打开不再重复这几次 FTP 往返 —— 实测参数卡的出现时间因此从
+ * 580ms 降到 88ms。但缓存只该用在「看」上：同名文件被换掉之后，拿旧的耗材
+ * 信息去配 AMS 映射会真的按错的料打出来。
+ */
+test('缓存只服务预览，开打必须读新的', async () => {
+  const { readFileSync } = await import('node:fs')
+  const src = readFileSync(
+    new URL('../src/api/print.ts', import.meta.url),
+    'utf8',
+  )
+  assert.match(
+    src,
+    /locate\(body\.path, body\.plate \?\? 1, true\)/,
+    '开打那条路要传 fresh=true 跳过缓存',
+  )
+  assert.match(src, /async function describe\(path: string, fresh = false\)/)
+})
