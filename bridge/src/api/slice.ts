@@ -16,12 +16,17 @@ import path from 'node:path'
 import { config } from '../config.js'
 import * as ftp from '../printer/ftp.js'
 import type { PrinterState } from '../printer/state.js'
-import { Profiles, SlicerUnavailableError, type ProfileRef } from '../slice/profiles.js'
+import {
+  Profiles, SlicerUnavailableError, notableChanges,
+  type ProfileRef, type SettingChange,
+} from '../slice/profiles.js'
 import { runSlice } from '../slice/run.js'
 import { postprocess } from '../slice/postprocess.js'
 import { verifyModel } from '../slice/verify.js'
 import { SliceQueue, SliceBusyError } from '../slice/job.js'
-import { readCentralDirectory, readEntry, withTail, type ZipSource } from '../util/zip.js'
+import {
+  readCentralDirectory, readEntry, withTail, type ZipEntry, type ZipSource,
+} from '../util/zip.js'
 
 class SliceRequestError extends Error {
   constructor(message: string, readonly status = 400) {
@@ -90,13 +95,7 @@ export interface ModelFilaments {
  * 一行 `Initializing StaticPrintConfigs`，没有产物也没有错误。模型声明 4 种、
  * 却按 AMS 的 5 个槽位传了 5 个，就是这个下场，排查起来毫无线索。
  */
-export function parseModelFilaments(json: string): ModelFilaments {
-  let d: Record<string, unknown>
-  try {
-    d = JSON.parse(json) as Record<string, unknown>
-  } catch {
-    return { ids: [], types: [] }
-  }
+export function modelFilamentsOf(d: Record<string, unknown>): ModelFilaments {
   const arr = (v: unknown): string[] =>
     Array.isArray(v) ? v.map((x) => (typeof x === 'string' ? x : '')) : []
   const ids = arr(d.filament_ids)
@@ -106,6 +105,33 @@ export function parseModelFilaments(json: string): ModelFilaments {
   return {
     ids: Array.from({ length: n }, (_, i) => ids[i] ?? ''),
     types: Array.from({ length: n }, (_, i) => types[i] ?? ''),
+  }
+}
+
+export function parseModelFilaments(json: string): ModelFilaments {
+  try {
+    return modelFilamentsOf(JSON.parse(json) as Record<string, unknown>)
+  } catch {
+    return { ids: [], types: [] }
+  }
+}
+
+/**
+ * 读出模型自带的 project_settings.config。
+ *
+ * 它有 570 个键，是作者调好的一整套设置 —— 层高、填充、支撑、甚至他那台机器的
+ * 首尾 G-code 全在里面。切片时它是**底板**，`--load-settings` 在它上面逐键覆盖。
+ * 读不出来就当空的：那样等于不做任何比较，不影响切片本身。
+ */
+async function readSettings(
+  src: ZipSource,
+  entry: ZipEntry,
+): Promise<Record<string, unknown>> {
+  try {
+    const raw = await readEntry(src, entry, MAX_SETTINGS_BYTES)
+    return JSON.parse(raw.toString('utf8')) as Record<string, unknown>
+  } catch {
+    return {}
   }
 }
 
@@ -240,10 +266,33 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
       const machine = (await profiles.machines()).find((m) => m.nozzle === nozzle)
       if (!machine) throw new SliceRequestError(`没有 ${nozzle}mm 喷嘴的机器配置`)
 
+      /*
+       * 工艺的取舍，实测之后定的：
+       *
+       * 不给 process 时用模型自带的打印设置 —— 传厂商目录里那个未摊平的叶子，
+       * 它几乎不定义什么键，CLI 又只覆盖字面存在的键，所以等于不覆盖。
+       * 从 MakerWorld 下来的模型，层高、填充、支撑都是作者按这个件调过的。
+       *
+       * 给了 process 才摊平继承链真正应用它。代价要说清楚：摊平的标准 profile
+       * 会覆盖 67 个键，其中 `enable_support: 1 → 0` 会把作者开的支撑关掉。
+       */
       const procs = await profiles.processes(nozzle)
       const proc = procs.find((p) => p.name === (body.process ?? DEFAULT_PROCESS))
         ?? procs.find((p) => p.name === DEFAULT_PROCESS)
       if (!proc) throw new SliceRequestError('找不到可用的工艺配置')
+
+      const settingsEntry = entries?.find((e) => e.name === 'Metadata/project_settings.config')
+      const modelSettings = settingsEntry
+        ? await readSettings(zsrc, settingsEntry)
+        : {}
+
+      let processJson: string | undefined
+      let changes: SettingChange[] = []
+      if (body.process) {
+        const flat = await profiles.mergedProcess(proc)
+        processJson = JSON.stringify(flat, null, 1)
+        changes = notableChanges(modelSettings, flat)
+      }
 
       let filaments: ProfileRef[]
       let guessed: number[] = []
@@ -260,10 +309,7 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
          * 一声不吭地退出（日志里只有 Initializing StaticPrintConfigs，没有产物
          * 也没有错误）。所以这里不能拿 AMS 的槽位数来凑。
          */
-        const settings = entries?.find((e) => e.name === 'Metadata/project_settings.config')
-        const declared = settings
-          ? parseModelFilaments((await readEntry(zsrc, settings, MAX_SETTINGS_BYTES)).toString('utf8'))
-          : { ids: [], types: [] }
+        const declared = modelFilamentsOf(modelSettings)
         const auto = await filamentsForModel(profiles, nozzle, declared)
         filaments = auto.picked
         guessed = auto.guessed
@@ -284,6 +330,7 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
           workDir,
           machineJson,
           processFile: proc.file,
+          processJson,
           filaments: filamentJson,
           plate: body.plate,
           timeoutMs: config.slicer.timeoutMs,
@@ -292,6 +339,13 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
       return reply.code(202).send({
         ...job,
         process: proc.name,
+        /** true = 真正应用了这套工艺；false = 沿用模型作者自己的打印设置 */
+        processApplied: !!body.process,
+        /**
+         * 这套工艺改掉了模型里的哪些关键设置。
+         * enable_support 从 1 变 0 是这里最要紧的一条 —— 作者开的支撑没了。
+         */
+        changes,
         filaments: filaments.map((f) => f.name),
         // 哪几个槽位是猜的，让界面能提醒一句：第三方料没有厂商 profile
         guessedSlots: guessed,

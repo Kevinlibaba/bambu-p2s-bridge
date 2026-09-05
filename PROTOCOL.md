@@ -1023,12 +1023,22 @@ alongside `--outputdir out` makes it write to `out/out/sliced.3mf`, which fails 
 P2S profiles ship in the AppImage: 4 machine files (0.2/0.4/0.6/0.8 nozzle) and 16
 process files.
 
-**Profile inheritance is resolved**, which is the part worth verifying rather than
-assuming. The machine profile is only a diff — it carries `inherits:
-fdm_bbl_3dp_001_common` and defines almost nothing itself. If the CLI ignored that, the
-slice would silently use default bed dimensions and temperatures and produce a file that
-prints but wrecks the machine. It does not; `project_settings.config` in the output has
-`printable_area` 256×256, `printable_height` 256, PLA nozzle 220 °C, bed 55 °C.
+**Profile inheritance is NOT resolved.** An earlier version of this section claimed the
+opposite, on the evidence that `printable_area` came out 256×256 — but the source model
+was an X1C project, and both machines have a 256×256 bed, so that proved nothing.
+
+The CLI applies **only the keys that literally appear in the file you pass**. `inherits`
+is not followed. The decisive test: pass `0.08mm High Quality @BBL P2S.json` and the
+output's `print_settings_id` does change to it, while `layer_height` stays at the model's
+0.2 — because `0.08` lives two levels up the chain in `fdm_process_single_0.08`, and the
+leaf is only a diff.
+
+Machine profiles mostly escape this because the values that matter (`printable_height`,
+`printer_model`, `machine_load_filament_time`) happen to be written in the leaf. But
+`extruder_clearance_radius` comes out `None`, since it only exists on the parent.
+
+To actually apply a profile, flatten its `inherits` chain yourself — ancestors first,
+leaf last — and pass the flattened result.
 
 Output on a 2-core container, 4.5 MB input: **~20 s**, `result.json` reporting
 `"return_code": 0`. The `.gcode.3mf` is structurally complete — `plate_1.gcode` plus its
@@ -1104,6 +1114,30 @@ that also converts a model targeted at another printer (MakerWorld downloads are
 onto this machine. Slot order is the filament index inside the sliced file, so an entry that
 cannot be resolved must fall back to `Generic <type>` rather than be dropped — dropping one
 shifts every later slot.
+
+**The model's own `project_settings.config` is the base layer, and it is a complete
+570-key config** — layer height, infill, supports, and the *originating machine's* start
+and end G-code all live in it. `--load-settings` overlays onto that, key by key. This is
+why merging the G-code templates works at all: the merged machine profile literally
+contains `machine_start_gcode`, so it wins over the X1C block the model carried in.
+
+It also means a process profile you pass has **no effect on print parameters unless you
+flatten it first** (see above). And once flattened, it has a lot of effect: the standard
+`0.08mm High Quality` profile differs from a typical MakerWorld model's settings in 67
+keys, including `enable_support: 1 → 0`. Silently turning off supports the author enabled
+will wreck an overhang. Bambu Studio shows the checkbox changing when you switch presets;
+a CLI pipeline has to surface that difference deliberately or not override at all.
+
+Passing no process profile is not an option — the CLI then looks for the one the model
+names and fails:
+
+```
+operator(): can not find setting file: .../BBL/process_full/0.20mm Standard @BBL P2S.json
+```
+
+Note it rewrites `@BBL X1C` to `@BBL P2S` on its own, but `process_full/` does not exist
+in the AppImage. Pass the unflattened leaf to satisfy the argument while overriding
+nothing.
 
 One harmless log line to expect once the real end G-code is in place:
 

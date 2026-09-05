@@ -335,3 +335,99 @@ test('文件损坏时在切片之前就拦下，不白跑一次切片', async ()
   assert.match(j.error!, /重新上传/)
   assert.ok(!r.calls.includes('slice'), '不该真的去切')
 })
+
+// ---- 继承链摊平 ----
+
+/*
+ * CLI 只覆盖文件里字面存在的键，`inherits` 一律不解析 —— 实测：传
+ * `0.08mm High Quality @BBL P2S.json` 进去，产物的 print_settings_id 变成了它，
+ * 但 layer_height 仍是模型自带的 0.2，因为 0.08 在链上第二层。
+ * 所以要真正应用一套工艺，必须先自己摊平。
+ */
+test('摊平继承链：祖先在前，叶子最后写', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const path = await import('node:path')
+  const { flattenChain } = await import('../src/slice/profiles.js')
+
+  const dir = mkdtempSync(path.join(tmpdir(), 'prof-'))
+  const put = (n: string, o: unknown) =>
+    writeFileSync(path.join(dir, `${n}.json`), JSON.stringify(o))
+  put('common', { layer_height: '0.2', wall_loops: '2', from: 'system' })
+  put('single_008', { inherits: 'common', layer_height: '0.08' })
+  put('leaf', { inherits: 'single_008', name: '0.08mm High Quality', top_shell_layers: '9' })
+
+  const got = await flattenChain(dir, 'leaf')
+  assert.equal(got.layer_height, '0.08', '中间层要盖住最顶层')
+  assert.equal(got.wall_loops, '2', '只在祖先里的键要带下来')
+  assert.equal(got.top_shell_layers, '9')
+  assert.equal(got.name, '0.08mm High Quality', '叶子的 name 必须是最终值')
+  assert.equal(got.from, 'system')
+  assert.equal('inherits' in got, false, '摊平后要去掉 inherits，免得将来被再叠一遍')
+})
+
+test('链上某一环缺失时返回已有的部分，不炸', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const path = await import('node:path')
+  const { flattenChain } = await import('../src/slice/profiles.js')
+  const dir = mkdtempSync(path.join(tmpdir(), 'prof-'))
+  writeFileSync(path.join(dir, 'leaf.json'), JSON.stringify({ inherits: '不存在', a: '1' }))
+  const got = await flattenChain(dir, 'leaf')
+  assert.equal(got.a, '1')
+})
+
+test('配置里有环时靠深度上限兜住', async () => {
+  const { mkdtempSync, writeFileSync } = await import('node:fs')
+  const { tmpdir } = await import('node:os')
+  const path = await import('node:path')
+  const { flattenChain } = await import('../src/slice/profiles.js')
+  const dir = mkdtempSync(path.join(tmpdir(), 'prof-'))
+  writeFileSync(path.join(dir, 'a.json'), JSON.stringify({ inherits: 'b', x: 'a' }))
+  writeFileSync(path.join(dir, 'b.json'), JSON.stringify({ inherits: 'a', x: 'b' }))
+  const got = await flattenChain(dir, 'a')
+  assert.equal(got.x, 'a', '不该死循环，且叶子仍然胜出')
+})
+
+// ---- 换工艺会改掉什么 ----
+
+/*
+ * 选一套工艺的意图通常是「层薄一点」，不是「顺便删掉我的支撑」。而摊平的标准
+ * profile 里 enable_support 就是 0 —— 作者开了树状支撑，换过去悬空处直接打废。
+ * Bambu Studio 里切换预设时勾选框会当场变化，用户看得见；这里没界面，只能报出来。
+ */
+test('报出换工艺会改掉的关键设置', async () => {
+  const { notableChanges } = await import('../src/slice/profiles.js')
+  const got = notableChanges(
+    { layer_height: '0.2', enable_support: '1', wall_loops: '3', 某个无关键: 'x' },
+    { layer_height: '0.08', enable_support: '0', wall_loops: '2', 某个无关键: 'y' },
+  )
+  assert.deepEqual(got, [
+    { key: 'enable_support', from: '1', to: '0' },
+    { key: 'layer_height', from: '0.2', to: '0.08' },
+    { key: 'wall_loops', from: '3', to: '2' },
+  ])
+})
+
+test('取值相同的不算改动', async () => {
+  const { notableChanges } = await import('../src/slice/profiles.js')
+  assert.deepEqual(notableChanges({ layer_height: '0.2' }, { layer_height: '0.2' }), [])
+})
+
+/*
+ * 模型里没有的键谈不上「被改掉」—— 报出来只会让人以为丢了什么。
+ */
+test('只有一边有值的键不报', async () => {
+  const { notableChanges } = await import('../src/slice/profiles.js')
+  assert.deepEqual(notableChanges({}, { layer_height: '0.08' }), [])
+  assert.deepEqual(notableChanges({ layer_height: '0.2' }, {}), [])
+})
+
+test('单元素数组按标量比，不会误报成改动', async () => {
+  const { notableChanges } = await import('../src/slice/profiles.js')
+  assert.deepEqual(notableChanges({ wall_loops: ['3'] }, { wall_loops: '3' }), [])
+  assert.deepEqual(
+    notableChanges({ wall_loops: ['3'] }, { wall_loops: ['2'] }),
+    [{ key: 'wall_loops', from: '3', to: '2' }],
+  )
+})

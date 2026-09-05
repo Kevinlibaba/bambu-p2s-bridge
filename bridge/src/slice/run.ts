@@ -40,8 +40,16 @@ export interface SliceRun {
   workDir: string
   /** 合并过 G-code 模板的机器 profile 内容（JSON 文本） */
   machineJson: string
-  /** process profile 的绝对路径 */
+  /**
+   * 工艺 profile 的绝对路径。默认走这条 —— 传厂商目录里那个**未摊平**的叶子，
+   * 它几乎不定义什么键，等于不覆盖模型自带的打印设置（作者调好的那些）。
+   */
   processFile: string
+  /**
+   * 摊平后的工艺 profile 内容。给了就用它，覆盖模型自带的打印设置。
+   * 只在用户显式选了工艺时才给 —— 它会连支撑开关一起换掉。
+   */
+  processJson?: string
   /**
    * 耗材 profile 的 **JSON 内容**，按模型声明的顺序，个数必须与模型一致。
    *
@@ -87,6 +95,12 @@ export async function runSlice(opt: SliceRun): Promise<SliceResult> {
   const machineFile = path.join(opt.workDir, 'machine.json')
   await writeFile(machineFile, opt.machineJson, 'utf8')
 
+  let processFile = opt.processFile
+  if (opt.processJson) {
+    processFile = path.join(opt.workDir, 'process.json')
+    await writeFile(processFile, opt.processJson, 'utf8')
+  }
+
   const filamentFiles: string[] = []
   for (const [i, json] of opt.filaments.entries()) {
     const f = path.join(opt.workDir, `filament_${i}.json`)
@@ -99,7 +113,7 @@ export async function runSlice(opt: SliceRun): Promise<SliceResult> {
     String(opt.plate ?? 0),
     // 机器与工艺用同一个 --load-settings，分号分隔，顺序即优先级
     '--load-settings',
-    `${machineFile};${opt.processFile}`,
+    `${machineFile};${processFile}`,
     ...(filamentFiles.length ? ['--load-filaments', filamentFiles.join(';')] : []),
     '--outputdir',
     opt.workDir,

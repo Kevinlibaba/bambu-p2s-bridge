@@ -247,7 +247,7 @@
   "slice": {
     "action": "Slice",
     "title": "Slice",
-    "desc": "Slice \"{name}\" into a printable file on the bridge. The original is kept; the result is saved as .gcode.3mf. Slicing saturates the CPU and takes seconds to minutes.",
+    "desc": "Slice \"{name}\" into a printable file on the bridge, keeping the model’s own print settings — layer height, infill and supports stay as the author tuned them. The original is kept; the result is saved as .gcode.3mf.",
     "hint": "This model is not sliced, so the printer cannot read it. Slice it first.",
     "done": "Sliced",
     "failed": "Slicing failed",

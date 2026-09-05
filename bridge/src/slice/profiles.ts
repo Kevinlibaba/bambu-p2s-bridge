@@ -87,6 +87,40 @@ export function isTemplateOf(fileName: string, machineName: string): boolean {
   return fileName.startsWith(`${machineName} template `) && fileName.endsWith('.json')
 }
 
+/**
+ * 把继承链摊平成一份完整配置。
+ *
+ * **CLI 只覆盖文件里字面存在的键，`inherits` 一律不解析。** 这一条是实测钉死的：
+ * 传 `0.08mm High Quality @BBL P2S.json` 进去，产物的 print_settings_id 变成了它，
+ * 但 layer_height 仍是模型自带的 0.2 —— 因为 0.08 这个值在链上第二层的
+ * `fdm_process_single_0.08` 里，叶子只是一份差异。
+ *
+ * 机器 profile 碰巧没被这个坑打中（printable_height 这些恰好写在叶子里），
+ * 但 `extruder_clearance_radius` 就丢了，它只在父级。
+ *
+ * 从最远的祖先开始逐层覆盖，叶子最后写 —— 这样叶子的 name/from 一定是最终值。
+ */
+export async function flattenChain(
+  dir: string,
+  name: string,
+  depth = 0,
+): Promise<Record<string, unknown>> {
+  if (depth > MAX_INHERIT_DEPTH) return {}
+  let d: Record<string, unknown>
+  try {
+    d = JSON.parse(await readFile(path.join(dir, `${name}.json`), 'utf8')) as Record<string, unknown>
+  } catch {
+    return {}
+  }
+  const parent = typeof d.inherits === 'string' && d.inherits
+    ? await flattenChain(dir, d.inherits, depth + 1)
+    : {}
+  const out = { ...parent, ...d }
+  // 已经摊平了。留着 inherits 的话，万一将来某个版本真去解析它，就会被再叠一遍
+  delete out.inherits
+  return out
+}
+
 /** 去掉 `.json`，得到 profile 的展示名 */
 function stem(fileName: string): string {
   return fileName.replace(/\.json$/, '')
@@ -183,10 +217,20 @@ export class Profiles {
    * 实测：注入前 `tray_info_idx=""`，注入后 `GFG01`。
    */
   async mergedFilament(ref: ProfileRef): Promise<string> {
-    const d = JSON.parse(await readFile(ref.file, 'utf8')) as Record<string, unknown>
-    const id = await this.resolveFilamentId(ref.file)
-    if (id) d.filament_id = id
-    return JSON.stringify(d, null, 1)
+    // 摊平就把 filament_id 一起带进来了（它在父级），温度、流量这些同理
+    return JSON.stringify(await flattenChain(this.dir('filament'), ref.name), null, 1)
+  }
+
+  /**
+   * 摊平后的工艺 profile。
+   *
+   * **只在用户显式选了工艺时才用。** 默认不传摊平版是有意的：模型自带的
+   * project_settings 是作者调好的，而摊平的标准 profile 会覆盖 67 个键，
+   * 其中包括 `enable_support: 1 → 0` —— 把作者开的支撑关掉，悬空处直接打废。
+   * 默认传未摊平的叶子，它几乎不定义什么键，等于不覆盖，作者的设置原样保留。
+   */
+  async mergedProcess(ref: ProfileRef): Promise<Record<string, unknown>> {
+    return flattenChain(this.dir('process'), ref.name)
   }
 
   /**
@@ -220,7 +264,7 @@ export class Profiles {
    * 挂载的，也不该被我们污染。
    */
   async mergedMachine(machine: MachineProfile): Promise<string> {
-    const base = JSON.parse(await readFile(machine.file, 'utf8')) as Record<string, unknown>
+    const base = await flattenChain(this.dir('machine'), machine.name)
     const files = await listJson(this.dir('machine'))
     const templates: Record<string, unknown>[] = []
     for (const f of files) {
@@ -237,4 +281,53 @@ export class Profiles {
     }
     return JSON.stringify(mergeGcodeTemplates(base, templates), null, 1)
   }
+}
+
+/**
+ * 换用一套工艺会改掉模型里的哪些关键设置。
+ *
+ * 摊平的标准 profile 会覆盖几十个键，绝大多数（速度、加速度、各种阈值）
+ * 换了也就是换了。但有几个换掉的后果完全不同层级 —— `enable_support`
+ * 从 1 变 0 意味着作者开的支撑没了，悬空处直接打废，而界面上一个字都不会说。
+ *
+ * 所以不替用户决定，把这几个摆出来让他自己看。Bambu Studio 里切换预设时
+ * 勾选框会当场变化，用户看得见；这里没有界面，只能显式报出来。
+ */
+export const NOTABLE_KEYS = [
+  'enable_support',
+  'support_type',
+  'layer_height',
+  'sparse_infill_density',
+  'wall_loops',
+  'brim_type',
+] as const
+
+export interface SettingChange {
+  key: string
+  from: string
+  to: string
+}
+
+/** 取出用于展示的标量值。这些键在配置里既可能是标量也可能是单元素数组 */
+function scalar(v: unknown): string {
+  if (Array.isArray(v)) return v.length === 1 ? String(v[0]) : v.join(',')
+  return v === undefined || v === null ? '' : String(v)
+}
+
+/**
+ * 比出关键设置的差异。只看 NOTABLE_KEYS，且只报**两边都有值**的键 ——
+ * 模型里没有的键谈不上「被改掉」。
+ */
+export function notableChanges(
+  model: Record<string, unknown>,
+  process: Record<string, unknown>,
+): SettingChange[] {
+  const out: SettingChange[] = []
+  for (const k of NOTABLE_KEYS) {
+    const a = scalar(model[k])
+    const b = scalar(process[k])
+    if (!a || !b || a === b) continue
+    out.push({ key: k, from: a, to: b })
+  }
+  return out
 }

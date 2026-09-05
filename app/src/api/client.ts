@@ -443,6 +443,10 @@ export interface SliceJob {
   sliceMs: number | null
   /** 提交时才有：这次用的工艺和耗材 */
   process?: string
+  /** true = 真正应用了这套工艺；false = 沿用模型作者自己的打印设置 */
+  processApplied?: boolean
+  /** 这套工艺改掉了模型里的哪些关键设置。enable_support 变 0 最要紧 */
+  changes?: { key: string; from: string; to: string }[]
   filaments?: string[]
   /** 哪几个耗材是按类型猜的（模型里的编号在厂商 profile 里查不到） */
   guessedSlots?: number[]
