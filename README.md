@@ -199,6 +199,31 @@ mkdir -p data
 docker compose up -d --build
 ```
 
+### Slicer (optional)
+
+To slice unsliced 3MFs on the bridge, drop an extracted BambuStudio next to it. It is
+540 MB and is deliberately **not** baked into the image or committed to the repo — it is
+a near-static third-party artifact, and putting it in the image means re-shipping it on
+every rebuild. `docker-compose.yml` mounts it read-only.
+
+```sh
+# on the bridge host, not inside the container
+mkdir -p /opt/slicer && cd /opt/slicer
+# fetch the Linux AppImage, e.g. BambuStudio_ubuntu22.04-v02.08.02.61-*.AppImage
+chmod +x bs.AppImage && ./bs.AppImage --appimage-extract   # produces squashfs-root/
+```
+
+That is the whole setup; no configuration to change. **If the directory is absent,
+slicing turns itself off and nothing else is affected** — `/api/slice/options` returns
+503 with the reason and the app simply does not offer the action.
+
+The image already carries the system libraries AppRun needs (`libwebkit2gtk-4.1-0` and
+friends). Without them the binary fails to link at all, which has nothing to do with
+having a display — headless slicing needs no X server.
+
+A slice saturates the CPU: about 20 s for a 4.5 MB model on a 2-core container. Only one
+runs at a time, and submissions are refused while a print is in progress.
+
 `docker-compose.yml` and `go2rtc.yaml` are in the repo. go2rtc binds its API to
 localhost only — it has **no authentication of its own**, so the bridge is the only
 way in. Don't change that to `0.0.0.0`.
@@ -359,6 +384,24 @@ adds a confirmation that spells out what is about to happen.
 > ⚠️ The `project_file` payload follows the documented X1/P1 shape. It has **not been
 > verified end to end on a P2S** — doing so means starting a real print. Supervise the
 > first one.
+
+### Slicing on the bridge
+
+Models downloaded from MakerWorld are usually *unsliced*, and the printer cannot start
+one. Those files get a **Slice** action in the app: the bridge fetches the file, runs
+BambuStudio's headless CLI on it, and uploads the result back to the printer. The phone
+only taps a button and watches progress. No vendor cloud is involved.
+
+Filaments are chosen from the model's own `filament_ids` and remapped onto the matching
+P2S profiles — MakerWorld models are usually saved against an X1C. Third-party spools
+that aren't in the vendor list fall back to `Generic <type>`.
+
+> ⚠️ A file produced this way has **not been printed on the P2S yet**. What has been
+> checked is the file itself: `G29` bed levelling present in the start block, the full
+> AMS-retract sequence present in the end block, `printer_model_id` and `tray_info_idx`
+> both non-empty, and `plate_N.gcode.md5` consistent with the gcode. Those are precisely
+> the things a naive CLI invocation gets silently wrong — see
+> [PROTOCOL §5.5](./PROTOCOL.md#55-slicing-an-unsliced-3mf-yourself). Supervise the first one.
 
 ## Security model
 

@@ -147,6 +147,28 @@ mkdir -p data
 docker compose up -d --build
 ```
 
+### 云切片（可选）
+
+要在桥接机上切未切片的 3mf，需要额外放一份解包好的 BambuStudio。它 540MB，
+**刻意不进镜像也不进仓库** —— 它是个几乎不变的第三方产物，进镜像会让每次重建
+都多传一遍。`docker-compose.yml` 把它只读挂进容器。
+
+```sh
+# 在桥接主机上（不是容器里）
+mkdir -p /opt/slicer && cd /opt/slicer
+# 下载 Linux AppImage，例如 BambuStudio_ubuntu22.04-v02.08.02.61-*.AppImage
+chmod +x bs.AppImage && ./bs.AppImage --appimage-extract   # 得到 squashfs-root/
+```
+
+放好即生效，不用改配置。**目录不存在时切片功能自动关闭，其余功能不受影响** ——
+`/api/slice/options` 会回 503 并说明原因，App 里就不出现「切片」入口。
+
+镜像里已经装了 AppRun 需要的系统库（`libwebkit2gtk-4.1-0` 等）。少了它们
+连动态链接都过不去，跟有没有图形界面无关；无头切片本身不需要 X。
+
+一次切片会占满 CPU，实测 2 核容器上 4.5MB 的模型约 20 秒。同一时刻只跑一个，
+打印进行中会拒绝提交 —— 不跟机器抢资源。
+
 `docker-compose.yml` 与 `go2rtc.yaml` 都在仓库里。go2rtc 的 API 只监听回环地址 ——
 它自身没有任何鉴权，桥接是唯一入口，切勿改成 `0.0.0.0`。
 
@@ -182,6 +204,20 @@ App 侧还有一层写明后果的二次确认。
 > ⚠️ `project_file` 的参数沿用 X1/P1 的公开格式，**尚未在 P2S 上端到端验证过**——
 > 验证意味着真的开一次打印。首次使用请在旁看管。
 
+## 云切片
+
+从 MakerWorld 下来的模型多半是**未切片**的，打印机认不了。这类文件在 App 的文件详情里
+会给出「切片」入口：桥接把它取回来、用 BambuStudio 的命令行切好、再传回打印机，
+手机只负责点一下和看进度。不经过任何厂商云服务。
+
+耗材按模型自己声明的 `filament_ids` 选，会自动换成 P2S 对应的 profile —— MakerWorld 上
+的模型多半是照 X1C 存的。查不到的第三方料退到同类型的 Generic。
+
+> ⚠️ 切出来的文件**尚未在 P2S 上真机打印验证过**。已核对的是文件本身：起始段有 G29
+> 自动调平、结束段有完整的 AMS 退料序列、`printer_model_id` 与 `tray_info_idx` 都不为空、
+> `plate_N.gcode.md5` 与 gcode 一致。这些正是 CLI 直接切会悄悄弄错的地方
+> （详见 [PROTOCOL §5.5](./PROTOCOL.md#55-slicing-an-unsliced-3mf-yourself)）。首次使用请在旁看管。
+
 ## 安全设计
 
 - 打印机永远不出网，桥接服务不监听公网接口。
@@ -207,6 +243,8 @@ App 侧还有一层写明后果的二次确认。
 App 内播放延时摄影与录像、3MF 盘面预览、深浅色主题。
 
 另已完成：从手机或链接导入已切片的 `.gcode.3mf`、删除文件、远程启动打印（有严格限制，见下）。
+
+另已完成：云切片（把未切片的 3mf 在桥接机上切成可打印的文件）。
 
 待办：
 - [ ] 打印中跳过某个零件 —— 协议已摸清（[§2.6](./PROTOCOL.md#26-skipping-an-object-mid-print)），真机验证要牺牲一个零件
