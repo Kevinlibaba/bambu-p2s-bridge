@@ -143,7 +143,7 @@
       "noSdCard": "No SD card detected in the printer",
       "printerError": "The printer has {count} unresolved error(s)",
       "sliceWarning": "Slicer warning: {msg}",
-      "notSliced": "This is an unsliced model. The printer only accepts sliced .gcode.3mf — slice it in Bambu Studio first."
+      "notSliced": "This is an unsliced model; the printer only accepts sliced .gcode.3mf files. You can slice it right here."
     },
     "slice": {
       "bed_temperature_too_high_than_filament": "Bed temperature is above what this filament tolerates",
@@ -243,6 +243,23 @@
     "desc": "About to print “{name}”, plate {plate}.\n\nThe printer will start heating and moving immediately. Check that filament is loaded, the bed is clear, and someone can watch the first layer.",
     "started": "Print command sent",
     "risk": "Starting a print remotely means it runs unattended. Judge the risk yourself."
+  },
+  "slice": {
+    "action": "Slice",
+    "title": "Slice",
+    "desc": "Slice \"{name}\" into a printable file on the bridge. The original is kept; the result is saved as .gcode.3mf. Slicing saturates the CPU and takes seconds to minutes.",
+    "hint": "This model is not sliced, so the printer cannot read it. Slice it first.",
+    "done": "Sliced",
+    "failed": "Slicing failed",
+    "phase": {
+      "queued": "Queued",
+      "downloading": "Fetching",
+      "slicing": "Slicing",
+      "patching": "Patching",
+      "uploading": "Uploading",
+      "done": "Done",
+      "failed": "Failed"
+    }
   },
   "dry": {
     "title": "Filament drying",

@@ -1035,35 +1035,83 @@ Output on a 2-core container, 4.5 MB input: **~20 s**, `result.json` reporting
 `.md5`, `plate_1.json`, the preview PNGs, and a `slice_info.config` carrying
 `identify_id` per object (so [§2.6](#26-skipping-an-object-mid-print)'s metadata survives).
 
-**Two fields the CLI leaves empty that Bambu Studio fills:**
+**The CLI resolves `inherits`, but not the vendor index — and that breaks three things.**
 
-| Field in `slice_info.config` | Studio | CLI | Where the value lives |
-|---|---|---|---|
-| `printer_model_id` | `N7` | *(empty)* | `machine/Bambu Lab P2S.json` → `model_id` |
-| `tray_info_idx` | `GFA01` | *(empty)* | the filament profile → `filament_id` (PLA Basic = `GFA00`) |
+A profile passed by path is loaded with its `inherits` chain only. Bambu Studio additionally
+pulls in sibling files listed in the vendor index, and the CLI does not. Everything below is
+one consequence of that single fact, and all three fail *silently* — the slice reports
+`"return_code": 0` and produces a structurally valid file.
 
-**A third omission is more consequential: the machine end G-code is not applied.** A
-CLI-sliced file ends with a generic three-line block:
+**1. Both the start and the end G-code are missing.** `Bambu Lab P2S 0.4 nozzle.json` contains
+no G-code at all; the real blocks live in six `... template <what>_gcode.json` siblings
+(start 11543 chars, end 2344, plus layer_change, change_filament, time_lapse,
+wrapping_detection). Without them the slicer falls back to generic defaults:
 
 ```gcode
-M104 S0 ; turn off temperature
-G28 X0  ; home X axis
-M84     ; disable motors
+; start                       ; end
+M190 S70                      M104 S0 ; turn off temperature
+M104 S250                     G28 X0  ; home X axis
+G28 ; home all axes           M84     ; disable motors
+G1 Z5 F5000
 ```
 
-Bambu Studio emits the real P2S block instead — roughly 80 lines that pull the filament
-back to the AMS (`M620 S65535` / `T65535` / `G150.2` / `M621 S65535`), close out a
-timelapse, drop the Z motor current before lowering the bed, run the finish-air-purge,
-play the completion tune, and end on `M18`. Print a CLI-sliced file as-is and **the
-filament is never returned to the AMS**. The machine profile keeps these in sibling
-`... template machine_end_gcode.json` files, which the CLI does not pull in when the
-profile is passed by path.
+The end block is the widely-reported one: no `M620 S65535` / `T65535` / `G150.1` /
+`M621 S65535`, so **the filament is never returned to the AMS**. The start block is worse and
+less obvious: no `G29` bed levelling, no `M620 M` AMS remap, no `G39`, no build-plate
+detection, no extrusion calibration. A file sliced this way homes and starts extruding
+on an unlevelled bed.
 
-Both metadata fields are constants readable from the same profile tree, so filling them
-in afterwards is deterministic. `tray_info_idx` is what makes AMS tray selection a lookup instead of a
-guess ([§5.4](#54-inside-a-bambu-sliced-gcode3mf)); an empty one degrades matching to
-filament type alone. **Whether the printer rejects a file with an empty
-`printer_model_id` has not been tested** — verifying it costs a real print.
+**2. `tray_info_idx` comes out empty when you override the filament.** It is derived from
+`filament_id`, which lives on the filament profile's *parent* — none of the 174 P2S filament
+leaves carry it directly. With it empty, AMS tray selection degrades from an exact vendor-code
+lookup to matching on material type alone ([§5.4](#54-inside-a-bambu-sliced-gcode3mf)).
+(If you *don't* pass `--load-filaments`, the model's own settings are used and this field is
+populated — which is why the omission is easy to miss.)
+
+**3. `printer_model_id` is empty.** Unlike the other two this one cannot be fixed in the
+profile: adding `model_id: N7` to the machine JSON has no effect, because the value is read
+from the vendor preset bundle. It has to be patched into `Metadata/slice_info.config` after
+slicing. That file carries no checksum, so patching it does not require touching
+`plate_N.gcode.md5`. **Whether the printer rejects a file with an empty `printer_model_id`
+has still not been tested** — verifying it costs a real print.
+
+**The fix for 1 and 2 is the same: merge the inherited values into a temporary profile and
+pass that.** Merge only keys whose name contains `gcode` (plus `filament_id`) — copying
+`name`, `from` or `inherits` breaks the compatibility check the CLI runs against the printer
+recorded in the 3MF:
+
+```
+[error] current 3mf file not support the new printer Bambu Lab P2S 0.4 nozzle merged,
+        new_printer_system_name fdm_bbl_3dp_001_common
+```
+
+Verified end to end: `printer_model_id=N7`, `tray_info_idx=GFG01`, the full AMS-retract block
+present, `G29` present, `plate_1.gcode.md5` consistent with the gcode.
+
+**The filament count must equal what the model declares.** An unsliced 3MF's
+`Metadata/project_settings.config` carries `filament_ids` (vendor codes, portable across
+printer models) and `filament_type`, both the same length. Passing more `--load-filaments`
+entries than that makes the slicer **exit without a word** — no output file, no error, and a
+log containing exactly one line:
+
+```
+[trace]   Initializing StaticPrintConfigs
+```
+
+Deriving the list from AMS tray count instead of from the model is the natural mistake here,
+and it produces exactly this. Use `filament_ids` to look up the corresponding P2S profiles;
+that also converts a model targeted at another printer (MakerWorld downloads are usually X1C)
+onto this machine. Slot order is the filament index inside the sliced file, so an entry that
+cannot be resolved must fall back to `Generic <type>` rather than be dropped — dropping one
+shifts every later slot.
+
+One harmless log line to expect once the real end G-code is in place:
+
+```
+[error]   Invalid T command (T65535).
+```
+
+That is the time estimator failing to parse the AMS-retract `T65535`. The file is fine.
 
 ---
 

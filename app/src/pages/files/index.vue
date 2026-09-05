@@ -4,7 +4,9 @@ import { useI18n } from 'vue-i18n'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
 import {
   api, configured, uploadFile, importUrl, deleteFile, startPrint, fetchPrintPlan,
+  startSlice, fetchSliceJob,
   type RemoteFile, type ThreeMfInfo, type PrintPlan, type PlanTray, type PreflightCheck,
+  type SliceJob,
 } from '../../api/client'
 import { themeClass, applyChrome } from '../../store/prefs'
 import { confirm, toast } from '../../util/dialog'
@@ -531,6 +533,75 @@ async function printSelected() {
   }
 }
 
+// ---- 云切片 ----
+/*
+ * 未切片的 3mf 打不了，但可以就地切。这里的入口只在「确实是未切片的模型」时出现 ——
+ * 自检里的 notSliced 是最可靠的判据，它由桥接给出。
+ */
+const sliceJob = ref<SliceJob | null>(null)
+const slicing = computed(
+  () => !!sliceJob.value && !['done', 'failed'].includes(sliceJob.value.phase),
+)
+const canSlice = computed(
+  () => selKind.value === 'model' && checks.value.some((c) => c.code === 'notSliced'),
+)
+/*
+ * 进度只在「正看着的就是这个文件」时显示。任务是按文件路径记的，
+ * 换选一个文件还看到上一个的进度会很误导。
+ */
+const sliceHere = computed(() => !!sliceJob.value && sliceJob.value.source === selPath.value)
+
+/** 各阶段的说法。切片那一段最久，其余几秒就过去了 */
+const slicePhaseText = computed(() => {
+  const p = sliceJob.value?.phase
+  if (!p) return ''
+  return t(`slice.phase.${p}`)
+})
+
+let slicePoll = 0
+function stopSlicePoll() {
+  if (slicePoll) { clearTimeout(slicePoll); slicePoll = 0 }
+}
+
+/*
+ * 轮询而不是等一个长请求：切片几十秒到几分钟，手机锁屏或切网就断了，
+ * 而那边其实还在跑。2 秒一次足够，切片本身以十几秒计。
+ */
+function pollSlice(id: string) {
+  stopSlicePoll()
+  slicePoll = setTimeout(async () => {
+    try {
+      const j = await fetchSliceJob(id)
+      sliceJob.value = j
+      if (j.phase === 'done') {
+        toast(t('slice.done'))
+        await load()
+        // 切完之后原来那个未切片的文件已经不是重点了，让人看到新产物
+        close()
+        return
+      }
+      if (j.phase === 'failed') { toast(j.error || t('slice.failed')); return }
+      pollSlice(id)
+    } catch {
+      // 单次查询失败不该让整件事断掉 —— 网络抖一下很常见，继续问
+      pollSlice(id)
+    }
+  }, 2000) as unknown as number
+}
+
+async function sliceSelected() {
+  const f = sel.value
+  if (!f || slicing.value) return
+  if (!(await confirm(t('slice.title'), t('slice.desc', { name: f.name }), true))) return
+  try {
+    const j = await startSlice({ path: selPath.value, plate: plate.value?.index ?? 1 })
+    sliceJob.value = j
+    pollSlice(j.id)
+  } catch (e) {
+    toast((e as Error).message)
+  }
+}
+
 onShow(() => { applyChrome('tab.files'); load() })
 onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 </script>
@@ -741,7 +812,14 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
           <text class="k accent">{{ t('files.download') }}</text>
           <text class="v">›</text>
         </view>
-        <template v-if="selKind === 'model' && model && !modelError">
+        <template v-if="canSlice">
+          <view class="hsep" />
+          <view class="line tappable" @click="sliceSelected">
+            <text class="k accent">{{ t('slice.action') }}</text>
+            <text class="v">{{ sliceHere && slicing ? slicePhaseText : '›' }}</text>
+          </view>
+        </template>
+        <template v-else-if="selKind === 'model' && model && !modelError">
           <view class="hsep" />
           <view class="line tappable" @click="printSelected">
             <text class="k accent">{{ t('print.action') }}</text>
@@ -755,7 +833,8 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
         </view>
       </view>
 
-      <text v-if="selKind === 'model'" class="hint">{{ t('print.risk') }}</text>
+      <text v-if="canSlice" class="hint">{{ t('slice.hint') }}</text>
+      <text v-else-if="selKind === 'model'" class="hint">{{ t('print.risk') }}</text>
 
       <template #footer>
         <button class="cta" @click="close">{{ t('files.close') }}</button>

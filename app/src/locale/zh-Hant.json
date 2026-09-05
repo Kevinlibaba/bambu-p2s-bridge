@@ -143,7 +143,7 @@
       "noSdCard": "印表機沒有偵測到 SD 卡",
       "printerError": "印表機目前有 {count} 條未處理的錯誤",
       "sliceWarning": "切片器警告：{msg}",
-      "notSliced": "這是未切片的原始模型，印表機只能列印已切片的 .gcode.3mf。請先在電腦上用 Bambu Studio 切片。"
+      "notSliced": "這是未切片的原始模型，印表機只能列印已切片的 .gcode.3mf。可以直接在這裡切片。"
     },
     "slice": {
       "bed_temperature_too_high_than_filament": "熱床溫度高於該耗材的耐受範圍",
@@ -243,6 +243,23 @@
     "desc": "即將列印「{name}」第 {plate} 盤。\n\n印表機會立即加熱並開始運動。請確認耗材已裝好、熱床已清理、首層有人看管。",
     "started": "已送出列印指令",
     "risk": "遠端開始列印屬於無人看管操作，請自行評估風險。"
+  },
+  "slice": {
+    "action": "切片",
+    "title": "切片",
+    "desc": "在橋接機上把「{name}」切成可列印的檔案。原檔保留，產物另存為 .gcode.3mf。切片期間會佔滿 CPU，數十秒到數分鐘。",
+    "hint": "這是未切片的模型，印表機認不得。切好之後才能列印。",
+    "done": "切好了",
+    "failed": "切片失敗",
+    "phase": {
+      "queued": "排隊中",
+      "downloading": "取檔案",
+      "slicing": "切片中",
+      "patching": "補資訊",
+      "uploading": "回傳中",
+      "done": "完成",
+      "failed": "失敗"
+    }
   },
   "dry": {
     "title": "耗材烘乾",

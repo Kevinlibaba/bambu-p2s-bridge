@@ -429,6 +429,45 @@ export const runHarvest = () =>
 export const coolForHarvest = () =>
   request<HarvestPlan>('/api/eject', { method: 'POST', data: { coolOnly: true, confirm: true } })
 
+// ---- 云切片 ----
+
+export interface SliceJob {
+  id: string
+  source: string
+  /** 产物在打印机上的路径，done 之前为 null */
+  output: string | null
+  /** queued | downloading | slicing | patching | uploading | done | failed */
+  phase: string
+  error: string | null
+  /** 纯切片耗时（毫秒），不含上传下载 */
+  sliceMs: number | null
+  /** 提交时才有：这次用的工艺和耗材 */
+  process?: string
+  filaments?: string[]
+  /** 哪几个耗材是按类型猜的（模型里的编号在厂商 profile 里查不到） */
+  guessedSlots?: number[]
+  willWriteTo?: string
+}
+
+export interface SliceOptions {
+  available: boolean
+  nozzle: number
+  processes: string[]
+  defaultProcess: string
+  amsFilaments: { trayInfoIdx: string; type: string; profile: string | null }[]
+}
+
+export const fetchSliceOptions = () => request<SliceOptions>('/api/slice/options')
+
+/**
+ * 提交切片。立刻返回任务号，之后靠轮询 —— 切片要几十秒到几分钟，
+ * 手机上挂着这么长的请求，锁屏或切网就断了。
+ */
+export const startSlice = (req: { path: string; plate?: number; process?: string }) =>
+  request<SliceJob>('/api/slice', { method: 'POST', data: req })
+
+export const fetchSliceJob = (id: string) => request<SliceJob>(`/api/slice/jobs/${id}`)
+
 export interface LoggedEvent {
   t: number
   /** 事件类型。文案在前端出，桥接只给类型 */
