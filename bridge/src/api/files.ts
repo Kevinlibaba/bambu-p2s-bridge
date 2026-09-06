@@ -25,6 +25,7 @@ import {
   plateImageEntry,
 } from '../printer/threemf.js'
 import { plateCache, QueueFullError } from './platecache.js'
+import { fileChanged, onFileChange } from './filechange.js'
 
 /** 该盘没有预览图。缓存层不区分错误类型，用一个自有类型传出来 */
 class NoPlateImage extends Error {
@@ -68,11 +69,18 @@ const ZIP_TAIL_BYTES = 96 * 1024
  * 缓存的是中央目录，不是文件内容 —— 主要为了让紧随元数据之后的取图请求不再读一次尾部。
  * 存活时间刻意压得很短：包被同名覆盖后，旧的偏移量会指向错的位置。
  */
-/** 列目录后预热多少个模型的预览图。列表靠前的那几个最可能被点开 */
-const WARM_MAX = 12
-
 const ZIP_CACHE_TTL_MS = 60 * 1000
-const ZIP_CACHE_MAX = 8
+/*
+ * 16 而不是 8：预热会连开 WARM_MAX 个包，条目数比它小的话，用户刚打开的那个
+ * 文件会被预热挤出去。一条尾巴 96KB，16 条也就 1.5MB。
+ */
+const ZIP_CACHE_MAX = 16
+/** 列目录后预热多少个模型的预览图。列表靠前的那几个最可能被点开 */
+const WARM_MAX = 8
+/** 预热前等打印机空闲最多这么久，等不到就放弃这一轮 —— 用户的请求永远优先 */
+const WARM_IDLE_WAIT_MS = 3000
+/** 「这个包没有预览图」也记住，否则每次列目录都要重新打开它确认一遍 */
+const NO_IMAGE_TTL_MS = ZIP_CACHE_TTL_MS
 
 const MIME: Record<string, string> = {
   mp4: 'video/mp4',
@@ -119,13 +127,30 @@ export function registerFileRoutes(
   lastPrintedAt?: (name: string) => number | null,
 ): void {
   const zipCache = new Map<string, ZipCacheItem>()
+  const noImage = new Map<string, number>()
+
+  // 本模块的三层缓存都按路径失效；别的模块（print/slice）各自注册各自的
+  onFileChange((path) => {
+    zipCache.delete(path)
+    plateCache.invalidate(path)
+    for (const k of [...noImage.keys()]) if (k.startsWith(`${path}|`)) noImage.delete(k)
+  })
 
   /** 取某一盘的预览图，走 plateCache（缓存 + 合并在途 + 限流） */
   function loadPlate(path: string, plate: number) {
-    return plateCache.get(`${path}|${plate}`, async () => {
+    const key = `${path}|${plate}`
+    const missAt = noImage.get(key)
+    if (missAt !== undefined) {
+      if (Date.now() - missAt < NO_IMAGE_TTL_MS) return Promise.reject(new NoPlateImage())
+      noImage.delete(key)
+    }
+    return plateCache.get(key, async () => {
       const { src, entries } = await openZip(path)
       const entry = plateImageEntry(entries, plate)
-      if (!entry) throw new NoPlateImage()
+      if (!entry) {
+        noImage.set(key, Date.now())
+        throw new NoPlateImage()
+      }
       return {
         data: await readEntry(src, entry, MAX_PLATE_IMAGE_BYTES),
         contentType: 'image/png',
@@ -133,35 +158,46 @@ export function registerFileRoutes(
     })
   }
 
+  /** 等到没有任何读在占着打印机。等不到返回 false */
+  async function waitIdle(): Promise<boolean> {
+    const until = Date.now() + WARM_IDLE_WAIT_MS
+    while (ftp.readsActive() > 0) {
+      if (Date.now() > until) return false
+      await new Promise((r) => setTimeout(r, 150))
+    }
+    return true
+  }
+
   /*
    * 列目录时把前面几个模型的第一盘预览图提前取好。
    *
    * 首次打开一个文件，预览图要两次 FTP 读，实测约 200ms；列表刚出来时用户
-   * 大概率会点靠前的那几个。这里在后台**串行、一次一张**地预热 —— 只占
-   * 打印机 4 个并发读里的 1 个、PlateCache 2 个在途里的 1 个，用户真点开时
-   * 的请求不会被它挤住。已经在缓存里的直接跳过，所以反复进文件页几乎没开销。
+   * 大概率会点靠前的那几个。规矩只有一条：**用户的请求永远优先**。
+   *  · 每取一张之前先等打印机完全空闲，用户正在读就不动；
+   *  · 一次只取一张；
+   *  · 又列了一次目录就作废上一轮（最新的列表才是用户在看的）；
+   *  · 已缓存的、已知没图的直接跳过。
+   * 即便这样，用户仍可能在预热的那 200ms 里点开文件 —— 那时 ftp.ts 的读槽
+   * 会让他的请求排队等这一张读完，而不是拒掉。
    */
-  let warming = false
+  let warmGen = 0
   async function warmPlates(dir: string, names: string[]): Promise<void> {
-    if (warming) return
-    warming = true
-    try {
-      for (const name of names.slice(0, WARM_MAX)) {
-        const path = dir === '/' ? `/${name}` : `${dir}/${name}`
-        if (plateCache.has(`${path}|1`)) continue
-        await loadPlate(path, 1).catch(() => {
-          /* 没图、坏包、打印机忙 —— 预热失败无所谓，真点开时会再试 */
-        })
-      }
-    } finally {
-      warming = false
+    const gen = ++warmGen
+    for (const name of names.slice(0, WARM_MAX)) {
+      if (gen !== warmGen) return
+      const path = dir === '/' ? `/${name}` : `${dir}/${name}`
+      const key = `${path}|1`
+      if (plateCache.has(key) || noImage.has(key)) continue
+      if (!(await waitIdle()) || gen !== warmGen) return
+      await loadPlate(path, 1).catch(() => {
+        /* 没图、坏包 —— 预热失败无所谓，真点开时会再试 */
+      })
     }
   }
 
-  /** 这个路径上的文件变了（写入/删除），两层缓存都不能再信 */
+  /** 这个路径上的文件变了（写入/删除）—— 广播出去，所有按路径缓存的都得听 */
   function forget(path: string): void {
-    zipCache.delete(path)
-    plateCache.invalidate(path)
+    fileChanged(path)
   }
 
   function queryPath(req: FastifyRequest): string {

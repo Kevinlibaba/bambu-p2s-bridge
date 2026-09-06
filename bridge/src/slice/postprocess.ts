@@ -13,6 +13,7 @@
  */
 import { readFile, writeFile } from 'node:fs/promises'
 import { patchZip } from '../util/zipwrite.js'
+import { bufferSource, findEntry, readCentralDirectory, readEntry } from '../util/zip.js'
 import { PRINTER_MODEL_ID } from './profiles.js'
 
 export const SLICE_INFO = 'Metadata/slice_info.config'
@@ -45,10 +46,9 @@ export function readPrinterModelId(xml: string): string | null {
  */
 export async function postprocess(file: string): Promise<{ patched: boolean; modelId: string | null }> {
   const buf = await readFile(file)
-  const { bufferSource, readCentralDirectory, readEntry } = await import('../util/zip.js')
   const src = bufferSource(buf)
   const entries = await readCentralDirectory(src)
-  const info = entries.find((e) => e.name === SLICE_INFO)
+  const info = findEntry(entries, SLICE_INFO)
   if (!info) return { patched: false, modelId: null }
 
   const xml = (await readEntry(src, info, 1 << 20)).toString('utf8')

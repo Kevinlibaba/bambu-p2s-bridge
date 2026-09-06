@@ -42,7 +42,47 @@ export interface RemoteFile {
  * 而打印机能同时接受的连接数很有限。超过就直接拒绝，好过把打印机的 FTP 拖垮。
  */
 const MAX_CONCURRENT_READS = 4
+/*
+ * 读槽满了先等一会儿再拒，而不是立刻抛。
+ *
+ * 打开一个文件预览会同时发 3-4 个读（预览图、元数据、自检、切片参数），
+ * 后台还可能有一个预热在跑 —— 第 5 个立刻 503 的话，用户看到的是某一块
+ * 内容随机缺失。一个读通常 100-300ms，等几秒足够轮到，等不到再说忙。
+ */
+const READ_WAIT_MS = 4000
 let activeReads = 0
+const waiters: (() => void)[] = []
+
+/** 当前有几个读在真正占着打印机。预热用它判断「用户是不是正在等」 */
+export function readsActive(): number {
+  return activeReads
+}
+
+async function acquireRead(): Promise<void> {
+  if (activeReads < MAX_CONCURRENT_READS) {
+    activeReads += 1
+    return
+  }
+  await new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      const i = waiters.indexOf(wake)
+      if (i >= 0) waiters.splice(i, 1)
+      reject(new TooManyReadsError())
+    }, READ_WAIT_MS)
+    const wake = () => {
+      clearTimeout(timer)
+      activeReads += 1
+      resolve()
+    }
+    waiters.push(wake)
+  })
+}
+
+function releaseRead(): void {
+  activeReads -= 1
+  // 让出的槽直接交给排队最久的那个，不经过 activeReads 的判断，避免被插队
+  waiters.shift()?.()
+}
 
 export class TooManyReadsError extends Error {
   constructor() {
@@ -154,15 +194,14 @@ export interface RemoteStream {
  */
 export async function openRead(path: string, spec?: RangeSpec): Promise<RemoteStream> {
   const file = normalize(path)
-  if (activeReads >= MAX_CONCURRENT_READS) throw new TooManyReadsError()
+  await acquireRead()
 
-  activeReads += 1
   let released = false
   let client: Client | null = null
   const release = () => {
     if (released) return
     released = true
-    activeReads -= 1
+    releaseRead()
     client?.close()
   }
 
@@ -230,12 +269,11 @@ export async function upload(path: string, data: Buffer): Promise<void> {
  */
 export async function uploadStream(path: string, source: Readable): Promise<void> {
   const file = normalize(path)
-  if (activeReads >= MAX_CONCURRENT_READS) throw new TooManyReadsError()
-  activeReads++
+  await acquireRead()
   try {
     await withClient((c) => c.uploadFrom(source, file))
   } finally {
-    activeReads--
+    releaseRead()
   }
 }
 

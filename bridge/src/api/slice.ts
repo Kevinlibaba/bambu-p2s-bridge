@@ -26,10 +26,11 @@ import {
 } from '../slice/overrides.js'
 import { postprocess } from '../slice/postprocess.js'
 import { verifyModel } from '../slice/verify.js'
-import { plateCache } from './platecache.js'
+import { fileChanged, onFileChange } from './filechange.js'
 import { SliceQueue, SliceBusyError } from '../slice/job.js'
 import {
-  readCentralDirectory, readEntry, withTail, type ZipEntry, type ZipSource,
+  findEntry, readCentralDirectory, readEntry, withTail, ZipFormatError,
+  type ZipEntry, type ZipSource,
 } from '../util/zip.js'
 
 class SliceRequestError extends Error {
@@ -220,6 +221,12 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
    * 内容往下跳一大截，看着就是卡了一下。
    */
   const paramsCache = new Map<string, { at: number; value: ModelInfo }>()
+  /*
+   * 同名重传必须清掉。否则界面拿 10 分钟前的作者设置当基准，用户只碰了层高，
+   * 桥接却把「旧基准 vs 新文件」的所有差异都当成用户改动写进去 —— 作者刚开的
+   * 支撑就这样被关掉，恰恰是逐项覆盖这个设计要防的事。
+   */
+  onFileChange((path) => paramsCache.delete(path))
 
   /**
    * 顺带回答「这个文件能不能切」。
@@ -237,7 +244,7 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
       (await ftp.readRange(source, { start: a, end: b })).data,
     )
     const entries = await readCentralDirectory(src)
-    const e = entries.find((x) => x.name === 'Metadata/project_settings.config')
+    const e = findEntry(entries, 'Metadata/project_settings.config')
     const value: ModelInfo = {
       sliceable: !isSliced(entries.map((x) => x.name)),
       params: e ? await readSettings(src, e).then(fromConfig) : null,
@@ -267,8 +274,8 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
     upload: async (file, source) => {
       const target = outputPath(source)
       await ftp.upload(target, await readFile(file))
-      // 产物可能覆盖同名旧文件，旧的预览图不能再用
-      plateCache.invalidate(target)
+      // 产物可能覆盖同名旧文件：中央目录、预览图、解析结果、作者参数全都不能再信
+      fileChanged(target)
       return target
     },
     cleanup: async (workDir) => {
@@ -291,7 +298,14 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
        */
       let info: ModelInfo | null = null
       if (req.query.path) {
-        info = await readModelInfo(ftp.normalizePath(req.query.path)).catch(() => null)
+        // normalizePath 是同步抛的，放在 .catch() 外面会直接变成 500
+        let norm: string
+        try {
+          norm = ftp.normalizePath(req.query.path)
+        } catch (e) {
+          return reply.code(400).send({ error: (e as Error).message })
+        }
+        info = await readModelInfo(norm).catch(() => null)
       }
 
       return {
@@ -366,11 +380,13 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
        * 会覆盖 67 个键，其中 `enable_support: 1 → 0` 会把作者开的支撑关掉。
        */
       const procs = await profiles.processes(nozzle)
-      const proc = procs.find((p) => p.name === (body.process ?? DEFAULT_PROCESS))
-        ?? procs.find((p) => p.name === DEFAULT_PROCESS)
-      if (!proc) throw new SliceRequestError('找不到可用的工艺配置')
+      const wantProc = body.process ?? DEFAULT_PROCESS
+      const proc = procs.find((p) => p.name === wantProc)
+      // 指名了就必须找到。悄悄换成默认再整套应用，会把作者的支撑一起换掉，
+      // 而响应里还报着 processApplied:true —— 比直接拒绝危险得多
+      if (!proc) throw new SliceRequestError(`找不到工艺配置: ${wantProc}`)
 
-      const settingsEntry = entries?.find((e) => e.name === 'Metadata/project_settings.config')
+      const settingsEntry = (entries ? findEntry(entries, 'Metadata/project_settings.config') : null)
       const modelSettings = settingsEntry
         ? await readSettings(zsrc, settingsEntry)
         : {}
@@ -468,7 +484,12 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
       if (e instanceof SliceRequestError) return reply.code(e.status).send({ error: e.message })
       if (e instanceof SlicerUnavailableError) return reply.code(503).send({ error: e.message })
       if (e instanceof ftp.BadPathError) return reply.code(400).send({ error: e.message })
-      throw e
+      // 下面这些和 files.ts 的 fail() 保持一致 —— 打印机忙、文件没了都不该变成
+      // 一句「Internal Server Error」，那会把人引向排查桥接而不是等一会儿
+      if (e instanceof ftp.TooManyReadsError) return reply.code(503).send({ error: e.message })
+      if (e instanceof ftp.NotAFileError) return reply.code(e.status).send({ error: e.message })
+      if (e instanceof ZipFormatError) return reply.code(422).send({ error: e.message })
+      return reply.code(502).send({ error: `FTPS 失败: ${(e as Error).message}` })
     }
   })
 

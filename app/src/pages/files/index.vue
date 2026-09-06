@@ -228,10 +228,23 @@ const plate = computed(() => model.value?.plates[plateIdx.value] ?? null)
  * 猜错（这个盘没有图）就是一次 404，@error 把它藏起来退回占位。
  */
 const imgFailed = ref(false)
+/*
+ * 猜的那一次失败（比如打印机正忙回了 503），元数据随后说这盘确实有图 ——
+ * 那就再要一次。URL 要变一下，否则浏览器不会重新去取同一个失败过的地址。
+ */
+const imgRetry = ref(0)
 const plateUrl = computed(() => {
-  if (selKind.value !== 'model' || !selPath.value || imgFailed.value) return ''
-  if (!model.value) return api.plateUrl(selPath.value, plateIdx.value + 1)
-  return plate.value?.hasThumbnail ? api.plateUrl(selPath.value, plate.value.index) : ''
+  if (selKind.value !== 'model' || !selPath.value) return ''
+  if (!model.value) return imgFailed.value ? '' : api.plateUrl(selPath.value, plateIdx.value + 1)
+  if (!plate.value?.hasThumbnail) return ''
+  const u = api.plateUrl(selPath.value, plate.value.index)
+  return imgRetry.value ? `${u}&r=${imgRetry.value}` : u
+})
+watch(model, (m) => {
+  if (m && imgFailed.value && plate.value?.hasThumbnail) {
+    imgFailed.value = false
+    imgRetry.value += 1
+  }
 })
 
 // ---- 盘的切换 ----
@@ -391,7 +404,9 @@ function looksUnsliced(name: string): boolean {
 function open(f: RemoteFile) {
   if (f.isDirectory) { load(join(path.value, f.name)); return }
   sel.value = f
-  model.value = null; modelError.value = ''; plateIdx.value = 0; imgFailed.value = false
+  model.value = null; modelError.value = ''; plateIdx.value = 0
+  imgFailed.value = false; imgRetry.value = 0
+  sliceOpts.value = null; optsState.value = 'idle'; optsFor = ''
   if (kindOf(f.name) !== 'model') return
   void loadModel()
   // 跟模型信息、自检并行去取，别排在它们后面
@@ -403,6 +418,8 @@ function close() {
   model.value = null
   sliceOpts.value = null
   sliceParams.value = {}
+  optsState.value = 'idle'
+  optsFor = ''
 }
 
 async function loadModel() {
@@ -585,10 +602,17 @@ const slicing = computed(
  */
 const canSlice = computed(() => {
   if (selKind.value !== 'model') return false
-  const s = sliceOpts.value?.sliceable
-  if (s !== null && s !== undefined) return s
-  return checks.value.some((c) => c.code === 'notSliced')
+  switch (optsState.value) {
+    case 'ok': return sliceOpts.value?.sliceable ?? false
+    case 'loading': return false
+    case 'unavailable': return false
+    default: return checks.value.some((c) => c.code === 'notSliced')
+  }
 })
+/** 是未切片的模型、但这台桥接没装切片器 —— 提示回到电脑上切 */
+const sliceUnavailable = computed(
+  () => optsState.value === 'unavailable' && checks.value.some((c) => c.code === 'notSliced'),
+)
 /*
  * 进度只在「正看着的就是这个文件」时显示。任务是按文件路径记的，
  * 换选一个文件还看到上一个的进度会很误导。
@@ -623,6 +647,15 @@ function resetParams() {
   sliceParams.value = { ...authorParams.value }
 }
 
+/** 只留跟作者默认值不同的项 */
+function changedParams(): SliceParams {
+  const out: SliceParams = {}
+  for (const k of Object.keys(sliceParams.value) as (keyof SliceParams)[]) {
+    if (changed(k)) (out[k] as unknown) = sliceParams.value[k]
+  }
+  return out
+}
+
 /*
  * 直接取反，不读事件对象 —— uni-app 包装过的事件在类型上拿不到 detail，
  * 而且 checked 已经绑在这个值上了，事件里那个值跟取反的结果一样。
@@ -631,13 +664,39 @@ function toggleParam(k: 'supports' | 'brim') {
   sliceParams.value = { ...sliceParams.value, [k]: !sliceParams.value[k] }
 }
 
+/*
+ * 切片参数请求的状态。
+ *   loading     在途，此时不信自检的判断 —— 两边对「切没切过」的定义不同，
+ *               谁先回来就先按谁显示会让按钮在「切片」「打印」之间跳
+ *   ok          拿到了，sliceOpts 里的 sliceable 是权威
+ *   unavailable 桥接机上没装切片器（503），入口一律不出现
+ *   error       别的失败（网络等），退回自检的判断
+ */
+const optsState = ref<'idle' | 'loading' | 'ok' | 'unavailable' | 'error'>('idle')
+/** 在途请求属于哪个文件。响应回来时不是当前文件就整个丢掉 */
+let optsFor = ''
+
 async function loadSliceOpts() {
+  const path = selPath.value
+  if (!path || optsFor === path) return
+  optsFor = path
   sliceOpts.value = null
+  optsState.value = 'loading'
   try {
-    sliceOpts.value = await fetchSliceOptions(selPath.value)
+    const opts = await fetchSliceOptions(path)
+    /*
+     * 用户可能已经关掉、点开了别的文件。晚到的响应套到新文件上，
+     * 会把 A 的作者参数当成 B 的默认值 —— 一次调参就把 A 的壁数/填充写进 B。
+     */
+    if (selPath.value !== path) return
+    sliceOpts.value = opts
+    optsState.value = 'ok'
     resetParams()
-  } catch {
-    // 切片器没装或读不到配置。入口本来就不会出现，这里安静收场
+  } catch (e) {
+    if (selPath.value !== path) return
+    optsState.value = (e as { status?: number }).status === 503 ? 'unavailable' : 'error'
+  } finally {
+    if (optsFor === path) optsFor = ''
   }
 }
 
@@ -685,7 +744,7 @@ const slicePhaseText = computed(() => {
  * 等自检说了实话再补一次 —— 这条路慢，但它本来就是罕见情况。
  */
 watch(canSlice, (on) => {
-  if (on && !sliceOpts.value) void loadSliceOpts()
+  if (on && optsState.value === 'idle') void loadSliceOpts()
 })
 
 let slicePoll = 0
@@ -730,8 +789,9 @@ async function sliceSelected() {
     const j = await startSlice({
       path: selPath.value,
       plate: plate.value?.index ?? 1,
-      // 全部发上去，桥接那边只留真正跟作者不同的几项
-      params: paramsDirty.value ? sliceParams.value : undefined,
+      // 只发用户真正动过的项。全量发的话，万一文件在这期间被同名重传，
+      // 桥接会把「旧默认值 vs 新文件」的所有差异都当成用户改动写进去
+      params: paramsDirty.value ? changedParams() : undefined,
     })
     sliceJob.value = j
     pollSlice(j.id)
@@ -1047,6 +1107,7 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
       </view>
 
       <text v-if="canSlice" class="hint">{{ t('slice.hint') }}</text>
+      <text v-else-if="sliceUnavailable" class="hint">{{ t('slice.unavailable') }}</text>
       <text v-else-if="selKind === 'model'" class="hint">{{ t('print.risk') }}</text>
 
       <template #footer>

@@ -20,6 +20,7 @@ import type { PrinterMqtt } from '../printer/mqtt.js'
 import type { PrinterState, AmsTray } from '../printer/state.js'
 import { ZipFormatError, readCentralDirectory, withTail } from '../util/zip.js'
 import { describeThreeMf, type ThreeMfInfo } from '../printer/threemf.js'
+import { onFileChange } from './filechange.js'
 import type { ThreeMfPlate, ThreeMfFilament } from '../printer/threemf.js'
 import { preflight, blocking, type Check } from './preflight.js'
 
@@ -153,6 +154,7 @@ export function registerPrintRoutes(
    * TTL 与 files.ts 里的 zipCache 取同一个值，保持一致的陈旧容忍度。
    */
   const describeCache = new Map<string, { at: number; info: ThreeMfInfo }>()
+  onFileChange((path) => describeCache.delete(path))
 
   async function describe(path: string, fresh = false): Promise<ThreeMfInfo> {
     const hit = describeCache.get(path)

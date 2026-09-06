@@ -23,6 +23,7 @@
 import { execFile } from 'node:child_process'
 import { access, mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { verifySliced } from './verify.js'
 
 export class SliceFailedError extends Error {
   constructor(message: string, readonly log: string) {
@@ -79,6 +80,16 @@ export function errorLines(log: string): string[] {
     .filter((l) => l.includes('[error]') || l.includes('found error'))
     .map((l) => l.replace(/^\[[^\]]*\]\s*\[[^\]]*\]\s*\[error\]\s*/, '').trim())
     .filter(Boolean)
+}
+
+/**
+ * execFile 的 timeout 触发时，err.code 是 null、err.killed 为 true、
+ * err.signal 是 'SIGTERM' —— 不是 'ETIMEDOUT'（实测过）。按后者判永远判不到。
+ */
+export function isTimeout(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false
+  const e = err as { killed?: boolean; signal?: string | null; code?: unknown }
+  return e.killed === true || e.signal === 'SIGTERM' || e.code === 'ETIMEDOUT'
 }
 
 async function exists(p: string): Promise<boolean> {
@@ -140,8 +151,9 @@ export async function runSlice(opt: SliceRun): Promise<SliceResult> {
         const out = `${stdout}\n${stderr}`
         // 退出码不可信，交给下面按产物是否存在来判定；只有超时这类
         // 拿不到产物的情况需要在这里就带上原因
-        if (err && (err as NodeJS.ErrnoException).code === 'ETIMEDOUT') {
-          reject(new SliceFailedError(`切片超时（超过 ${Math.round(opt.timeoutMs / 1000)} 秒）`, out))
+        // 否则用户看到「没有产出文件」，会再等一次同样长的 15 分钟
+        if (isTimeout(err)) {
+          reject(new SliceFailedError(`切片超时（超过 ${Math.round(opt.timeoutMs / 1000)} 秒），模型可能太复杂`, out))
           return
         }
         resolve(out)
@@ -153,6 +165,12 @@ export async function runSlice(opt: SliceRun): Promise<SliceResult> {
   if (!(await exists(file))) {
     const why = errorLines(log)[0]
     throw new SliceFailedError(why ? `切片失败: ${why}` : '切片失败，没有产出文件', log)
+  }
+  // 文件在不等于文件完整 —— 被杀在写到一半时也「在」
+  try {
+    await verifySliced(file)
+  } catch (e) {
+    throw new SliceFailedError((e as Error).message, log)
   }
   return { file, log, ms: Date.now() - started }
 }

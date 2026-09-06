@@ -143,7 +143,7 @@
       "noSdCard": "打印机没有检测到 SD 卡",
       "printerError": "打印机当前有 {count} 条未处理的报错",
       "sliceWarning": "切片器告警：{msg}",
-      "notSliced": "这是未切片的原始模型，打印机只能打印已切片的 .gcode.3mf。可以直接在这里切片。"
+      "notSliced": "这是未切片的原始模型，打印机只能打印已切片的 .gcode.3mf。"
     },
     "slice": {
       "bed_temperature_too_high_than_filament": "热床温度高于该耗材的耐受范围",
@@ -249,6 +249,7 @@
     "title": "切片",
     "desc": "在桥接机上把「{name}」切成可打印的文件，沿用模型自带的打印设置（层高、填充、支撑都按模型作者调好的来）。原文件保留，产物另存为 .gcode.3mf。",
     "hint": "这是未切片的模型，打印机认不了。切好之后才能打印。",
+    "unavailable": "这台桥接机没有安装切片器。请在电脑上用 Bambu Studio 切好再上传。",
     "done": "切好了",
     "failed": "切片失败",
     "phase": {

@@ -14,7 +14,7 @@
  * 换来的额外覆盖面很小。
  */
 import { readFile } from 'node:fs/promises'
-import { bufferSource, readCentralDirectory, readEntry } from '../util/zip.js'
+import { bufferSource, findEntry, readCentralDirectory, readEntry } from '../util/zip.js'
 
 /** 3MF 规范规定的模型主体 */
 export const MODEL_ENTRY = '3D/3dmodel.model'
@@ -43,7 +43,8 @@ export async function verifyModel(file: string): Promise<void> {
   if (!entries) {
     throw new ModelCorruptError('这个文件不是有效的 3mf 压缩包，可能在传输或存储中损坏了')
   }
-  const model = entries.find((e) => e.name === MODEL_ENTRY)
+  // 大小写不敏感：zip.ts 的 findEntry 注释里说明过，有的切片器版本会写成小写路径
+  const model = findEntry(entries, MODEL_ENTRY)
   if (!model) {
     throw new ModelCorruptError(`包里没有 ${MODEL_ENTRY}，这不是一个 3mf 模型文件`)
   }
@@ -59,5 +60,23 @@ export async function verifyModel(file: string): Promise<void> {
     throw new ModelCorruptError(
       `模型数据不完整（解出 ${data.length} 字节，应有 ${model.uncompressedSize} 字节），请重新上传这个文件`,
     )
+  }
+}
+
+/**
+ * 切片**产物**的完整性。
+ *
+ * 切片器被超时杀掉时可能正写到一半：文件在，中央目录还没写或者写了一半。
+ * runSlice 只看「文件存不存在」，这种半成品会被当成功传上打印机。
+ * 所以产物也要验：能读出中央目录，且至少有一盘 gcode。
+ */
+export async function verifySliced(file: string): Promise<void> {
+  const buf = await readFile(file)
+  const entries = await readCentralDirectory(bufferSource(buf)).catch(() => null)
+  if (!entries) {
+    throw new ModelCorruptError('切片产物不是完整的压缩包，多半是切片器中途被终止了')
+  }
+  if (!entries.some((e) => /^metadata\/plate_\d+\.gcode$/i.test(e.name))) {
+    throw new ModelCorruptError('切片产物里没有任何一盘的 gcode')
   }
 }
