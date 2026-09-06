@@ -311,7 +311,8 @@
     "recommended": "推奨 {t}℃ · {h}h",
     "humidityPct": "{p}%",
     "statusLabel": "状態",
-    "matLabel": "フィラメント"
+    "matLabel": "フィラメント",
+    "humidityLevel": "{l} レベル（A が最も乾燥）"
   },
   "err": {
     "title": "プリンターのエラー",

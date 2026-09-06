@@ -311,7 +311,8 @@
     "recommended": "建議 {t}℃ · {h}h",
     "humidityPct": "{p}%",
     "statusLabel": "狀態",
-    "matLabel": "耗材類型"
+    "matLabel": "耗材類型",
+    "humidityLevel": "{l} 級（A 最乾）"
   },
   "err": {
     "title": "印表機報錯",

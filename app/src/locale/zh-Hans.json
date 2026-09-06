@@ -311,7 +311,8 @@
     "recommended": "推荐 {t}℃ · {h}h",
     "humidityPct": "{p}%",
     "statusLabel": "状态",
-    "matLabel": "耗材类型"
+    "matLabel": "耗材类型",
+    "humidityLevel": "{l} 级（A 最干）"
   },
   "err": {
     "title": "打印机报错",

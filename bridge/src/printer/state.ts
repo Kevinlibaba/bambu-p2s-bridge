@@ -78,12 +78,14 @@ export interface AmsUnit {
   id: number
   /** 仓内温度 ℃ */
   temp: number
-  /** 湿度等级 1–5 */
+  /**
+   * 湿度等级 1–5，**MQTT 的方向：1 = 湿、5 = 干**。Handy/Studio 显示的 A–E
+   * （A 干 … E 湿）是 6 − 这个值。见 PROTOCOL §3.3 Humidity。
+   */
   humidity: number
   /**
-   * 湿度百分比，来自 humidity_raw（Bambu 自己的解析器也读这个字段作
-   * m_humidity_percent，BambuStudio 显示的就是它）。0 是合法读数，
-   * 只有字段缺失或非数字时才为 null。
+   * 湿度百分比，来自 humidity_raw。这台 AMS 2 Pro 的固件在 LAN 上恒报 0 ——
+   * 0 是「没报」不是「很干」（pybambu 同样只接受 1–100）。字段缺失或非数字为 null。
    */
   humidityPct: number | null
   dryStatus: DryStatus

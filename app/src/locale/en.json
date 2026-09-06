@@ -311,7 +311,8 @@
     "recommended": "{t}℃ · {h}h recommended",
     "humidityPct": "{p}%",
     "statusLabel": "Status",
-    "matLabel": "Filament"
+    "matLabel": "Filament",
+    "humidityLevel": "Level {l} (A = driest)"
   },
   "err": {
     "title": "Printer errors",

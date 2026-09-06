@@ -463,9 +463,17 @@ function stopTemps() {
 const amsTrays = computed(() => (s.value?.ams ?? []).filter((t) => t.unit >= 0))
 const extTray = computed(() => (s.value?.ams ?? []).find((t) => t.unit < 0 && !t.empty) ?? null)
 
+/*
+ * 这台 AMS 2 Pro 在 LAN 上不报百分比（humidity_raw 恒为 0），只有 1–5 的等级 ——
+ * 而且 MQTT 的方向和界面相反（5 = 干）。显示成 Handy/Studio 那套 A–E（A 干 E 湿）。
+ * 百分比 1–100 才是真读数，有就优先显示。
+ */
 const humidityText = computed(() => {
   const pct = unit.value?.humidityPct
-  return pct === undefined || pct === null ? '—' : t('dry.humidityPct', { p: pct })
+  if (pct !== undefined && pct !== null && pct >= 1) return t('dry.humidityPct', { p: pct })
+  const lv = Math.round(unit.value?.humidity ?? 0)
+  if (lv >= 1 && lv <= 5) return t('dry.humidityLevel', { l: 'ABCDE'[5 - lv] })
+  return '—'
 })
 
 
