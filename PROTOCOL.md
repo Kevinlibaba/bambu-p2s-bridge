@@ -408,8 +408,12 @@ it has no RFID, so `remain` is meaningless there.
 | `humidity_raw` | Percentage (`m_humidity_percent`) — this is what Studio displays |
 
 `humidity_raw` reads `"0"` on this unit at all times, and Bambu Studio shows `0 %` for
-it too, so `0` is a genuine reading rather than a missing value. Treat only a missing
-or non-numeric field as unknown.
+it too. Per Bambu's wiki (*Humidity Display by AMS Generation*) the original AMS has no
+percentage display at all — it shows five levels **A–E, low to high**, which is what
+`humidity` 1–5 maps to — while only AMS 2 Pro / AMS HT report a real percentage. So on
+the original AMS the `0` is "not provided", not a dry reading; use the level. The wiki's
+own threshold: *"when the display shows Level C or above, the AMS chamber is relatively
+humid, so please ensure proper sealing and replace the desiccant as needed."*
 
 ### 3.3b Capability bits — `fun`
 

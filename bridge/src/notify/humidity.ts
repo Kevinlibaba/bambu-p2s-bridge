@@ -14,7 +14,12 @@ import type { NotifyEvent } from './events.js'
 export interface HumidityOptions {
   /** 湿度百分比阈值。有百分比读数时用它 */
   pct: number
-  /** 没有百分比时退回等级：1 最干、5 最湿，≥ 这个等级算偏高 */
+  /**
+   * 等级阈值：1–5 对应界面上的 A–E，从干到湿。官方 wiki 原话：
+   * "when the display shows Level C or above, the AMS chamber is relatively humid,
+   *  so please ensure proper sealing and replace the desiccant as needed."
+   * 所以默认 3（C）。
+   */
   level: number
   /** 持续偏高多久才提醒（毫秒） */
   sustainMs: number
@@ -24,7 +29,7 @@ export interface HumidityOptions {
 
 export const DEFAULT_HUMIDITY: HumidityOptions = {
   pct: 50,
-  level: 4,
+  level: 3,
   sustainMs: 2 * 3_600_000,
   repeatMs: 24 * 3_600_000,
 }
@@ -40,10 +45,16 @@ export class HumidityWatch {
 
   constructor(private readonly opts: HumidityOptions = DEFAULT_HUMIDITY) {}
 
-  /** 某个仓此刻算不算偏高 */
+  /**
+   * 某个仓此刻算不算偏高：百分比或等级任一超过阈值。
+   *
+   * 两个刻度方向一致（数越大越湿：等级 1 最干、5 最湿），但不是每台都有百分比 ——
+   * 旧款 AMS 的 humidity_raw 恒为 0，只有等级是真的。只看百分比的话，这种机器
+   * 永远触发不了；只看等级的话，新款的百分比又白给了。所以两个都看。
+   */
   private isHigh(u: Summary['amsUnits'][number]): boolean {
-    if (u.humidityPct !== null && u.humidityPct !== undefined) return u.humidityPct >= this.opts.pct
-    return u.humidity >= this.opts.level
+    const pctHigh = u.humidityPct !== null && u.humidityPct !== undefined && u.humidityPct >= this.opts.pct
+    return pctHigh || u.humidity >= this.opts.level
   }
 
   update(s: Summary, now: number): NotifyEvent[] {
@@ -61,9 +72,11 @@ export class HumidityWatch {
       if (now - t.highSince < this.opts.sustainMs) continue
       if (t.lastNotified !== null && now - t.lastNotified < this.opts.repeatMs) continue
       t.lastNotified = now
-      const reading = u.humidityPct !== null && u.humidityPct !== undefined
-        ? `${Math.round(u.humidityPct)}%`
-        : `等级 ${u.humidity}/5`
+      // 界面上等级显示为 A–E；百分比恒为 0 的旧款只报等级，两个都有就都写
+      const letter = 'ABCDE'[Math.min(5, Math.max(1, u.humidity)) - 1]
+      const reading = u.humidityPct
+        ? `${Math.round(u.humidityPct)}%（${letter} 级）`
+        : `${letter} 级（${u.humidity}/5）`
       const hours = Math.round((now - t.highSince) / 3_600_000)
       out.push({
         kind: 'amsHumid',

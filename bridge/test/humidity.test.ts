@@ -35,11 +35,23 @@ test('烘干进行中不提醒 —— 湿度本来就在降', () => {
   assert.deepEqual(w.update(sum([unit({ humidityPct: 70, dryStatus: 'drying' })]), 0), [])
 })
 
-test('没有百分比读数时退回等级判断', () => {
+/*
+ * 旧款 AMS 的 humidity_raw 恒为 0，只有等级是真的（实测这台就是：等级 5、0%）。
+ * 只看百分比的话这种机器永远触发不了。
+ */
+test('百分比恒为 0 的旧款按等级判断', () => {
   const w = new HumidityWatch({ pct: 50, level: 4, sustainMs: 0, repeatMs: 24 * H })
-  assert.equal(w.update(sum([unit({ humidity: 3 })]), 0).length, 0)
-  const ev = w.update(sum([unit({ id: 1, humidity: 4 })]), 0)
+  assert.equal(w.update(sum([unit({ humidity: 2, humidityPct: 0 })]), 0).length, 0)
+  const ev = w.update(sum([unit({ id: 1, humidity: 5, humidityPct: 0 })]), 0)
   assert.equal(ev.length, 1)
   assert.match(ev[0].title, /AMS 2/)
-  assert.match(ev[0].body, /等级 4/)
+  assert.match(ev[0].body, /E 级/)
+  assert.doesNotMatch(ev[0].body, /0%/, '0% 不是真读数，别写进去误导人')
+})
+
+test('新款百分比偏高也算，两个刻度任一超过即提醒', () => {
+  const w = new HumidityWatch({ pct: 50, level: 3, sustainMs: 0, repeatMs: 24 * H })
+  const ev = w.update(sum([unit({ humidity: 2, humidityPct: 65 })]), 0)
+  assert.equal(ev.length, 1)
+  assert.match(ev[0].body, /65%/)
 })
