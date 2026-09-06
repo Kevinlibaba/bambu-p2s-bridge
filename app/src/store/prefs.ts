@@ -81,27 +81,35 @@ export function applyChrome(titleKey?: string) {
   }
   // #endif
 
-  try {
-    uni.setNavigationBarColor({
-      frontColor: c.front as '#ffffff' | '#000000',
-      backgroundColor: c.bg,
-    })
-  } catch { /* 部分端在页面就绪前调用会抛错，忽略 */ }
+  /*
+   * 这几个调用都带 fail 回调，而且不能省。
+   *
+   * App 的 onLaunch / onShow 会在任何页面挂载之前调一次 applyChrome（为的是首屏
+   * 之前就把 <html> 的 data-theme 写好，不闪一下）。那时导航栏和标签栏都还不存在，
+   * H5 端这几个接口会失败 —— 而 uni 的接口在**没给回调时才 promise 化**，拒绝值是
+   * 一个 {errMsg} 对象，外面的 try/catch 接不住，每次启动就漏出 12 个
+   * 「Uncaught (in promise)」。给了回调就退回无害的空操作。页面自己的 onShow
+   * 随后会再调一次，那时才真正生效。
+   */
+  const ignore = () => { /* 页面还没就绪时失败是预期的 */ }
 
-  if (titleKey) {
-    try { uni.setNavigationBarTitle({ title: tt(titleKey) }) } catch { /* noop */ }
-  }
+  uni.setNavigationBarColor({
+    frontColor: c.front as '#ffffff' | '#000000',
+    backgroundColor: c.bg,
+    fail: ignore,
+  })
 
-  try {
-    uni.setTabBarStyle({
-      color: c.tabColor,
-      selectedColor: c.tabSelected,
-      backgroundColor: c.bg,
-      borderStyle: state.effectiveTheme === 'dark' ? 'black' : 'white',
-    })
-    const tabs = ['tab.monitor', 'tab.control', 'tab.files', 'tab.settings']
-    tabs.forEach((k, index) => uni.setTabBarItem({ index, text: tt(k) }))
-  } catch { /* noop */ }
+  if (titleKey) uni.setNavigationBarTitle({ title: tt(titleKey), fail: ignore })
+
+  uni.setTabBarStyle({
+    color: c.tabColor,
+    selectedColor: c.tabSelected,
+    backgroundColor: c.bg,
+    borderStyle: state.effectiveTheme === 'dark' ? 'black' : 'white',
+    fail: ignore,
+  })
+  const tabs = ['tab.monitor', 'tab.control', 'tab.files', 'tab.settings']
+  tabs.forEach((k, index) => uni.setTabBarItem({ index, text: tt(k), fail: ignore }))
 }
 
 /** 系统主题变化时，auto 模式要跟着走 */
