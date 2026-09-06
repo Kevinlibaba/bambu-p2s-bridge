@@ -480,7 +480,13 @@
     "busyHint": "打印进行中，只能预约，不能立即收菜",
     "expTitle": "实验功能，请谨慎使用",
     "expAuto": "这条路径还没在真机上验证过",
-    "nothing": "这一盘没有可推的件"
+    "nothing": "这一盘没有可推的件",
+    "fileAction": "生成收菜版本",
+    "fileTitle": "生成收菜版本",
+    "fileDesc": "把推件序列写进这一盘的结束 G-code 里，另存为「{name}」。打这个文件，打完会自动等热床冷透、把件推下热床。原文件不动。",
+    "fileWarnDesc": "规划有以下提醒：\n{list}\n\n仍要生成吗？",
+    "fileDone": "已生成收菜版本",
+    "fileNone": "这一盘没有可推的件"
   },
   "harvestWarn": {
     "tooFlat": "件太矮，喷嘴够不到",

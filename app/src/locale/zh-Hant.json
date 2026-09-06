@@ -480,7 +480,13 @@
     "busyHint": "列印進行中，只能預約，不能立即收菜",
     "expTitle": "實驗功能，請謹慎使用",
     "expAuto": "這條路徑還沒在真機上驗證過",
-    "nothing": "這一盤沒有可推的件"
+    "nothing": "這一盤沒有可推的件",
+    "fileAction": "產生收菜版本",
+    "fileTitle": "產生收菜版本",
+    "fileDesc": "把推件序列寫進這一盤的結束 G-code 裡，另存為「{name}」。列印這個檔案，印完會自動等熱床冷透、把件推下熱床。原檔不動。",
+    "fileWarnDesc": "規劃有以下提醒：\n{list}\n\n仍要產生嗎？",
+    "fileDone": "已產生收菜版本",
+    "fileNone": "這一盤沒有可推的件"
   },
   "harvestWarn": {
     "tooFlat": "件太矮，噴嘴構不到",

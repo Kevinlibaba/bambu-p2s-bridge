@@ -424,6 +424,25 @@ export const fetchHarvestAuto = () => request<HarvestAuto>('/api/eject/auto')
 export const armHarvest = (armed: boolean) =>
   request<HarvestAuto>('/api/eject/auto', { method: 'POST', data: { armed } })
 
+export interface HarvestFilePlan {
+  dryRun: boolean
+  path: string
+  plate: number
+  objectCount: number
+  maxZ: number
+  brimWidth: number
+  order: { id: number; name: string; pushX: number; startY: number }[]
+  warnings: HarvestWarning[]
+  /** 产物在打印机上的路径：<名字>.harvest.gcode.3mf */
+  output: string
+}
+/** 只规划、回告警，不动文件 */
+export const planHarvestFile = (path: string, plate: number) =>
+  request<HarvestFilePlan>('/api/eject/inject', { method: 'POST', data: { path, plate } })
+/** 真的生成带收菜的文件并传回打印机。文件大，给长一点超时 */
+export const makeHarvestFile = (path: string, plate: number) =>
+  request<HarvestFilePlan>('/api/eject/inject', { method: 'POST', data: { path, plate, confirm: true }, timeout: 120000 })
+
 /** 不带 confirm 只算不发 */
 export const planHarvest = () =>
   request<HarvestPlan>('/api/eject', { method: 'POST', data: {} })

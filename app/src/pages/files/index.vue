@@ -6,6 +6,7 @@ import {
   api, configured, uploadFile, importUrl, deleteFile, startPrint, fetchPrintPlan,
   startSlice, fetchSliceJob, fetchSliceOptions,
   fetchSchedule, setSchedule, cancelSchedule, type ScheduleStatus,
+  planHarvestFile, makeHarvestFile,
   type RemoteFile, type ThreeMfInfo, type PrintPlan, type PlanTray, type PreflightCheck,
   type SliceJob, type SliceOptions, type SliceParams,
 } from '../../api/client'
@@ -910,6 +911,44 @@ async function openPending(want: PendingOpen) {
   if (want.plate && want.plate > 0) plateIdx.value = want.plate - 1
 }
 
+// ---- 生成带收菜的版本 ----
+/*
+ * 把推件序列写进这一盘的结束 G-code（M18 之前），另存一个文件。打这个文件，
+ * 打完自动推 —— 不用像「打完这一件后收菜」那样先 G28，也就没有带着件回零
+ * 撞探测点的风险。原文件不动，想不推的时候还打原文件。
+ */
+const harvestBusy = ref(false)
+const canHarvestFile = computed(() =>
+  selKind.value === 'model' && !!model.value && !modelError.value && !canSlice.value
+  && !!plate.value && !/\.harvest\.gcode\.3mf$/i.test(sel.value?.name ?? ''))
+
+async function makeHarvest() {
+  const f = sel.value
+  if (!f || harvestBusy.value) return
+  harvestBusy.value = true
+  try {
+    // 先只规划：这一盘能不能推、有什么风险，要在生成之前就看清楚
+    const p = await planHarvestFile(selPath.value, plateNo.value)
+    if (!p.order.length) { toast(t('harvest.fileNone')); return }
+    const outName = p.output.slice(p.output.lastIndexOf('/') + 1)
+    let desc = t('harvest.fileDesc', { name: outName })
+    if (p.warnings.length) {
+      const list = p.warnings.map((w) => `· ${t('harvestWarn.' + w.code, w.params || {})}`).join('\n')
+      desc += '\n\n' + t('harvest.fileWarnDesc', { list })
+    }
+    if (!(await confirm(t('harvest.fileTitle'), desc, p.warnings.some((w) => w.level === 'warn')))) return
+    const r = await makeHarvestFile(selPath.value, plateNo.value)
+    toast(t('harvest.fileDone'))
+    await load()
+    const out = files.value.find((x) => x.name === r.output.slice(r.output.lastIndexOf('/') + 1))
+    if (out) open(out)
+  } catch (e) {
+    toast((e as Error).message)
+  } finally {
+    harvestBusy.value = false
+  }
+}
+
 onShow(() => {
   applyChrome('tab.files')
   const want = takePendingOpen()
@@ -1238,6 +1277,13 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
             <text class="k accent">{{ t('schedule.action') }}</text>
             <text class="v">›</text>
           </view>
+          <template v-if="canHarvestFile">
+            <view class="hsep" />
+            <view class="line tappable" @click="makeHarvest">
+              <text class="k accent">{{ t('harvest.fileAction') }}<text class="beta">β</text></text>
+              <text class="v">{{ harvestBusy ? '…' : '›' }}</text>
+            </view>
+          </template>
         </template>
         <view class="hsep" />
         <view class="line tappable" @click="removeSelected">
@@ -1431,6 +1477,7 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 
 .num { font-variant-numeric: tabular-nums; }
 .banner { margin-bottom: 20rpx; }
+.beta { font-size: 18rpx; color: var(--ink-3); margin-left: 6rpx; vertical-align: super; }
 .segs.mini { margin: 0; flex: 0 0 auto; }
 .segs.mini .seg { padding: 12rpx 22rpx; }
 .cta.fill { width: 100%; }

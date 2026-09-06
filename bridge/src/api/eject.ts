@@ -23,6 +23,8 @@ import { planEject, DEFAULT_BED_TARGET, type EjectOptions, type PlateObject } fr
 import { readEjectSource, EjectSourceError, type EjectSource } from '../eject/source.js'
 import { resolveJobFile } from '../history/resolve.js'
 import { rootListing } from '../history/enrich.js'
+import { buildHarvestFile, harvestName, InjectError } from '../eject/inject.js'
+import { fileChanged } from './filechange.js'
 import * as ftp from '../printer/ftp.js'
 import type { History } from '../history/index.js'
 import type { AutoHarvest } from '../eject/auto.js'
@@ -289,4 +291,50 @@ export function registerEjectRoutes(
       return reply.code(500).send({ error: (e as Error).message })
     }
   })
+  /**
+   * 生成「带收菜」的切片文件：把推件序列写进这一盘的结束 G-code、M18 之前，
+   * 另存为 <名字>.harvest.gcode.3mf。打这个文件，打完自动推。
+   *
+   * 不带 confirm 只规划、回告警，让界面先把「这一盘能不能推、有什么风险」
+   * 摆出来；confirm 才真的取文件、改、传回去。这一步不动机器，风险在打印
+   * 结束那一刻才兑现，所以告警必须在这里就看清楚。
+   */
+  app.post('/api/eject/inject', async (req, reply) => {
+    const body = (req.body ?? {}) as { path?: string; plate?: number; confirm?: boolean; bedTarget?: number }
+    try {
+      if (!body.path) throw new EjectError('要给哪个文件加收菜')
+      const path = ftp.normalizePath(body.path)
+      const plate = Number(body.plate ?? 1)
+      if (!Number.isInteger(plate) || plate < 1) throw new EjectError('盘号必须是正整数')
+      if (/\.harvest\.gcode\.3mf$/i.test(path)) throw new EjectError('这个文件已经是带收菜的版本了', 409)
+
+      const src = await readEjectSource(path, plate)
+      const plan = planEject(src.objects, { bed: BED, maxZ: src.maxZ }, {
+        mode: 'endGcode',
+        brimWidth: src.brimWidth,
+        ...(Number.isFinite(body.bedTarget as number) ? { bedTarget: Number(body.bedTarget) } : {}),
+      })
+      const base = {
+        path, plate, objectCount: src.objects.length, maxZ: src.maxZ, brimWidth: src.brimWidth,
+        order: plan.order, warnings: plan.warnings, output: harvestName(path),
+      }
+      if (!body.confirm) return { dryRun: true, ...base }
+      if (plan.order.length === 0) throw new EjectError('这一盘没有可推的件', 409)
+
+      const original = await ftp.download(path)
+      const patched = await buildHarvestFile(original, plate, plan.gcode)
+      await ftp.upload(base.output, patched)
+      fileChanged(base.output)
+      return { dryRun: false, ...base, bytes: patched.length }
+    } catch (e) {
+      if (e instanceof EjectError) return reply.code(e.status).send({ error: e.message })
+      if (e instanceof InjectError) return reply.code(e.status).send({ error: e.message })
+      if (e instanceof EjectSourceError) return reply.code(e.status).send({ error: e.message })
+      if (e instanceof ftp.BadPathError) return reply.code(400).send({ error: e.message })
+      if (e instanceof ftp.TooManyReadsError) return reply.code(503).send({ error: e.message })
+      if (e instanceof ftp.NotAFileError) return reply.code(e.status).send({ error: e.message })
+      return reply.code(502).send({ error: `FTPS 失败: ${(e as Error).message}` })
+    }
+  })
+
 }
