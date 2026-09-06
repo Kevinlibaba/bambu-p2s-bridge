@@ -18,8 +18,9 @@ import {
   startDrying, stopDrying, unloadFilament, DryBlockedError,
   fetchErrors, clearErrors, fetchTemps,
   planHarvest, runHarvest, fetchHarvestAuto, armHarvest,
+  fetchSkipObjects, skipObjects,
   type AmsUnit, type DryBlocker, type PrinterErrorItem, type TempSample,
-  type HarvestPlan, type HarvestAuto,
+  type HarvestPlan, type HarvestAuto, type SkipObjects,
 } from '../../api/client'
 
 const { t, locale } = useI18n()
@@ -229,6 +230,95 @@ async function doHarvest() {
     toast((e as Error).message)
   } finally {
     hBusy.value = false
+  }
+}
+
+/*
+ * 跳过零件。
+ *
+ * 一盘多件时某一件翘了，跳过它保住其余的。协议见 PROTOCOL.md §2.6。
+ * 清单在状态变成打印中的那一刻就先取好，不等点开：入口显不显示取决于
+ * 「这一盘有没有第二个件」—— 跳过唯一的件等于停止，那种盘干脆不出入口。
+ *
+ * 【已实现、未真机验证】—— 验证要牺牲一个真实零件，所以整条链路只对照
+ * BambuStudio 源码和打印机状态写成。
+ */
+const skSheet = ref(false)
+const skList = ref<SkipObjects | null>(null)
+const skErr = ref('')
+const skBusy = ref(false)
+const skSel = ref<number[]>([])
+const skActive = computed(() => running.value || paused.value)
+/** 已跳过以实时状态里的 s_obj 为准 —— 命令发出后清单不用重取也会变灰 */
+const skItems = computed(() => {
+  const live = new Set(s.value?.skippedObjects ?? [])
+  return (skList.value?.objects ?? []).map((o) => ({ ...o, skipped: o.skipped || live.has(o.id) }))
+})
+const skAvailable = computed(() => {
+  const l = skList.value
+  return skActive.value && !!l && l.supported && l.labelObjectEnabled && l.objects.length > 1
+})
+const skRemaining = computed(() => skItems.value.filter((o) => !o.skipped).length)
+/** 服务端同样会挡；这里先挡是为了别让用户确认完才被拒 */
+const skWouldStop = computed(() => skSel.value.length > 0 && skSel.value.length >= skRemaining.value)
+
+/* 同一单只取一次 —— 清单要走 FTP，而打印中状态每秒都在推 */
+let skLoadedFor = ''
+async function loadSkipObjects(force = false) {
+  const key = `${s.value?.taskName ?? ''}|${s.value?.file ?? ''}`
+  if (!force && key === skLoadedFor) return
+  skLoadedFor = key
+  skErr.value = ''
+  try {
+    skList.value = await fetchSkipObjects()
+  } catch (e) {
+    // 有旧清单就继续用旧的，理由同收菜
+    if (!skList.value) skErr.value = (e as Error).message
+  }
+}
+watch(
+  () => [skActive.value, s.value?.taskName, s.value?.file] as const,
+  ([active]) => {
+    if (active) {
+      void loadSkipObjects()
+    } else {
+      // 打印结束后上一单的清单没有意义，而且 subtask_name 还会留着上一单的名字
+      skList.value = null
+      skLoadedFor = ''
+      skSel.value = []
+    }
+  },
+  { immediate: true },
+)
+
+function toggleSkip(o: { id: number; skipped: boolean }) {
+  if (o.skipped) return
+  const i = skSel.value.indexOf(o.id)
+  if (i >= 0) skSel.value.splice(i, 1)
+  else skSel.value.push(o.id)
+}
+
+function openSkip() {
+  skSheet.value = true
+  skSel.value = []
+  void loadSkipObjects(true)
+}
+
+async function doSkip() {
+  const ids = [...skSel.value]
+  if (!ids.length || skWouldStop.value) return
+  // 不可逆的动作，用红色确认
+  if (!(await confirmAsk(t('skip.confirmTitle', { n: ids.length }), t('skip.confirm'), true))) return
+  skBusy.value = true
+  try {
+    await skipObjects(ids)
+    skSel.value = []
+    skSheet.value = false
+    toast(t('skip.sent'))
+  } catch (e) {
+    toast((e as Error).message)
+  } finally {
+    skBusy.value = false
   }
 }
 
@@ -524,9 +614,16 @@ async function send(c: Command, confirmText?: string) {
               β 常驻 —— 这是唯一一个会让机器压着实物移动的功能，
               不该等到点开才知道它是实验性的。
             -->
-            <view class="hbtn" :class="{ on: hAuto?.armed }" @click="openHarvest">
-              <text class="hbtn-t">{{ hAuto?.armed ? t('harvest.armed') : t('harvest.title') }}</text>
-              <text class="hbtn-beta">β</text>
+            <view class="hbtns">
+              <!-- 跳过零件：只在一盘多件、固件和切片都支持时出现。未真机验证，β 常驻 -->
+              <view v-if="skAvailable" class="hbtn" @click="openSkip">
+                <text class="hbtn-t">{{ t('skip.title') }}</text>
+                <text class="hbtn-beta">β</text>
+              </view>
+              <view class="hbtn" :class="{ on: hAuto?.armed }" @click="openHarvest">
+                <text class="hbtn-t">{{ hAuto?.armed ? t('harvest.armed') : t('harvest.title') }}</text>
+                <text class="hbtn-beta">β</text>
+              </view>
             </view>
           </view>
         </view>
@@ -659,6 +756,42 @@ async function send(c: Command, confirmText?: string) {
           </button>
           <!-- 只在按不动的时候说明原因。能按时不必再补一句废话 -->
           <text v-if="hBlockReason" class="note warn">{{ hBlockReason }}</text>
+        </template>
+      </Sheet>
+
+      <!-- 跳过零件。多选，已跳过的置灰打钩；确认弹窗说清不可逆 -->
+      <Sheet :visible="skSheet" :title="t('skip.title')" @close="skSheet = false">
+        <view class="hwarn">
+          <text class="hwarn-t">{{ t('skip.expTitle') }}</text>
+        </view>
+        <text class="hint">{{ t('skip.intro') }}</text>
+
+        <view v-if="!skList && !skErr" class="busy"><Spinner :size="40" /></view>
+
+        <view v-else-if="skErr" class="card sheet-card">
+          <view class="line"><text class="k dim">{{ skErr }}</text></view>
+        </view>
+
+        <template v-else>
+          <text class="grouphead">{{ t('skip.parts') }}</text>
+          <view class="card sheet-card">
+            <view v-if="!skItems.length" class="line"><text class="k dim">{{ t('skip.none') }}</text></view>
+            <view v-for="(o, i) in skItems" :key="o.id">
+              <view v-if="i > 0" class="hsep" />
+              <view class="line" :class="o.skipped ? 'skipped' : 'tappable'" @click="toggleSkip(o)">
+                <text class="k ell" :class="{ dim: o.skipped }">{{ o.name || '#' + o.id }}</text>
+                <text v-if="o.skipped" class="v">{{ t('skip.skipped') }} ✓</text>
+                <text v-else-if="skSel.includes(o.id)" class="tick">✓</text>
+              </view>
+            </view>
+          </view>
+          <text v-if="skWouldStop" class="note warn">{{ t('skip.allHint') }}</text>
+        </template>
+
+        <template #footer>
+          <button class="cta danger" :disabled="skBusy || !skSel.length || skWouldStop" @click="doSkip">
+            {{ skBusy ? t('skip.working') : t('skip.doN', { n: skSel.length }) }}
+          </button>
         </template>
       </Sheet>
 
@@ -914,8 +1047,10 @@ async function send(c: Command, confirmText?: string) {
  * 那一行是次要信息（灰字），所以按钮不能太抢 —— 用填充底而不是强调色，
  * 只有预约中才整颗点亮。
  */
+.hbtns { margin-left: auto; flex-shrink: 0; display: flex; align-items: center; }
+.hbtn + .hbtn { margin-left: 12rpx; }
 .hbtn {
-  margin-left: auto; flex-shrink: 0;
+  flex-shrink: 0;
   display: flex; align-items: baseline;
   padding: 10rpx 26rpx; border-radius: 999rpx;
   /* 用强调色淡底，和 app 里其他动作一个语言。--fill 在浅色下几乎看不出是按钮 */
@@ -931,6 +1066,10 @@ async function send(c: Command, confirmText?: string) {
 .hbtn.on { background: var(--accent); }
 .hbtn.on .hbtn-t { color: #fff; }
 .hbtn.on .hbtn-beta { color: rgba(255, 255, 255, 0.75); }
+/* 已跳过的件：置灰、不可再选。零件名可能很长，省略号截断 */
+.line.skipped { opacity: 0.55; }
+.k.ell { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cta.danger[disabled] { opacity: 0.4; }
 /* 详情卡里几处覆盖 */
 .line.stack .sub { display: block; font-size: 25rpx; color: var(--ink-2);
   margin-top: 8rpx; line-height: 1.45; }

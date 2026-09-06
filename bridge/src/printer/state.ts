@@ -55,6 +55,13 @@ export interface Summary {
   amsUnits: AmsUnit[]
   /** 阻止启动烘干的原因，空数组表示可以开始 */
   dryBlockers: DryBlocker[]
+  /**
+   * 这一单里已经被跳过的零件 —— slice_info.config 里的 identify_id。
+   * 来自 print.s_obj，见 PROTOCOL.md §2.6.2；没跳过任何件时为空数组。
+   */
+  skippedObjects: number[]
+  /** 固件支持不支持中途跳过零件：print.fun 的第 49 位，见 PROTOCOL.md §2.6.3 */
+  skipSupported: boolean
   updatedAt: number
 }
 
@@ -112,6 +119,27 @@ export interface AmsTray {
 const num = (v: any, d = 0) => {
   const n = typeof v === 'string' ? parseFloat(v) : v
   return Number.isFinite(n) ? n : d
+}
+
+/**
+ * print.fun 是十六进制字符串位域，BambuStudio 从里面读各种功能开关
+ * （对照表见 PROTOCOL.md §2.6.3）。值超过 53 位，Number 的位运算只认低 32 位，
+ * 所以必须走 BigInt。读不出来一律当「不支持」—— 宁可少一个入口，
+ * 也不要对不认这条命令的固件下发。
+ */
+export function funBit(fun: unknown, bit: number): boolean {
+  if (typeof fun !== 'string' || !/^[0-9a-fA-F]+$/.test(fun)) return false
+  try {
+    return ((BigInt('0x' + fun) >> BigInt(bit)) & 1n) === 1n
+  } catch {
+    return false
+  }
+}
+
+/** 已跳过的零件列表。固件给的是数字数组；别的形状一律当没有 */
+export function skippedObjectsOf(sObj: unknown): number[] {
+  if (!Array.isArray(sObj)) return []
+  return sObj.map(Number).filter((n) => Number.isInteger(n))
 }
 
 export class PrinterState extends EventEmitter {
@@ -174,6 +202,8 @@ export class PrinterState extends EventEmitter {
       ams: this.amsTrays(),
       amsUnits: this.amsUnits(),
       dryBlockers: this.dryBlockers(),
+      skippedObjects: skippedObjectsOf(r.s_obj),
+      skipSupported: funBit(r.fun, 49),
       updatedAt: this.lastReportAt,
     }
   }
