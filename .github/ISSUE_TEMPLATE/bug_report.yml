@@ -72,4 +72,4 @@ body:
     id: env
     attributes:
       label: Environment
-      placeholder: Debian 12 LXC, Docker 29.7, Node 20, iPhone Safari
+      placeholder: Debian 12 LXC, Docker 29.7, Node 22, iPhone Safari

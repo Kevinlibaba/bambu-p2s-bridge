@@ -629,7 +629,7 @@ class BambuFTPS(ftplib.FTP_TLS):
 
 Full working version: [`probes/probe7.py`](./probes/probe7.py).
 
-#### `basic-ftp` reuse breaks on Node 22 and later — pin Node 20
+#### Node 22.23+ / 24.17+ silently drop the session unless you pass `host` — root cause and fix
 
 Measured 2026-09-01 against firmware 01.01.02.03, `basic-ftp` 5.3.1, identical code,
 three runtimes, listing `/`:
@@ -646,12 +646,45 @@ data both negotiate 1.2) does *not* rescue 22 or 24. The control session is also
 retrievable on the failing versions — `socket.getSession()` returns 1855 bytes — so the
 session object exists and is simply not being honoured for the data connection.
 
-This is an awkward constraint: **Node 20 reached end-of-life on 2026-04-30**, so the only
-runtime that can talk to the printer's FTPS is one that no longer receives security
-patches. Anyone bumping the base image will find MQTT, the camera and the whole UI still
-working while file listing, previews and uploads fail with a 502 — the failure is
-confined to FTPS, so it is easy to miss in a smoke test. Check `/api/files`, not
-`/api/health`.
+**Root cause (found 2026-09-07).** The fix for
+[CVE-2026-48934](https://nodejs.org/en/blog/release/v22.23.0) (Node 22.23.0, 24.17.0,
+26.3.1 — Node 20 was already EOL and never got it) binds every reusable TLS session to
+the host it was authenticated for. `getSession()` now returns the OpenSSL session
+wrapped with a `\0nodejs:tls:session:1\0` prefix plus the server identity, computed as
+`servername ?? host ?? socket._host ?? 'localhost'`. When `tls.connect()` receives
+`session`, it recomputes that identity from *its own* options and, on mismatch,
+**drops the session silently** (visible only with `NODE_DEBUG=tls`) and does a full
+handshake — which vsftpd then rejects with 522.
+
+`basic-ftp` 5.x opens the data connection as
+`tls.connect({ ...secureOptions, socket, session })` with no `host`. The control
+connection was `tls.connect(990, '192.168.31.185', …)`, so its session is tagged with the
+IP; a `net.Socket` connected to an IP literal never sets `_host`, so the data connection's
+identity falls back to `'localhost'`. Identities differ, session dropped, 522.
+
+**Fix:** put the printer host into `secureOptions` so both connections compute the same
+identity. That is all `bridge/src/printer/ftp.ts` does:
+
+```ts
+secureOptions: { host: config.printer.host, rejectUnauthorized: false }
+```
+
+Re-measured 2026-09-07, same firmware, `basic-ftp` 5.3.1, listing `/`:
+
+| Runtime | without `host` | with `host` |
+|---|---|---|
+| Node 20.20.2 (OpenSSL 3.0.19) | 46 entries | 46 entries |
+| Node 22.23.2 (OpenSSL 3.5.7) | `522 … session reuse required` | **46 entries** |
+| Node 24.20.0 (OpenSSL 3.5.7) | `522 … session reuse required` | **46 entries** |
+
+`basic-ftp` 6.0.2 ships the same fix upstream (it passes the host itself), and 6.0.1
+adds TLS 1.3 ticket renewal for data connections; both were verified against the printer
+on 22 and 24 as well. The bridge stays on 5.3.1 with the explicit `host`, which works
+on either major.
+
+Whenever the base image changes, check `/api/files`, not `/api/health`: MQTT, the camera
+and the whole UI keep working while file listing, previews and uploads 502 — the failure
+is confined to FTPS, so it is easy to miss in a smoke test.
 
 ### 5.2 Directory layout
 

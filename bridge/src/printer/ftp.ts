@@ -6,7 +6,19 @@ import { RangeNotSatisfiableError, resolveRange, type RangeSpec } from '../util/
 
 /**
  * 打印机的 vsftpd 开了 require_ssl_reuse，数据连接必须复用控制连接的 TLS session。
- * basic-ftp 会自动处理（Python 的 ftplib 则需手动传 session）。
+ * basic-ftp 会把控制连接 getSession() 的结果原样传给数据连接的 tls.connect
+ * （Python 的 ftplib 则需手动传 session）。
+ *
+ * secureOptions.host 不能省，这是 Node 22/24 上 FTPS 能不能通的关键：
+ * Node 22.23 / 24.17 起（CVE-2026-48934 的修补）getSession() 返回的 session 里
+ * 带着「替哪个主机认证的」标签；tls.connect 收到 session 时会按
+ * servername ?? host ?? socket._host ?? 'localhost' 再算一遍身份，对不上就
+ * 悄悄丢掉 session 走全新握手 —— 不报错，只有 NODE_DEBUG=tls 能看见。
+ * basic-ftp 5.x 开数据连接时把 secureOptions 原样交给 tls.connect 并附上已连好的
+ * socket；而按 IP 直连的 net.Socket 不会设 _host，数据连接的身份就成了 'localhost'，
+ * 控制连接的却是打印机 IP。session 被丢，打印机回 522 session reuse required。
+ * 显式带上 host 后两边身份一致，session 才真的被复用（basic-ftp 6.0.2 起自己也这么做了）。
+ * 实测 2026-09-07：不带 host 时 20 ✓ 22 ✗ 24 ✗，带上后三个都 ✓。详见 PROTOCOL.md 5.1。
  */
 async function connect(): Promise<Client> {
   const c = new Client(20_000)
@@ -16,7 +28,7 @@ async function connect(): Promise<Client> {
     user: 'bblp',
     password: config.printer.accessCode,
     secure: 'implicit',
-    secureOptions: { rejectUnauthorized: false },
+    secureOptions: { host: config.printer.host, rejectUnauthorized: false },
   })
   return c
 }

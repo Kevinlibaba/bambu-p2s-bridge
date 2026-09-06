@@ -3,11 +3,14 @@
 # `docker compose up -d --build` 就能出成品 —— 宿主机不需要装 Node。
 
 # ---- 1. 前端（uni-app H5）----
-# Node 20 是刻意钉死的，不要顺手升级。
-# 22 和 24 上 basic-ftp 的 TLS 会话复用失效，打印机的 vsftpd 会回
-# 「522 session reuse required」—— MQTT、摄像头、界面全都正常，只有
-# 文件相关的接口 502，冒烟测试很容易漏掉。详见 PROTOCOL.md 5.1。
-FROM node:20-slim AS app
+# 三个阶段统一 node:22-slim（LTS）。以前钉在 Node 20（已 EOL），因为 22/24 上
+# FTPS 数据连接的 TLS 会话复用失效，打印机的 vsftpd 回「522 session reuse required」。
+# 根因已查清：Node 22.23 / 24.17 起（CVE-2026-48934 修补）会把 TLS session 绑定到
+# 它认证过的主机身份，basic-ftp 开数据连接时没带 host，session 被静默丢弃。
+# 修法在 src/printer/ftp.ts 的 secureOptions.host，22 和 24 都实测通过，
+# 详见 PROTOCOL.md 5.1。再动 Node 版本时务必看 /api/files 而不是 /api/health ——
+# MQTT、摄像头、界面全都正常，只有文件相关接口 502，冒烟测试很容易漏掉。
+FROM node:22-slim AS app
 WORKDIR /src
 COPY app/package*.json ./
 RUN npm install --no-audit --no-fund
@@ -15,7 +18,7 @@ COPY app/ ./
 RUN npm run build:h5
 
 # ---- 2. 桥接服务 ----
-FROM node:20-slim AS build
+FROM node:22-slim AS build
 WORKDIR /app
 COPY bridge/package*.json bridge/tsconfig.json ./
 RUN npm install --no-audit --no-fund
@@ -23,7 +26,7 @@ COPY bridge/src ./src
 RUN npm run build
 
 # ---- 3. 运行期 ----
-FROM node:20-slim
+FROM node:22-slim
 WORKDIR /app
 ENV NODE_ENV=production
 
