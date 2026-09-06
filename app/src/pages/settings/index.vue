@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { onShow } from '@dcloudio/uni-app'
 import {
@@ -136,16 +136,53 @@ async function runCheck() {
     checkBusy.value = false
   }
 }
-async function removeBad(name: string) {
-  if (!(await confirm(t('del.title'), t('check.deleteDesc', { name }), true))) return
+/*
+ * 多选删除。坏文件一次查出来十几个，逐个点删太折磨；勾上一批一起删。
+ * 选中状态只存文件名，结果刷新、弹窗关闭都清空 —— 别让上一轮的勾留到下一轮。
+ */
+const selected = ref<string[]>([])
+const deleting = ref(false)
+const selCount = computed(() => selected.value.length)
+const allSelected = computed(() => badFiles.value.length > 0 && selCount.value === badFiles.value.length)
+
+function toggleSel(name: string) {
+  selected.value = selected.value.includes(name)
+    ? selected.value.filter((n) => n !== name)
+    : [...selected.value, name]
+}
+function toggleAll() {
+  selected.value = allSelected.value ? [] : badFiles.value.map((r) => r.name)
+}
+watch(badFiles, () => { selected.value = [] })
+watch(checkOpen, (open) => { if (!open) selected.value = [] })
+
+async function removeSelected() {
+  const names = [...selected.value]
+  if (!names.length || deleting.value) return
+  if (!(await confirm(t('del.title'), t('check.deleteManyDesc', { n: names.length }), true))) return
+  deleting.value = true
+  let done = 0
   try {
-    await deleteFile('/' + name)
-    if (check.value) check.value.results = check.value.results.filter((r) => r.name !== name)
+    // 逐个删：打印机的 FTP 一次一个稳；也方便中途出错时知道删到哪了
+    for (const name of names) {
+      await deleteFile('/' + name)
+      done += 1
+      if (check.value) check.value.results = check.value.results.filter((r) => r.name !== name)
+    }
+    uni.showToast({ title: t('check.deleted', { n: done }), icon: 'none' })
   } catch (e) {
-    uni.showToast({ title: (e as Error).message, icon: 'none' })
+    uni.showToast({ title: `${t('check.deleted', { n: done })} · ${(e as Error).message}`, icon: 'none' })
+  } finally {
+    deleting.value = false
+    selected.value = []
   }
 }
+
 const fmtCheckAt = (ms: number) => new Date(ms).toLocaleString()
+const fmtSize = (n: number) => (n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.round(n / 1024)} KB`)
+const okCount = computed(() => (check.value?.results ?? []).filter((r) => r.status === 'ok').length)
+const progressPct = computed(() =>
+  check.value?.running && check.value.total ? Math.round((check.value.done / check.value.total) * 100) : 0)
 
 async function sendTest() {
   pushBusy.value = true
@@ -335,39 +372,78 @@ function pickLocale() {
       </view>
 
       <Sheet :visible="checkOpen" :title="t('check.entry')" @close="checkOpen = false">
-        <view v-if="check?.running" class="busy">
-          <Spinner :size="32" />
-          <text class="busy-t">{{ t('check.running', { done: check.done, total: check.total }) }} · {{ check.current ?? '' }}</text>
+        <!-- 检查中：进度条 + 当前文件 -->
+        <view v-if="check?.running" class="card sheet-card">
+          <view class="line stack pad">
+            <view class="row">
+              <Spinner :size="26" />
+              <text class="k ml">{{ t('check.running', { done: check.done, total: check.total }) }}</text>
+            </view>
+            <view class="bar"><view class="bar-fill" :style="{ width: progressPct + '%' }" /></view>
+            <text class="opt-sub ellip">{{ check.current ?? '' }}</text>
+          </view>
         </view>
+
         <template v-else-if="check?.finishedAt">
+          <!-- 三个数一眼看完 -->
           <view class="card sheet-card">
-            <view class="line stack">
-              <text class="k">{{ t('check.summary', { n: check.results.length, bad: badFiles.length }) }}</text>
+            <view class="stats">
+              <view class="stat">
+                <text class="stat-n">{{ check.results.length }}</text>
+                <text class="stat-l">{{ t('check.statTotal') }}</text>
+              </view>
+              <view class="stat">
+                <text class="stat-n good">{{ okCount }}</text>
+                <text class="stat-l">{{ t('check.statOk') }}</text>
+              </view>
+              <view class="stat">
+                <text class="stat-n" :class="{ bad: badFiles.length }">{{ badFiles.length }}</text>
+                <text class="stat-l">{{ t('check.statBad') }}</text>
+              </view>
+            </view>
+            <view class="hsep" />
+            <view class="line short">
               <text class="opt-sub">{{ t('check.last', { time: fmtCheckAt(check.finishedAt) }) }}</text>
             </view>
           </view>
+
           <template v-if="badFiles.length">
-            <text class="grouphead">{{ t('check.badGroup') }}</text>
+            <view class="grouphead-row">
+              <text class="grouphead">{{ t('check.badGroup') }}</text>
+              <text class="link" @click="toggleAll">{{ allSelected ? t('check.selectNone') : t('check.selectAll') }}</text>
+            </view>
             <view class="card sheet-card">
               <template v-for="(r, i) in badFiles" :key="r.name">
                 <view v-if="i > 0" class="hsep" />
-                <view class="line">
-                  <view class="stack">
-                    <text class="k bad">{{ r.name }}</text>
-                    <text class="opt-sub">{{ r.status === 'notZip' ? t('check.notZip') : t('check.corrupt', { n: r.badEntries?.length ?? 0 }) }}</text>
+                <view class="line tappable" @click="toggleSel(r.name)">
+                  <view class="sel" :class="{ on: selected.includes(r.name) }">
+                    <text v-if="selected.includes(r.name)" class="sel-t">✓</text>
                   </view>
-                  <text class="v accent tappable" @click="removeBad(r.name)">{{ t('del.action') }}</text>
+                  <view class="stack grow">
+                    <text class="k ellip">{{ r.name }}</text>
+                    <text class="opt-sub">
+                      {{ r.status === 'notZip' ? t('check.notZip') : t('check.corrupt', { n: r.badEntries?.length ?? 0 }) }} · {{ fmtSize(r.size) }}
+                    </text>
+                  </view>
                 </view>
               </template>
             </view>
           </template>
+          <view v-else class="card sheet-card">
+            <view class="line"><text class="k good">{{ t('check.allGood') }}</text></view>
+          </view>
         </template>
+
         <view v-else class="card sheet-card">
           <view class="line"><text class="k dim">{{ t('check.never') }}</text></view>
         </view>
         <text class="hint">{{ t('check.note') }}</text>
+
         <template #footer>
-          <button class="cta fill" :disabled="!!check?.running || checkBusy" @click="runCheck">
+          <button v-if="selCount" class="cta fill danger" :disabled="deleting" @click="removeSelected">
+            {{ t('check.deleteSelected', { n: selCount }) }}
+          </button>
+          <button v-else class="cta fill" :disabled="!!check?.running || checkBusy" @click="runCheck">
             {{ check?.running ? t('check.running', { done: check.done, total: check.total }) : t('check.start') }}
           </button>
         </template>
@@ -476,4 +552,36 @@ function pickLocale() {
 .hint { display: block; font-size: 22rpx; color: var(--ink-3); margin: 20rpx 8rpx 0; line-height: 1.6; }
 .cta.fill { width: 100%; }
 .k.dim { color: var(--ink-3); }
+.k.good { color: var(--good, #34c759); }
+.line.short { min-height: 68rpx; }
+.line.pad { padding: 20rpx 0; }
+.row { display: flex; align-items: center; }
+.ml { margin-left: 16rpx; }
+.grow { flex: 1; min-width: 0; }
+.ellip { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+/* 三个数并排 */
+.stats { display: flex; padding: 26rpx 0 18rpx; }
+.stat { flex: 1; display: flex; flex-direction: column; align-items: center; }
+.stat-n { font-size: 44rpx; font-weight: 600; color: var(--ink); letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stat-n.good { color: var(--good, #34c759); }
+.stat-n.bad { color: var(--danger, #ff453a); }
+.stat-l { font-size: 22rpx; color: var(--ink-2); margin-top: 8rpx; }
+
+/* 进度条 */
+.bar { height: 8rpx; border-radius: 4rpx; background: var(--surface-2); overflow: hidden; margin: 18rpx 0 12rpx; }
+.bar-fill { height: 100%; background: var(--accent); border-radius: 4rpx; transition: width 0.3s ease; }
+
+/* 多选：左侧圆圈 */
+.sel { width: 40rpx; height: 40rpx; border-radius: 50%; border: 3rpx solid var(--ink-3);
+  display: flex; align-items: center; justify-content: center; margin-right: 22rpx; flex-shrink: 0;
+  transition: background 0.15s ease, border-color 0.15s ease; }
+.sel.on { background: var(--accent); border-color: var(--accent); }
+.sel-t { color: #fff; font-size: 24rpx; font-weight: 700; line-height: 1; }
+.grouphead-row { display: flex; align-items: baseline; justify-content: space-between; margin: 36rpx 0 16rpx; }
+.grouphead-row .grouphead { margin: 0 0 0 8rpx; }
+.link { font-size: 24rpx; color: var(--accent); padding: 6rpx 8rpx; }
+.link:active { opacity: 0.55; }
+.cta.danger { background: var(--danger, #ff453a); color: #fff; }
 </style>

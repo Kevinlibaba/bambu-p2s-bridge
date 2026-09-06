@@ -495,13 +495,20 @@
     "last": "上次检查 {time}",
     "notZip": "不是有效的压缩包",
     "corrupt": "{n} 个条目损坏",
-    "deleteDesc": "删除「{name}」？这个文件已经损坏，打印机上打到一半会出错。",
     "note": "逐个下载并核对校验和，约需一分钟。桥接每天会在打印机空闲时自动检查一次，发现新的坏文件会推送。",
     "entry": "检查文件完整性",
     "badGroup": "损坏的文件",
     "badCount": "{n} 个损坏",
     "allGood": "全部正常",
-    "never": "还没有检查过"
+    "never": "还没有检查过",
+    "statTotal": "文件",
+    "statOk": "正常",
+    "statBad": "损坏",
+    "selectAll": "全选",
+    "selectNone": "取消全选",
+    "deleteSelected": "删除所选（{n}）",
+    "deleteManyDesc": "删除这 {n} 个损坏的文件？它们已经无法正常打印。",
+    "deleted": "已删除 {n} 个"
   },
   "schedule": {
     "action": "定时打印",
