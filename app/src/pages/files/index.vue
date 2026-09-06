@@ -165,6 +165,19 @@ async function load(p = path.value) {
   } finally { loading.value = false }
 }
 
+// ---- 搜索 ----
+/*
+ * 只按名字过滤当前目录。卡上几十个文件、名字又长又像，翻着找不如打两个字。
+ * 不跨目录搜 —— 列表是按目录一次次取的，跨目录得把整张卡扫一遍。
+ */
+const query = ref('')
+const shown = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  return q ? files.value.filter((f) => f.name.toLowerCase().includes(q)) : files.value
+})
+// 换了目录，上一个目录的关键词多半不再适用；同目录刷新时 path 不变，不会清
+watch(path, () => { query.value = '' })
+
 function up() {
   if (path.value === '/') return
   const parts = path.value.split('/').filter(Boolean); parts.pop()
@@ -902,6 +915,12 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
           @click="load(q.path)"><text class="seg-t">{{ q.label }}</text></view>
       </view>
 
+      <view class="search">
+        <input class="sinput" v-model="query" type="text" confirm-type="search"
+          :placeholder="t('files.search')" placeholder-class="ph" />
+        <view v-if="query" class="clear" @click="query = ''"><text class="clear-t">×</text></view>
+      </view>
+
       <view class="crumb">
         <text v-if="path !== '/'" class="up" @click="up">‹ {{ t('files.up') }}</text>
         <text class="path">{{ path }}</text>
@@ -915,9 +934,12 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
       <view v-if="loading" class="empty"><Spinner /></view>
       <view v-else-if="error" class="empty"><text class="empty-s err">{{ error }}</text></view>
       <view v-else-if="!files.length" class="empty"><text class="empty-s">{{ t('files.emptyDir') }}</text></view>
+      <view v-else-if="!shown.length" class="empty">
+        <text class="empty-s">{{ t('files.noMatch', { q: query.trim() }) }}</text>
+      </view>
 
       <view v-else class="card">
-        <view v-for="(f, i) in files" :key="f.name">
+        <view v-for="(f, i) in shown" :key="f.name">
           <view v-if="i > 0" class="hsep" />
           <view class="row" @click="open(f)">
             <FileIcon :kind="f.isDirectory ? 'dir' : kindOf(f.name)" />
@@ -1299,6 +1321,15 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 .seg.on { background: var(--surface-2); }
 .seg-t { font-size: 28rpx; color: var(--ink); letter-spacing: -0.02em; }
 .seg.on .seg-t { font-weight: 600; }
+
+/* 搜索框：和分段控件同一块底色，只在有输入时露出清除钮 */
+.search { display: flex; align-items: center; margin-top: 16rpx; padding: 0 28rpx;
+  min-height: 76rpx; background: var(--surface); border-radius: 20rpx; }
+.sinput { flex: 1; height: 76rpx; font-size: 27rpx; color: var(--ink); letter-spacing: -0.01em; }
+.clear { width: 40rpx; height: 40rpx; border-radius: 50%; background: var(--surface-2);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-left: 16rpx; }
+.clear:active { opacity: 0.55; }
+.clear-t { font-size: 28rpx; color: var(--ink-2); line-height: 1; margin-top: -2rpx; }
 
 .crumb { display: flex; align-items: center; margin: 28rpx 8rpx 16rpx; min-height: 56rpx; }
 .up { font-size: 26rpx; color: var(--accent); margin-right: 20rpx; letter-spacing: -0.01em; }

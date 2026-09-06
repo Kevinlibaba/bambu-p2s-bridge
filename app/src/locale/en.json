@@ -321,7 +321,9 @@
     "clear": "Dismiss",
     "clearing": "Dismissing…",
     "cleared": "Dismissed",
-    "hmsNote": "HMS entries describe a condition that is still true and cannot be dismissed manually — the printer withdraws them once the condition is resolved."
+    "hmsNote": "HMS entries describe a condition that is still true and cannot be dismissed manually — the printer withdraws them once the condition is resolved.",
+    "search": "Search file names",
+    "noMatch": "Nothing matches “{q}”"
   },
   "history": {
     "title": "Print history",
