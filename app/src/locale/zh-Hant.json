@@ -443,7 +443,11 @@
     "error": "報錯",
     "dryDone": "烘乾完成",
     "offline": "印表機離線",
-    "online": "連線恢復"
+    "online": "連線恢復",
+    "firstLayer": "首層完成",
+    "progress": "列印進度",
+    "fileCorrupt": "儲存卡有損壞檔案",
+    "scheduleFailed": "定時列印未能開始"
   },
   "harvest": {
     "title": "收菜",
@@ -482,5 +486,33 @@
     "mayRotate": "件又長又窄（{width}×{depth}mm），可能原地打轉",
     "tooTallForGantry": "件高 {maxZ}mm，超過 {limit}mm 會撞到龍門桿",
     "noSafeHomePoint": "找不到能避開所有件的回零位置，不能執行"
+  },
+  "check": {
+    "group": "儲存卡",
+    "start": "檢查檔案完整性",
+    "running": "檢查中 {done}/{total}",
+    "summary": "共 {n} 個檔案，{bad} 個損壞",
+    "last": "上次檢查 {time}",
+    "notZip": "不是有效的壓縮檔",
+    "corrupt": "{n} 個條目損壞",
+    "deleteDesc": "刪除「{name}」？這個檔案已經損壞，印表機上印到一半會出錯。",
+    "note": "逐個下載並核對校驗和，約需一分鐘。橋接每天會在印表機閒置時自動檢查一次，發現新的壞檔會推送。"
+  },
+  "schedule": {
+    "action": "定時列印",
+    "title": "定時列印",
+    "day": "日期",
+    "today": "今天",
+    "tomorrow": "明天",
+    "time": "時間",
+    "note": "{time} 自動開始列印「{name}」。到點時走和手動開印完全相同的自檢，不通過就不開並推送提醒。",
+    "tooSoon": "至少要定到一分鐘之後。",
+    "confirm": "確定",
+    "set": "已定時：{time} 開始",
+    "pending": "已定時 {time} 開始列印",
+    "cancel": "取消",
+    "cancelTitle": "取消定時",
+    "cancelDesc": "取消「{name}」的定時列印？",
+    "cancelled": "已取消"
   }
 }

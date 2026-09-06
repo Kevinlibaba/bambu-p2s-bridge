@@ -18,6 +18,12 @@ import type { Notifier } from '../notify/index.js'
 import { registerHistoryRoutes } from './history.js'
 import { registerEjectRoutes } from './eject.js'
 import { registerSliceRoutes } from './slice.js'
+import { registerCheckRoutes } from './check.js'
+import { registerScheduleRoutes } from './schedule.js'
+import { readFile } from 'node:fs/promises'
+import type { Snapshots } from '../notify/snapshots.js'
+import type { FileChecker } from '../check/index.js'
+import type { PrintSchedule } from '../schedule/index.js'
 import type { EventLog } from '../history/eventlog.js'
 import type { AutoHarvest } from '../eject/auto.js'
 import type { History } from '../history/index.js'
@@ -38,6 +44,7 @@ export async function buildServer(
   temps: Temps,
   events: EventLog,
   auto: AutoHarvest,
+  extra: { snapshots: Snapshots; checker: FileChecker; schedule: PrintSchedule },
 ) {
   const app = Fastify({ logger: { level: 'warn' } })
   await app.register(websocket)
@@ -74,6 +81,8 @@ export async function buildServer(
   app.addHook('onRequest', async (req, reply) => {
     if (!config.api.token) return          // 未配置 token = 调试模式
     if (req.url.startsWith('/api/health')) return
+    // 推送里的快照由手机系统去取，带不上 token。文件名是 128 位随机数，见 snapshots.ts
+    if (req.url.startsWith('/api/snapshots/')) return
     // 应用外壳必须能在用户填入 token 之前加载
     if (req.url === '/' || req.url.startsWith('/app')) return
     if (tokenOf(req) !== config.api.token) {
@@ -104,7 +113,23 @@ export async function buildServer(
 
   // ---- 文件（FTPS）：列目录、Range 流式读取、3MF 预览 ----
   registerFileRoutes(app, undefined, (name) => history.lastPrintedAt(name))
-  registerPrintRoutes(app, mqtt, state)
+  const { start: startPrint } = registerPrintRoutes(app, mqtt, state)
+  extra.schedule.attach(startPrint)
+  registerScheduleRoutes(app, extra.schedule)
+  registerCheckRoutes(app, extra.checker)
+
+  app.get<{ Params: { name: string } }>('/api/snapshots/:name', async (req, reply) => {
+    const file = extra.snapshots.filePath(req.params.name)
+    if (!file) return reply.code(404).send({ error: '没有这张快照' })
+    let data: Buffer
+    try {
+      data = await readFile(file)
+    } catch {
+      return reply.code(404).send({ error: '快照已过期' })
+    }
+    // 内容随 id 固定，可以让手机长期缓存
+    return reply.header('content-type', 'image/jpeg').header('cache-control', 'private, max-age=604800, immutable').send(data)
+  })
   registerAmsRoutes(app, mqtt, state)
   registerErrorRoutes(app, mqtt, state)
   registerNotifyRoutes(app, notifier)

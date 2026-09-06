@@ -8,6 +8,7 @@
  * 每个出口都自己吞掉异常 —— 推送失败不该影响桥接的正常运转。
  */
 import webpush from 'web-push'
+import { readFile } from 'node:fs/promises'
 import { config } from '../config.js'
 import type { NotifyEvent } from './events.js'
 import type { PushStore } from './store.js'
@@ -36,6 +37,12 @@ async function postJson(url: string, body: unknown, headers: Record<string, stri
   }
 }
 
+/** HTTP 头里放非 ASCII 文本的标准写法。ntfy 明确支持这种编码 */
+function rfc2047(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return /^[\x00-\x7f]*$/.test(text) ? text : `=?UTF-8?B?${Buffer.from(text, 'utf8').toString('base64')}?=`
+}
+
 /** Bark（iOS）。URL 形如 https://api.day.app/<设备key> */
 async function bark(e: NotifyEvent): Promise<SinkResult> {
   const base = config.notify.bark
@@ -57,12 +64,29 @@ async function bark(e: NotifyEvent): Promise<SinkResult> {
 async function ntfy(e: NotifyEvent): Promise<SinkResult> {
   const url = config.notify.ntfy
   if (!url) return { name: 'ntfy', ok: false, detail: 'skipped' }
+  const priority = e.kind === 'printFailed' || e.kind === 'error' ? 4 : 3
   try {
+    if (e.imagePath) {
+      // 附件模式：PUT 二进制，文字走头部。头部只能是 ASCII，中文要按 RFC 2047 编
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          Title: rfc2047(e.title),
+          Message: rfc2047(e.body),
+          Priority: String(priority),
+          Tags: 'printer',
+          Filename: 'snapshot.jpg',
+        },
+        body: await readFile(e.imagePath),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return { name: 'ntfy', ok: true }
+    }
     await postJson(url, {
       topic: url.split('/').pop(),
       title: e.title,
       message: e.body,
-      priority: e.kind === 'printFailed' || e.kind === 'error' ? 4 : 3,
+      priority,
       tags: ['printer'],
     })
     return { name: 'ntfy', ok: true }
@@ -75,6 +99,17 @@ async function telegram(e: NotifyEvent): Promise<SinkResult> {
   const { token, chatId } = config.notify.telegram
   if (!token || !chatId) return { name: 'telegram', ok: false, detail: 'skipped' }
   try {
+    if (e.imagePath) {
+      // 有快照就走 sendPhoto，图和文字一条消息
+      const fd = new FormData()
+      fd.append('chat_id', chatId)
+      fd.append('caption', `*${e.title}*\n${e.body}`)
+      fd.append('parse_mode', 'Markdown')
+      fd.append('photo', new Blob([await readFile(e.imagePath)], { type: 'image/jpeg' }), 'snapshot.jpg')
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, { method: 'POST', body: fd })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return { name: 'telegram', ok: true }
+    }
     await postJson(`https://api.telegram.org/bot${token}/sendMessage`, {
       chat_id: chatId,
       text: `*${e.title}*\n${e.body}`,
@@ -146,6 +181,14 @@ async function push(e: NotifyEvent, store: PushStore): Promise<SinkResult> {
     body: e.body,
     kind: e.kind,
     code: e.code ?? null,
+    /*
+     * 图片要给绝对地址，通知是手机系统去取的。没配 PUBLIC_URL 就不带 ——
+     * 注意 iOS 的 Web Push 不显示 image，这张图在 iPhone 上要到 App 的
+     * 打印历史时间轴里看；Android / 桌面 Chrome 会直接显示在通知里。
+     */
+    image: e.image && config.notify.publicUrl
+      ? `${config.notify.publicUrl.replace(/\/+$/, '')}${e.image}`
+      : null,
   })
 
   let sent = 0

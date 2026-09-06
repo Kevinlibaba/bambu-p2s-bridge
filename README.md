@@ -403,6 +403,35 @@ that aren't in the vendor list fall back to `Generic <type>`.
 > the things a naive CLI invocation gets silently wrong — see
 > [PROTOCOL §5.5](./PROTOCOL.md#55-slicing-an-unsliced-3mf-yourself). Supervise the first one.
 
+## Eyes on a remote print: first-layer snapshot
+
+The biggest risk of starting a print remotely is that nobody watches the first layer.
+The moment the layer counter reaches 2, the bridge grabs a frame from go2rtc and sends it
+with the "first layer done" notification (`NOTIFY_PROGRESS_STEP` adds milestone shots).
+Snapshots live in `/data/snapshots` and are served without auth under a 128-bit random
+id — the phone's OS fetches notification images, and it cannot carry our token.
+
+> iOS Web Push **does not render images**. On an iPhone the shot is visible in the print
+> history timeline; Telegram, ntfy and Android show it inline. Set `PUBLIC_URL` so the
+> image URL is reachable.
+
+## SD card health check
+
+A corrupt 3MF looks fine in the file list, the slicer reports a nonsensical "XML not
+well-formed at line 28283", and the printer only fails mid-print. On this card 16 of 41
+files were corrupt, 7 of them in the gcode itself. Settings offers a manual check (each
+file downloaded and every entry CRC-verified, about a minute); the bridge also runs it
+daily while the printer is idle and notifies you about newly found corrupt files. User
+reads always win: one file at a time, and it yields whenever the printer is busy serving
+something else.
+
+## Scheduled start
+
+"Schedule print" in the file sheet: today/tomorrow plus a time. When it fires it takes
+**exactly** the manual start path — same preflight, same AMS mapping, never `force`. If
+preflight fails, nothing starts and you get a notification; at 3 a.m. a refused start is
+safer than a forced one. One pending schedule, survives restarts.
+
 ## Security model
 
 - The printer never reaches the internet. The bridge never listens on a public interface.

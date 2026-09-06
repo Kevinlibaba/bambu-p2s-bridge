@@ -11,6 +11,7 @@ import { useI18n } from 'vue-i18n'
 import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
 import {
   fetchHistory, fetchJobTemps, fetchJobEvents, configured, api,
+  tokenizedUrl,
   type HistoryPayload, type JobRecord, type TempSample, type LoggedEvent,
 } from '../../api/client'
 import { themeClass, applyChrome } from '../../store/prefs'
@@ -226,6 +227,8 @@ function sub(j: JobRecord): string {
             <text class="k">{{ eventLabel(e) }}</text>
             <text class="v">{{ hhmm(e.t) }}</text>
           </view>
+          <!-- 首层完成、进度里程碑带一张快照。iPhone 的推送不显示图，这里是看它的地方 -->
+          <image v-if="e.image" class="evimg" :src="tokenizedUrl(e.image)" mode="aspectFill" />
         </view>
       </view>
 
@@ -300,4 +303,5 @@ function sub(j: JobRecord): string {
   letter-spacing: -0.01em; }
 
 .busy { display: flex; justify-content: center; padding: 80rpx 0; }
+.evimg { width: 100%; height: 320rpx; border-radius: 16rpx; margin: 4rpx 0 16rpx; background: var(--surface); }
 </style>

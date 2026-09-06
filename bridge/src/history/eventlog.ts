@@ -22,7 +22,8 @@ export interface LoggedEvent {
   /** 错误类事件带错误码 */
   code?: string
   /** 桥接侧的原文，仅作排查用，界面不直接展示 */
-  title: string
+  title: string  /** 事件附带的快照（相对 URL）。首层完成、进度里程碑会有 */
+  image?: string
 }
 
 export class EventLog {
@@ -64,6 +65,7 @@ export class EventLog {
     if (at - last < this.dedupeMs) return
     this.lastAt.set(e.key, at)
     const rec: LoggedEvent = { t: at, kind: e.kind, title: e.title }
+    if (e.image) rec.image = e.image
     if (e.code) rec.code = e.code
     await appendFile(join(this.dir, `${dayKey(at)}.jsonl`), JSON.stringify(rec) + '\n',
       { mode: 0o600 }).catch((err) => console.error('[events] 落盘失败:', err))

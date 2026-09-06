@@ -11,6 +11,8 @@ import type { PrinterState, Summary } from '../printer/state.js'
 import { describe, toBambuLang } from '../printer/errors.js'
 import { detect, NOTIFY_KINDS, type NotifyEvent, type NotifyKind } from './events.js'
 import { configuredSinks, deliver, vapidReady, vapidSubjectProblem } from './sinks.js'
+import { SNAPSHOT_KINDS } from './events.js'
+import type { Snapshots } from './snapshots.js'
 import { PushStore } from './store.js'
 import type { EventLog } from '../history/eventlog.js'
 
@@ -34,6 +36,8 @@ export class Notifier {
     private readonly state: PrinterState,
     /** 事件流水。缺省不记，测试里不需要碰盘 */
     private readonly log?: EventLog,
+    /** 快照存取。缺省不抓图 */
+    private readonly snapshots?: Snapshots,
   ) {
     this.store = new PushStore(config.notify.storePath)
   }
@@ -61,12 +65,20 @@ export class Notifier {
     this.prev = next
     let events: NotifyEvent[]
     try {
-      events = detect(prev, next)
+      events = detect(prev, next, { progressStep: config.notify.progressStep })
     } catch (e) {
       console.error('[notify] 事件识别失败', e)
       return
     }
     for (const e of events) {
+      // 快照在记流水之前抓：时间轴上也要能看到首层长什么样，不只是推送
+      if (this.snapshots && SNAPSHOT_KINDS.has(e.kind)) {
+        const snap = await this.snapshots.capture()
+        if (snap) {
+          e.image = snap.url
+          e.imagePath = snap.file
+        }
+      }
       // 先记流水，再谈要不要推送 —— 用户关掉某类推送，不代表事后
       // 不想在时间轴上看到它发生过
       if (this.log) await this.log.append(e)
@@ -76,6 +88,22 @@ export class Notifier {
       this.lastAt.set(e.key, Date.now())
       await this.send(e)
     }
+  }
+
+  /** 给事件配一张此刻的快照。取不到就原样返回 —— 推送照发，只是没图 */
+  async withSnapshot(e: NotifyEvent): Promise<NotifyEvent> {
+    const snap = this.snapshots ? await this.snapshots.capture() : null
+    return snap ? { ...e, image: snap.url, imagePath: snap.file } : e
+  }
+
+  /**
+   * 给状态跃迁之外的来源用（存储卡体检、定时打印）：照样记流水、照样
+   * 尊重用户关掉的事件类型，只是事件不是从 Summary 里比出来的。
+   */
+  async notifyIfEnabled(e: NotifyEvent): Promise<void> {
+    if (this.log) await this.log.append(e)
+    if (!this.enabled(e.kind)) return
+    await this.send(e)
   }
 
   /** 把错误码换成人话。查不到就保留原样，不要因为外网不通就不推送。 */

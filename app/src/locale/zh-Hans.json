@@ -443,7 +443,11 @@
     "error": "报错",
     "dryDone": "烘干完成",
     "offline": "打印机离线",
-    "online": "连接恢复"
+    "online": "连接恢复",
+    "firstLayer": "首层完成",
+    "progress": "打印进度",
+    "fileCorrupt": "存储卡有损坏文件",
+    "scheduleFailed": "定时打印未能开始"
   },
   "harvest": {
     "title": "收菜",
@@ -482,5 +486,33 @@
     "mayRotate": "件又长又窄（{width}×{depth}mm），可能原地打转",
     "tooTallForGantry": "件高 {maxZ}mm，超过 {limit}mm 会撞到龙门杆",
     "noSafeHomePoint": "找不到能避开所有件的回零位置，不能执行"
+  },
+  "check": {
+    "group": "存储卡",
+    "start": "检查文件完整性",
+    "running": "检查中 {done}/{total}",
+    "summary": "共 {n} 个文件，{bad} 个损坏",
+    "last": "上次检查 {time}",
+    "notZip": "不是有效的压缩包",
+    "corrupt": "{n} 个条目损坏",
+    "deleteDesc": "删除「{name}」？这个文件已经损坏，打印机上打到一半会出错。",
+    "note": "逐个下载并核对校验和，约需一分钟。桥接每天会在打印机空闲时自动检查一次，发现新的坏文件会推送。"
+  },
+  "schedule": {
+    "action": "定时打印",
+    "title": "定时打印",
+    "day": "日期",
+    "today": "今天",
+    "tomorrow": "明天",
+    "time": "时间",
+    "note": "{time} 自动开始打印「{name}」。到点时走和手动开打完全相同的自检，不通过就不开并推送提醒。",
+    "tooSoon": "至少要定到一分钟之后。",
+    "confirm": "确定",
+    "set": "已定时：{time} 开始",
+    "pending": "已定时 {time} 开始打印",
+    "cancel": "取消",
+    "cancelTitle": "取消定时",
+    "cancelDesc": "取消「{name}」的定时打印？",
+    "cancelled": "已取消"
   }
 }

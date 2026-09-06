@@ -497,7 +497,49 @@ export interface LoggedEvent {
   kind: string
   /** 错误类事件带错误码 */
   code?: string
+  /** 事件附带的摄像头快照（相对 URL，免鉴权）。首层完成、进度里程碑会有 */
+  image?: string
 }
+
+// ---- 存储卡体检 ----
+
+export interface FileCheckResult {
+  name: string
+  size: number
+  /** ok | corrupt | notZip | error */
+  status: string
+  badEntries?: string[]
+  detail?: string
+}
+export interface FileCheckStatus {
+  running: boolean
+  startedAt: number | null
+  finishedAt: number | null
+  total: number
+  done: number
+  current: string | null
+  results: FileCheckResult[]
+  error: string | null
+}
+export const fetchFileCheck = () => request<FileCheckStatus>('/api/files/check')
+export const startFileCheck = () => request<FileCheckStatus>('/api/files/check', { method: 'POST' })
+
+// ---- 定时打印 ----
+
+export interface ScheduledPrint {
+  at: number
+  body: Record<string, unknown>
+  name: string
+  createdAt: number
+}
+export interface ScheduleStatus {
+  pending: ScheduledPrint | null
+  last: { at: number; name: string; ok: boolean; error: string | null } | null
+}
+export const fetchSchedule = () => request<ScheduleStatus>('/api/print/schedule')
+export const setSchedule = (at: number, print: PrintRequest, name: string) =>
+  request<ScheduleStatus>('/api/print/schedule', { method: 'POST', data: { at, print, name } })
+export const cancelSchedule = () => request<ScheduleStatus>('/api/print/schedule', { method: 'DELETE' })
 
 /** 某一单期间发生过什么。和温度曲线叠起来看才能定位问题 */
 export const fetchJobEvents = (jobId: string) =>

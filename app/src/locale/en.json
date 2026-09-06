@@ -443,7 +443,11 @@
     "error": "Error",
     "dryDone": "Drying finished",
     "offline": "Printer offline",
-    "online": "Back online"
+    "online": "Back online",
+    "firstLayer": "First layer done",
+    "progress": "Print progress",
+    "fileCorrupt": "Corrupt files on SD card",
+    "scheduleFailed": "Scheduled print did not start"
   },
   "harvest": {
     "title": "Harvest",
@@ -482,5 +486,33 @@
     "mayRotate": "Long and narrow ({width}×{depth}mm); it may spin in place",
     "tooTallForGantry": "{maxZ}mm tall — over {limit}mm hits the gantry rod",
     "noSafeHomePoint": "No homing spot clears every part, so this cannot run"
+  },
+  "check": {
+    "group": "SD card",
+    "start": "Check file integrity",
+    "running": "Checking {done}/{total}",
+    "summary": "{n} files, {bad} corrupt",
+    "last": "Last checked {time}",
+    "notZip": "Not a valid archive",
+    "corrupt": "{n} entries corrupt",
+    "deleteDesc": "Delete \"{name}\"? The file is corrupt and would fail mid-print.",
+    "note": "Downloads each file and verifies checksums, about a minute. The bridge also runs this daily while the printer is idle and notifies you about newly found corrupt files."
+  },
+  "schedule": {
+    "action": "Schedule print",
+    "title": "Schedule print",
+    "day": "Day",
+    "today": "Today",
+    "tomorrow": "Tomorrow",
+    "time": "Time",
+    "note": "Starts printing \"{name}\" at {time}. Runs exactly the same preflight as a manual start; if it fails, nothing starts and you get a notification.",
+    "tooSoon": "Must be at least one minute from now.",
+    "confirm": "Confirm",
+    "set": "Scheduled for {time}",
+    "pending": "Scheduled to print at {time}",
+    "cancel": "Cancel",
+    "cancelTitle": "Cancel schedule",
+    "cancelDesc": "Cancel the scheduled print of \"{name}\"?",
+    "cancelled": "Cancelled"
   }
 }

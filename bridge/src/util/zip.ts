@@ -34,6 +34,8 @@ export interface ZipEntry {
   compressedSize: number
   uncompressedSize: number
   localHeaderOffset: number
+  /** 中央目录里记的 CRC-32，校验条目完整性用 */
+  crc32: number
 }
 
 /**
@@ -169,6 +171,7 @@ export async function readCentralDirectory(src: ZipSource): Promise<ZipEntry[]> 
       // ZIP 规范里路径分隔符恒为 /，个别打包器会带上前导斜杠
       name: cd.toString('utf8', p + 46, p + 46 + nameLen).replace(/^\/+/, ''),
       method: cd.readUInt16LE(p + 10),
+      crc32: u32(cd, p + 16),
       compressedSize: u32(cd, p + 20),
       uncompressedSize: u32(cd, p + 24),
       localHeaderOffset: u32(cd, p + 42),

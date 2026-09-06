@@ -68,6 +68,8 @@ self.addEventListener('push', (e) => {
       // 同一类事件只留最新一条，别在通知中心堆一摞
       tag: d.kind || 'bambu',
       renotify: true,
+      // 首层/进度事件带摄像头快照。iOS 不显示 image，Android/桌面会
+      image: d.image || undefined,
       data: d,
     }),
   )

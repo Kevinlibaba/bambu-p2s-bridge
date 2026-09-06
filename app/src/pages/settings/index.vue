@@ -4,7 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { onShow } from '@dcloudio/uni-app'
 import {
   loadSettings, saveSettings, api, fetchNotifyStatus, testNotify,
-  type Settings, type NotifyStatus,
+  fetchFileCheck, startFileCheck, deleteFile,
+  type Settings, type NotifyStatus, type FileCheckStatus,
 } from '../../api/client'
 import {
   pushSupport, isStandalone, isIOS, currentSubscription, enablePush, disablePush,
@@ -31,6 +32,7 @@ const ok = ref(false)
 form.value = loadSettings()
 
 onShow(() => {
+  void loadCheck()
   applyChrome('tab.settings')
   void loadNotify()
 })
@@ -94,6 +96,52 @@ async function togglePush() {
 function goHistory() {
   uni.navigateTo({ url: '/pages/history/index' })
 }
+
+// ---- 存储卡体检 ----
+/*
+ * 卡上的坏文件在列表里看不出来，切片器报的是「XML 第几行不合法」，打印机上
+ * 打到一半才出事。实测 41 个里 16 个坏的。所以给一个主动查的入口；桥接每天
+ * 也会在打印机空闲时自己跑一遍，新发现的坏文件推一条。
+ */
+const check = ref<FileCheckStatus | null>(null)
+const checkBusy = ref(false)
+let checkPoll = 0
+const badFiles = computed(() =>
+  (check.value?.results ?? []).filter((r) => r.status === 'corrupt' || r.status === 'notZip'))
+
+async function loadCheck() {
+  try { check.value = await fetchFileCheck() } catch { /* 旧桥接没有这个接口 */ }
+  if (check.value?.running) pollCheck()
+}
+function pollCheck() {
+  clearTimeout(checkPoll)
+  checkPoll = setTimeout(async () => {
+    try { check.value = await fetchFileCheck() } catch { /* 网络抖动，下次再问 */ }
+    if (check.value?.running) pollCheck()
+  }, 2000) as unknown as number
+}
+async function runCheck() {
+  if (check.value?.running || checkBusy.value) return
+  checkBusy.value = true
+  try {
+    check.value = await startFileCheck()
+    pollCheck()
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message, icon: 'none' })
+  } finally {
+    checkBusy.value = false
+  }
+}
+async function removeBad(name: string) {
+  if (!(await confirm(t('del.title'), t('check.deleteDesc', { name }), true))) return
+  try {
+    await deleteFile('/' + name)
+    if (check.value) check.value.results = check.value.results.filter((r) => r.name !== name)
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message, icon: 'none' })
+  }
+}
+const fmtCheckAt = (ms: number) => new Date(ms).toLocaleString()
 
 async function sendTest() {
   pushBusy.value = true
@@ -268,6 +316,34 @@ function pickLocale() {
         </view>
       </view>
       <text v-if="pushNote" class="note">{{ pushNote }}</text>
+
+      <text class="grouphead">{{ t('check.group') }}</text>
+      <view class="card">
+        <view class="line tappable" @click="runCheck">
+          <text class="k accent">
+            {{ check?.running ? t('check.running', { done: check.done, total: check.total }) : t('check.start') }}
+          </text>
+          <text class="v">{{ check?.running ? (check.current ?? '') : '›' }}</text>
+        </view>
+        <template v-if="check && !check.running && check.finishedAt">
+          <view class="hsep" />
+          <view class="line stack">
+            <text class="k">{{ t('check.summary', { n: check.results.length, bad: badFiles.length }) }}</text>
+            <text class="opt-sub">{{ t('check.last', { time: fmtCheckAt(check.finishedAt) }) }}</text>
+          </view>
+          <template v-for="r in badFiles" :key="r.name">
+            <view class="hsep" />
+            <view class="line">
+              <view class="stack">
+                <text class="k bad">{{ r.name }}</text>
+                <text class="opt-sub">{{ r.status === 'notZip' ? t('check.notZip') : t('check.corrupt', { n: r.badEntries?.length ?? 0 }) }}</text>
+              </view>
+              <text class="v accent tappable" @click="removeBad(r.name)">{{ t('del.action') }}</text>
+            </view>
+          </template>
+        </template>
+      </view>
+      <text class="note">{{ t('check.note') }}</text>
 
       <text class="grouphead">{{ t('history.title') }}</text>
       <view class="card">

@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { watch } from 'vue'
 import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
-import { start, stop } from './store/printer'
+import { start, stop, printer } from './store/printer'
 import { applyChrome, watchSystem } from './store/prefs'
 import { registerServiceWorker } from './util/sw'
 
@@ -15,6 +16,26 @@ onShow(() => {
   start()
 })
 onHide(() => stop())
+
+/*
+ * 主屏图标上的角标显示打印进度。iOS 16.4+ 的 PWA 支持 Badging API，
+ * 但只有数字 —— 角标就是百分比。不在打印就清掉，免得一直挂个 100。
+ * 不支持的环境（普通网页、老系统）什么都不做。
+ */
+const PRINTING = new Set(['RUNNING', 'PAUSE', 'PREPARE'])
+watch(() => printer.summary, (s) => {
+  const nav = navigator as Navigator & {
+    setAppBadge?: (n?: number) => Promise<void>
+    clearAppBadge?: () => Promise<void>
+  }
+  if (!nav.setAppBadge) return
+  if (s && PRINTING.has(s.state)) {
+    // 0 会被当成「清除」，刚开始也至少显示 1
+    void nav.setAppBadge(Math.max(1, Math.round(s.progress))).catch(() => {})
+  } else {
+    void nav.clearAppBadge?.().catch(() => {})
+  }
+})
 </script>
 
 <style>

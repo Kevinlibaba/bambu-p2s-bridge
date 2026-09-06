@@ -25,7 +25,7 @@ import type { ThreeMfPlate, ThreeMfFilament } from '../printer/threemf.js'
 import { preflight, blocking, type Check } from './preflight.js'
 
 class PrintError extends Error {
-  constructor(message: string, readonly status = 400) {
+  constructor(message: string, readonly status = 400, readonly checks?: Check[]) {
     super(message)
     this.name = 'PrintError'
   }
@@ -140,7 +140,7 @@ export function registerPrintRoutes(
   mqtt: PrinterMqtt,
   state: PrinterState,
   backend: Pick<typeof ftp, 'stat' | 'readRange' | 'normalizePath'> = ftp,
-): void {
+) {
   /** 校验路径、确认文件在卡上、定位到请求的那个盘。开打与预演共用。 */
   /*
    * 3MF 的解析结果缓存。
@@ -279,10 +279,11 @@ export function registerPrintRoutes(
     }
   })
 
-  app.post('/api/print/start', async (req, reply) => {
-    try {
-      const body = (req.body ?? {}) as Partial<PrintRequest>
-
+  /**
+   * 真正开打。手动开打和定时开打走同一个函数 —— 自检、配料、下发一模一样，
+   * 定时那条路不存在「少检查一项」的可能。
+   */
+  async function start(body: Partial<PrintRequest>) {
       const gcodeState = String(state.summary().state ?? '')
       if (BUSY_STATES.has(gcodeState)) {
         throw new PrintError(`打印机当前状态为 ${gcodeState}，无法开始新任务`, 409)
@@ -297,9 +298,7 @@ export function registerPrintRoutes(
       // 未切片的文件在这里就要拦下。放到配料之后会报「读不出耗材信息」，
       // 那句话对一个刚下完原始模型的人来说毫无线索。
       if (!target || target.filamentCount <= 0) {
-        return reply
-          .code(409)
-          .send({ error: '这是未切片的模型文件', checks: [{ code: 'notSliced', level: 'error' }] })
+        throw new PrintError('这是未切片的模型文件', 409, [{ code: 'notSliced', level: 'error' }])
       }
 
       const amsMapping = buildMapping(body, target, trays)
@@ -310,7 +309,7 @@ export function registerPrintRoutes(
       const checks = preflight(target, amsMapping, trays, state.summary())
       const stop = blocking(checks)
       if (stop.length && body.force !== true) {
-        return reply.code(409).send({ error: '打印前自检未通过', checks: stop })
+        throw new PrintError('打印前自检未通过', 409, stop)
       }
 
       const name = path.slice(path.lastIndexOf('/') + 1)
@@ -337,13 +336,20 @@ export function registerPrintRoutes(
       })
 
       return { ok: true, sequenceId, path, plate, plateCount, useAms, amsMapping, checks }
+  }
+
+  app.post('/api/print/start', async (req, reply) => {
+    try {
+      return await start((req.body ?? {}) as Partial<PrintRequest>)
     } catch (e) {
       const err = e as PrintError
       return reply
         .code(err.name === 'PrintError' ? (err.status ?? 400) : 500)
-        .send({ error: err.message })
+        .send({ error: err.message, ...(err.checks ? { checks: err.checks } : {}) })
     }
   })
+
+  return { start: (body: Record<string, unknown>) => start(body as Partial<PrintRequest>) }
 }
 
 export type { FastifyReply }

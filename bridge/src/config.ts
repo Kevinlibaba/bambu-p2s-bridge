@@ -27,6 +27,15 @@ export const config = {
   pushallIntervalMs: Number(process.env.PUSHALL_INTERVAL_MS ?? 5 * 60 * 1000),
   /** 允许 gcode_line 这类危险命令 */
   allowRawGcode: process.env.ALLOW_RAW_GCODE === 'true',
+  check: {
+    /** 存储卡体检的间隔（小时），0 = 不自动跑。只在打印机空闲时跑 */
+    intervalH: Number(process.env.FILE_CHECK_INTERVAL_H ?? 24),
+    statePath: process.env.FILE_CHECK_STATE ?? '/data/filecheck.json',
+  },
+  schedule: {
+    /** 定时打印的落盘位置。桥接重启不该把预约丢掉 */
+    path: process.env.SCHEDULE_PATH ?? '/data/schedule.json',
+  },
   history: {
     /** 打印历史（JSONL）落盘位置。容器里挂 /data */
     path: process.env.HISTORY_PATH ?? '/data/jobs.jsonl',
@@ -75,5 +84,14 @@ export const config = {
       chatId: process.env.TELEGRAM_CHAT_ID ?? '',
     },
     webhook: process.env.NOTIFY_WEBHOOK ?? '',
+    /**
+     * App 对外的完整地址（如 https://xxx.ts.net）。推送里的快照要拼成绝对 URL
+     * 才能被手机系统取到。不配就不带图，其余照常。
+     */
+    publicUrl: process.env.PUBLIC_URL ?? '',
+    /** 每前进这么多百分比推一张进度快照。0 = 只推首层 */
+    progressStep: Number(process.env.NOTIFY_PROGRESS_STEP ?? 0),
+    /** 快照落盘位置。容器里挂 /data */
+    snapshotDir: process.env.SNAPSHOT_DIR ?? '/data/snapshots',
   },
 }

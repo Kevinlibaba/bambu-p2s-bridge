@@ -11,21 +11,41 @@ export type NotifyKind =
   | 'printFailed'
   | 'printPaused'
   | 'printStarted'
+  | 'firstLayer'
+  | 'progress'
   | 'error'
   | 'dryDone'
   | 'offline'
   | 'online'
+  | 'fileCorrupt'
+  | 'scheduleFailed'
 
 export const NOTIFY_KINDS: NotifyKind[] = [
   'printDone',
   'printFailed',
   'printPaused',
   'printStarted',
+  'firstLayer',
+  'progress',
   'error',
   'dryDone',
   'offline',
   'online',
+  'fileCorrupt',
+  'scheduleFailed',
 ]
+
+/** 这些事件推送时带一张摄像头快照 —— 远程开打最缺的就是眼睛 */
+export const SNAPSHOT_KINDS: ReadonlySet<NotifyKind> = new Set(['firstLayer', 'progress'])
+
+/**
+ * 「首层完成」的判据：层号到达 2。
+ *
+ * 用层号而不用 stage：stage 是打印机报的过渡阶段，首层没有独立的阶段码，
+ * 而层号从 1 跳到 2 就是首层打完的那一刻 —— 此时看一眼，翘边、不粘、
+ * 挤出不足都已经能看出来，往后几个小时才有意义。
+ */
+const FIRST_LAYER_DONE_AT = 2
 
 export interface NotifyEvent {
   kind: NotifyKind
@@ -35,6 +55,15 @@ export interface NotifyEvent {
   body: string
   /** 错误类事件带上错误码，接收端可以据此查官方释义 */
   code?: string
+  /** 摄像头快照的相对 URL（/api/snapshots/<id>.jpg），由 Notifier 补上 */
+  image?: string
+  /** 快照在本地的路径，给需要二进制上传的出口（Telegram、ntfy）用 */
+  imagePath?: string
+}
+
+export interface DetectOptions {
+  /** 每前进这么多百分比推一次进度快照。0 = 关 */
+  progressStep?: number
 }
 
 /** 打印中的状态。从这些状态跃迁出去才算「这一单结束了」 */
@@ -68,7 +97,7 @@ function seen(s: Summary | null): s is Summary {
   return !!s && s.updatedAt > 0
 }
 
-export function detect(prev: Summary | null, next: Summary): NotifyEvent[] {
+export function detect(prev: Summary | null, next: Summary, opts: DetectOptions = {}): NotifyEvent[] {
   const out: NotifyEvent[] = []
   const task = taskOf(next)
 
@@ -118,6 +147,33 @@ export function detect(prev: Summary | null, next: Summary): NotifyEvent[] {
         title: '开始打印',
         body: task || '新任务已开始',
       })
+    }
+  }
+
+  // —— 打印中的里程碑（只在同一单持续打印时算，换单/暂停都不算）——
+  if (ACTIVE.has(prev.state) && ACTIVE.has(next.state) && taskOf(prev) === task) {
+    if (prev.layer < FIRST_LAYER_DONE_AT && next.layer >= FIRST_LAYER_DONE_AT) {
+      out.push({
+        kind: 'firstLayer',
+        key: `layer1:${task}`,
+        title: '首层完成',
+        body: task ? `${task} · 看一眼首层` : '看一眼首层',
+      })
+    }
+    const step = opts.progressStep ?? 0
+    if (step > 0) {
+      const before = Math.floor(prev.progress / step)
+      const after = Math.floor(next.progress / step)
+      // 一次可能跨过多个刻度（长时间断线后重连），只报最新那个，别连响
+      if (after > before && next.progress < 100) {
+        const mark = after * step
+        out.push({
+          kind: 'progress',
+          key: `progress:${task}:${mark}`,
+          title: `打印进度 ${mark}%`,
+          body: task ? `${task} · 第 ${next.layer}/${next.totalLayers} 层` : `第 ${next.layer}/${next.totalLayers} 层`,
+        })
+      }
     }
   }
 

@@ -5,6 +5,7 @@ import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
 import {
   api, configured, uploadFile, importUrl, deleteFile, startPrint, fetchPrintPlan,
   startSlice, fetchSliceJob, fetchSliceOptions,
+  fetchSchedule, setSchedule, cancelSchedule, type ScheduleStatus,
   type RemoteFile, type ThreeMfInfo, type PrintPlan, type PlanTray, type PreflightCheck,
   type SliceJob, type SliceOptions, type SliceParams,
 } from '../../api/client'
@@ -765,8 +766,11 @@ function pollSlice(id: string) {
       if (j.phase === 'done') {
         toast(t('slice.done'))
         await load()
-        // 切完之后原来那个未切片的文件已经不是重点了，让人看到新产物
-        close()
+        // 切完直接打开产物 —— 接下来要做的就是打它，不该让人回列表里找
+        const outName = j.output ? j.output.slice(j.output.lastIndexOf('/') + 1) : ''
+        const out = files.value.find((f) => f.name === outName)
+        if (out) open(out)
+        else close()
         return
       }
       if (j.phase === 'failed') { toast(j.error || t('slice.failed')); return }
@@ -800,7 +804,81 @@ async function sliceSelected() {
   }
 }
 
-onShow(() => { applyChrome('tab.files'); load() })
+// ---- 定时打印 ----
+/*
+ * 只有一个预约，不做队列。到点时桥接走的是和手动开打完全相同的路径
+ * （同样的自检、同样的配料、不带 force），自检拦下了就推一条并作废。
+ */
+const schedule = ref<ScheduleStatus | null>(null)
+const schedOpen = ref(false)
+const schedDay = ref<0 | 1>(0)
+const schedTime = ref('07:00')
+
+const schedAt = computed(() => {
+  const [h, m] = schedTime.value.split(':').map(Number)
+  const d = new Date()
+  d.setDate(d.getDate() + schedDay.value)
+  d.setHours(h || 0, m || 0, 0, 0)
+  return d.getTime()
+})
+const schedTooSoon = computed(() => schedAt.value - Date.now() < 60_000)
+
+async function loadSchedule() {
+  try { schedule.value = await fetchSchedule() } catch { /* 旧桥接没有这个接口 */ }
+}
+
+function fmtAt(ms: number): string {
+  const d = new Date(ms)
+  const day = d.toDateString() === new Date().toDateString() ? t('schedule.today') : t('schedule.tomorrow')
+  return `${day} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+function openSchedule() {
+  if (!planReady.value) { toast(t('files.pickSlotFirst')); return }
+  const stop = blockingChecks.value
+  // 定时不允许带 force：半夜没人守着，自检不过就不该开
+  if (stop.length) { toast(checkText(stop[0])); return }
+  // 默认「下一个早上 7 点」：现在还没到 7 点就是今天，否则明天
+  const now = new Date()
+  schedDay.value = now.getHours() < 7 ? 0 : 1
+  schedTime.value = '07:00'
+  schedOpen.value = true
+}
+
+function onSchedTime(e: { detail: { value: string } }) {
+  schedTime.value = e.detail.value
+}
+
+async function confirmSchedule() {
+  const f = sel.value
+  if (!f || schedTooSoon.value) return
+  try {
+    schedule.value = await setSchedule(
+      schedAt.value,
+      { path: selPath.value, plate: plateNo.value, slots: chosenSlots() },
+      f.name,
+    )
+    schedOpen.value = false
+    toast(t('schedule.set', { time: fmtAt(schedAt.value) }))
+    close()
+  } catch (e) {
+    toast((e as Error).message)
+  }
+}
+
+async function cancelSched() {
+  const p = schedule.value?.pending
+  if (!p) return
+  if (!(await confirm(t('schedule.cancelTitle'), t('schedule.cancelDesc', { name: p.name }), true))) return
+  try {
+    schedule.value = await cancelSchedule()
+    toast(t('schedule.cancelled'))
+  } catch (e) {
+    toast((e as Error).message)
+  }
+}
+
+onShow(() => { applyChrome('tab.files'); load(); void loadSchedule() })
 onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 </script>
 
@@ -809,6 +887,16 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
     <view v-if="!configured" class="empty"><text class="empty-s">{{ t('common.notConfigured') }}</text></view>
 
     <view v-else class="body">
+      <!-- 有预约就一直挂在最上面：让机器半夜动起来的事，不能藏在设置里 -->
+      <view v-if="schedule?.pending" class="card banner">
+        <view class="line">
+          <view class="stack">
+            <text class="k">{{ t('schedule.pending', { time: fmtAt(schedule.pending.at) }) }}</text>
+            <text class="sub">{{ schedule.pending.name }}</text>
+          </view>
+          <text class="v accent tappable" @click="cancelSched">{{ t('schedule.cancel') }}</text>
+        </view>
+      </view>
       <view class="segs">
         <view v-for="q in QUICK" :key="q.path" class="seg" :class="{ on: path === q.path }"
           @click="load(q.path)"><text class="seg-t">{{ q.label }}</text></view>
@@ -1098,6 +1186,11 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
             <text class="k accent">{{ t('print.action') }}</text>
             <text class="v">›</text>
           </view>
+          <view class="hsep" />
+          <view class="line tappable" @click="openSchedule">
+            <text class="k accent">{{ t('schedule.action') }}</text>
+            <text class="v">›</text>
+          </view>
         </template>
         <view class="hsep" />
         <view class="line tappable" @click="removeSelected">
@@ -1112,6 +1205,34 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 
       <template #footer>
         <button class="cta" @click="close">{{ t('files.close') }}</button>
+      </template>
+    </Sheet>
+
+    <!-- 定时打印：选今天/明天 + 时刻 -->
+    <Sheet :visible="schedOpen" :title="t('schedule.title')" @close="schedOpen = false">
+      <view class="card sheet-card">
+        <view class="line">
+          <text class="k">{{ t('schedule.day') }}</text>
+          <view class="segs mini">
+            <view class="seg" :class="{ on: schedDay === 0 }" @click="schedDay = 0">
+              <text class="seg-t">{{ t('schedule.today') }}</text>
+            </view>
+            <view class="seg" :class="{ on: schedDay === 1 }" @click="schedDay = 1">
+              <text class="seg-t">{{ t('schedule.tomorrow') }}</text>
+            </view>
+          </view>
+        </view>
+        <view class="hsep" />
+        <picker mode="time" :value="schedTime" @change="onSchedTime">
+          <view class="line tappable">
+            <text class="k">{{ t('schedule.time') }}</text>
+            <text class="v num">{{ schedTime }} ›</text>
+          </view>
+        </picker>
+      </view>
+      <text class="hint">{{ schedTooSoon ? t('schedule.tooSoon') : t('schedule.note', { time: fmtAt(schedAt), name: sel?.name ?? '' }) }}</text>
+      <template #footer>
+        <button class="cta fill" :disabled="schedTooSoon" @click="confirmSchedule">{{ t('schedule.confirm') }}</button>
       </template>
     </Sheet>
 
@@ -1253,6 +1374,10 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
   line-height: 1; vertical-align: middle; }
 
 .num { font-variant-numeric: tabular-nums; }
+.banner { margin-bottom: 20rpx; }
+.segs.mini { margin: 0; flex: 0 0 auto; }
+.segs.mini .seg { padding: 12rpx 22rpx; }
+.cta.fill { width: 100%; }
 .stepper { display: flex; align-items: center; margin-left: 20rpx;
   background: var(--surface-2); border-radius: 15rpx; overflow: hidden; }
 .sbtn { width: 82rpx; height: 62rpx; line-height: 62rpx; text-align: center;

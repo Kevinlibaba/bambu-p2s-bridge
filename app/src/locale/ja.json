@@ -443,7 +443,11 @@
     "error": "エラー",
     "dryDone": "乾燥完了",
     "offline": "プリンターオフライン",
-    "online": "接続復帰"
+    "online": "接続復帰",
+    "firstLayer": "第1層完了",
+    "progress": "印刷進捗",
+    "fileCorrupt": "SDカードに破損ファイル",
+    "scheduleFailed": "予約印刷を開始できませんでした"
   },
   "harvest": {
     "title": "収穫",
@@ -482,5 +486,33 @@
     "mayRotate": "細長い（{width}×{depth}mm）ため、その場で回る可能性があります",
     "tooTallForGantry": "高さ {maxZ}mm。{limit}mm を超えるとガントリーに当たります",
     "noSafeHomePoint": "すべての造形物を避けられる原点復帰位置がありません"
+  },
+  "check": {
+    "group": "SDカード",
+    "start": "ファイル整合性チェック",
+    "running": "チェック中 {done}/{total}",
+    "summary": "{n} ファイル中 {bad} 個が破損",
+    "last": "前回のチェック {time}",
+    "notZip": "有効なアーカイブではありません",
+    "corrupt": "{n} 個のエントリが破損",
+    "deleteDesc": "「{name}」を削除しますか？このファイルは破損しており、印刷途中で失敗します。",
+    "note": "各ファイルをダウンロードしてチェックサムを検証します（約1分）。ブリッジはプリンターが待機中に毎日自動で実行し、新たな破損ファイルを通知します。"
+  },
+  "schedule": {
+    "action": "予約印刷",
+    "title": "予約印刷",
+    "day": "日付",
+    "today": "今日",
+    "tomorrow": "明日",
+    "time": "時刻",
+    "note": "{time} に「{name}」の印刷を開始します。手動開始と同じ事前チェックを行い、通らなければ開始せず通知します。",
+    "tooSoon": "1分以上先の時刻を指定してください。",
+    "confirm": "確定",
+    "set": "{time} に予約しました",
+    "pending": "{time} に印刷を予約中",
+    "cancel": "取消",
+    "cancelTitle": "予約を取消",
+    "cancelDesc": "「{name}」の予約印刷を取り消しますか？",
+    "cancelled": "取り消しました"
   }
 }
