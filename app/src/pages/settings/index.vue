@@ -17,6 +17,8 @@ import {
 } from '../../store/prefs'
 import { LOCALES } from '../../locale'
 import { confirm } from '../../util/dialog'
+import Sheet from '../../components/Sheet.vue'
+import Spinner from '../../components/Spinner.vue'
 
 const { t } = useI18n()
 const form = ref<Settings>({ baseUrl: '', token: '' })
@@ -105,6 +107,8 @@ function goHistory() {
  */
 const check = ref<FileCheckStatus | null>(null)
 const checkBusy = ref(false)
+/** 详情放二级弹窗；设置页外面只留一行入口和一句结论 */
+const checkOpen = ref(false)
 let checkPoll = 0
 const badFiles = computed(() =>
   (check.value?.results ?? []).filter((r) => r.status === 'corrupt' || r.status === 'notZip'))
@@ -319,31 +323,55 @@ function pickLocale() {
 
       <text class="grouphead">{{ t('check.group') }}</text>
       <view class="card">
-        <view class="line tappable" @click="runCheck">
-          <text class="k accent">
-            {{ check?.running ? t('check.running', { done: check.done, total: check.total }) : t('check.start') }}
+        <!-- 外面只留一行：一句结论，详情进弹窗 -->
+        <view class="line tappable" @click="checkOpen = true">
+          <text class="k accent">{{ t('check.entry') }}</text>
+          <text class="v" :class="{ bad: badFiles.length > 0 && !check?.running }">
+            {{ check?.running ? t('check.running', { done: check.done, total: check.total })
+              : check?.finishedAt ? (badFiles.length ? t('check.badCount', { n: badFiles.length }) : t('check.allGood'))
+              : '›' }}
           </text>
-          <text class="v">{{ check?.running ? (check.current ?? '') : '›' }}</text>
         </view>
-        <template v-if="check && !check.running && check.finishedAt">
-          <view class="hsep" />
-          <view class="line stack">
-            <text class="k">{{ t('check.summary', { n: check.results.length, bad: badFiles.length }) }}</text>
-            <text class="opt-sub">{{ t('check.last', { time: fmtCheckAt(check.finishedAt) }) }}</text>
+      </view>
+
+      <Sheet :visible="checkOpen" :title="t('check.entry')" @close="checkOpen = false">
+        <view v-if="check?.running" class="busy">
+          <Spinner :size="32" />
+          <text class="busy-t">{{ t('check.running', { done: check.done, total: check.total }) }} · {{ check.current ?? '' }}</text>
+        </view>
+        <template v-else-if="check?.finishedAt">
+          <view class="card sheet-card">
+            <view class="line stack">
+              <text class="k">{{ t('check.summary', { n: check.results.length, bad: badFiles.length }) }}</text>
+              <text class="opt-sub">{{ t('check.last', { time: fmtCheckAt(check.finishedAt) }) }}</text>
+            </view>
           </view>
-          <template v-for="r in badFiles" :key="r.name">
-            <view class="hsep" />
-            <view class="line">
-              <view class="stack">
-                <text class="k bad">{{ r.name }}</text>
-                <text class="opt-sub">{{ r.status === 'notZip' ? t('check.notZip') : t('check.corrupt', { n: r.badEntries?.length ?? 0 }) }}</text>
-              </view>
-              <text class="v accent tappable" @click="removeBad(r.name)">{{ t('del.action') }}</text>
+          <template v-if="badFiles.length">
+            <text class="grouphead">{{ t('check.badGroup') }}</text>
+            <view class="card sheet-card">
+              <template v-for="(r, i) in badFiles" :key="r.name">
+                <view v-if="i > 0" class="hsep" />
+                <view class="line">
+                  <view class="stack">
+                    <text class="k bad">{{ r.name }}</text>
+                    <text class="opt-sub">{{ r.status === 'notZip' ? t('check.notZip') : t('check.corrupt', { n: r.badEntries?.length ?? 0 }) }}</text>
+                  </view>
+                  <text class="v accent tappable" @click="removeBad(r.name)">{{ t('del.action') }}</text>
+                </view>
+              </template>
             </view>
           </template>
         </template>
-      </view>
-      <text class="note">{{ t('check.note') }}</text>
+        <view v-else class="card sheet-card">
+          <view class="line"><text class="k dim">{{ t('check.never') }}</text></view>
+        </view>
+        <text class="hint">{{ t('check.note') }}</text>
+        <template #footer>
+          <button class="cta fill" :disabled="!!check?.running || checkBusy" @click="runCheck">
+            {{ check?.running ? t('check.running', { done: check.done, total: check.total }) : t('check.start') }}
+          </button>
+        </template>
+      </Sheet>
 
       <text class="grouphead">{{ t('history.title') }}</text>
       <view class="card">
@@ -442,4 +470,10 @@ function pickLocale() {
 .frow .finput { flex: 1; }
 .paste { font-size: 25rpx; color: var(--accent); padding: 10rpx 0 10rpx 24rpx; flex-shrink: 0; }
 .paste:active { opacity: 0.5; }
+.sheet-card { margin-top: 24rpx; }
+.busy { display: flex; align-items: center; justify-content: center; margin-top: 28rpx; }
+.busy-t { font-size: 25rpx; color: var(--ink-2); margin-left: 16rpx; }
+.hint { display: block; font-size: 22rpx; color: var(--ink-3); margin: 20rpx 8rpx 0; line-height: 1.6; }
+.cta.fill { width: 100%; }
+.k.dim { color: var(--ink-3); }
 </style>

@@ -489,14 +489,19 @@
   },
   "check": {
     "group": "SD card",
-    "start": "Check file integrity",
+    "start": "Start check",
     "running": "Checking {done}/{total}",
     "summary": "{n} files, {bad} corrupt",
     "last": "Last checked {time}",
     "notZip": "Not a valid archive",
     "corrupt": "{n} entries corrupt",
     "deleteDesc": "Delete \"{name}\"? The file is corrupt and would fail mid-print.",
-    "note": "Downloads each file and verifies checksums, about a minute. The bridge also runs this daily while the printer is idle and notifies you about newly found corrupt files."
+    "note": "Downloads each file and verifies checksums, about a minute. The bridge also runs this daily while the printer is idle and notifies you about newly found corrupt files.",
+    "entry": "Check file integrity",
+    "badGroup": "Corrupt files",
+    "badCount": "{n} corrupt",
+    "allGood": "All good",
+    "never": "Not checked yet"
   },
   "schedule": {
     "action": "Schedule print",
