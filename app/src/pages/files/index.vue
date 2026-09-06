@@ -10,6 +10,7 @@ import {
   type SliceJob, type SliceOptions, type SliceParams,
 } from '../../api/client'
 import { themeClass, applyChrome } from '../../store/prefs'
+import { takePendingOpen, type PendingOpen } from '../../store/reprint'
 import { confirm, toast } from '../../util/dialog'
 import Sheet from '../../components/Sheet.vue'
 import ZoomOverlay from '../../components/ZoomOverlay.vue'
@@ -255,6 +256,8 @@ const plateUrl = computed(() => {
   return imgRetry.value ? `${u}&r=${imgRetry.value}` : u
 })
 watch(model, (m) => {
+  // 「再打一次」预选的盘号来自旧记录，文件被重切成更少的盘时会越界，退回第 1 盘
+  if (m && plateIdx.value >= m.plates.length) plateIdx.value = 0
   if (m && imgFailed.value && plate.value?.hasThumbnail) {
     imgFailed.value = false
     imgRetry.value += 1
@@ -891,7 +894,29 @@ async function cancelSched() {
   }
 }
 
-onShow(() => { applyChrome('tab.files'); load(); void loadSchedule() })
+/*
+ * 历史页的「再打一次」。只负责带路：进到那个目录、打开详情、预选上次那一盘。
+ * 开打仍走 printSelected 的自检和确认 —— 上次能打不等于现在还能打，料可能早换了。
+ */
+async function openPending(want: PendingOpen) {
+  const cut = want.path.lastIndexOf('/')
+  const dir = cut > 0 ? want.path.slice(0, cut) : '/'
+  const name = want.path.slice(cut + 1)
+  await load(dir)
+  if (error.value) return // 目录都没拿到，页面上已经在说原因了
+  const f = files.value.find((x) => !x.isDirectory && x.name === name)
+  if (!f) { toast(t('files.reprintMissing')); return }
+  open(f)
+  if (want.plate && want.plate > 0) plateIdx.value = want.plate - 1
+}
+
+onShow(() => {
+  applyChrome('tab.files')
+  const want = takePendingOpen()
+  if (want) void openPending(want)
+  else load()
+  void loadSchedule()
+})
 onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 </script>
 
