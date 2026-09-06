@@ -220,9 +220,11 @@ underlying condition clears.
 {"print":{"command":"skip_objects","obj_list":[504, 592]}}
 ```
 
-Taken from BambuStudio's `MachineObject::command_task_partskip`. **Not implemented in
-this project yet** — everything below is verified from the printer's own state and from
-BambuStudio's source, except the last line of §2.6.4.
+Taken from BambuStudio's `MachineObject::command_task_partskip`. **Implemented in
+this project (`bridge/src/skip/objects.ts`, `GET /api/print/objects`,
+`POST /api/print/skip`) but not yet verified on hardware** — everything below is
+verified from the printer's own state and from BambuStudio's source, except the last
+line of §2.6.4. See the note at the end of this section.
 
 #### 2.6.1 Where the object IDs come from
 
@@ -295,6 +297,21 @@ object is the same thing as stopping the job.
 3. List that plate's `<object>` entries, marking the ones already in `s_obj`.
 4. Refuse a selection covering every remaining object; point the user at stop instead.
 5. Publish `skip_objects` with the chosen `identify_id`s, then watch `s_obj` to confirm.
+
+#### 2.6.6 Status in this project — implemented, **not verified on hardware**
+
+The bridge follows §2.6.5 as written: IDs come from `slice_info.config`
+(`identify_id`, never `plate_N.json`), `s_obj` and bit 49 of `fun` are exposed on the
+state summary as `skippedObjects` / `skipSupported`, and the server refuses the command
+unless `gcode_state` is `RUNNING` or `PAUSE`, the plate has `label_object_enabled`, every
+ID belongs to the running plate, and the selection leaves at least one object still
+printing (§2.6.4 — a full list is a stop, not a skip). Already-skipped IDs are dropped.
+
+None of this has been exercised on a real print: confirming it costs a real part.
+Until it is, treat the feature as experimental — the app labels it so — and stay by the
+machine the first time. What is still unknown is exactly what §2.6.4 lists as
+unverified: whether the printer accepts an object it is currently laying down, and
+whether it rejects the command outside `RUNNING`.
 
 ---
 

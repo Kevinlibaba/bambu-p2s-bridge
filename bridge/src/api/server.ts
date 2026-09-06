@@ -17,6 +17,7 @@ import { registerNotifyRoutes } from './notify.js'
 import type { Notifier } from '../notify/index.js'
 import { registerHistoryRoutes } from './history.js'
 import { registerEjectRoutes } from './eject.js'
+import { registerSkipRoutes } from './skip.js'
 import { registerSliceRoutes } from './slice.js'
 import { registerCheckRoutes } from './check.js'
 import { registerScheduleRoutes } from './schedule.js'
@@ -139,6 +140,7 @@ export async function buildServer(
   registerNotifyRoutes(app, notifier)
   registerHistoryRoutes(app, history, temps, events)
   registerEjectRoutes(app, state, mqtt, history, auto, extra.onEjected)
+  registerSkipRoutes(app, state, mqtt)
   registerSliceRoutes(app, state)
 
   // ---- 摄像头：在 go2rtc 前面做鉴权代理 ----

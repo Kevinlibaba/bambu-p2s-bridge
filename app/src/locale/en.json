@@ -493,6 +493,21 @@
     "tooTallForGantry": "{maxZ}mm tall — over {limit}mm hits the gantry rod",
     "noSafeHomePoint": "No homing spot clears every part, so this cannot run"
   },
+  "skip": {
+    "title": "Skip parts",
+    "expTitle": "Experimental — not yet verified on a real machine, use with care",
+    "intro": "A skipped part is never printed again; it stays on the plate unfinished until the job ends. The rest print as normal.",
+    "parts": "Parts",
+    "skipped": "Skipped",
+    "doN": "Skip selected ({n})",
+    "working": "Sending…",
+    "confirmTitle": "Skip {n} part(s)?",
+    "confirm": "This cannot be undone: skipped parts stop printing and stay on the plate unfinished until the job ends. The other parts continue as normal.\nThis is experimental and has not been verified on a real machine.",
+    "allHint": "Can't skip every remaining part — that is a stop, use Stop instead",
+    "none": "Nothing on this plate can be skipped",
+    "sent": "Sent — the printer will skip the selected parts",
+    "unsupported": "This plate was sliced without object labels, so parts can't be skipped individually"
+  },
   "check": {
     "group": "SD card",
     "start": "Start check",

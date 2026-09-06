@@ -257,6 +257,8 @@ Bearer token on everything except `/api/health` and `/app/**`.
 | `DELETE` | `/api/files?path=…` | Delete a file |
 | `GET` | `/api/print/plan?path=…&plate=1` | Dry run: which tray each filament resolves to, plus pre-flight checks |
 | `POST` | `/api/print/start` | Start a print from a file already on the card |
+| `GET` | `/api/print/objects` | Objects on the running plate, with the ones already skipped (experimental, unverified on hardware) |
+| `POST` | `/api/print/skip` | Skip objects mid-print — `{ ids }` from the list above; server-enforced guards, see PROTOCOL.md §2.6 |
 | `GET` | `/api/errors?lang=zh-Hans` | Active errors with the official description resolved |
 | `POST` | `/api/errors/clear` | Dismiss the current `print_error` |
 | `POST` | `/api/ams/dry/start` \| `/stop` | AMS filament drying |

@@ -123,6 +123,10 @@ export interface Summary {
   ams: AmsTray[]
   amsUnits: AmsUnit[]
   dryBlockers: DryBlocker[]
+  /** 这一单里已跳过的零件（slice_info.config 的 identify_id），来自 print.s_obj */
+  skippedObjects: number[]
+  /** 固件支持不支持中途跳过零件（print.fun 第 49 位） */
+  skipSupported: boolean
   updatedAt: number
 }
 
@@ -428,6 +432,28 @@ export const runHarvest = () =>
 /** 只吹风降温，不动任何轴 */
 export const coolForHarvest = () =>
   request<HarvestPlan>('/api/eject', { method: 'POST', data: { coolOnly: true, confirm: true } })
+
+/**
+ * 打印中跳过零件。协议见 PROTOCOL.md §2.6；【已实现、未真机验证】。
+ * id 是 slice_info.config 里的 identify_id，桥接自己解，前端只管勾选。
+ */
+export interface SkipObject {
+  id: number
+  name: string
+  skipped: boolean
+}
+export interface SkipObjects {
+  path: string
+  plate: number
+  /** 固件支持不支持（fun 第 49 位）。不支持就别出入口 */
+  supported: boolean
+  /** 这一盘切片时有没有打零件标签。没有就跳不了，单件盘一律没有 */
+  labelObjectEnabled: boolean
+  objects: SkipObject[]
+}
+export const fetchSkipObjects = () => request<SkipObjects>('/api/print/objects')
+export const skipObjects = (ids: number[]) =>
+  request<{ sent: boolean; ids: number[] }>('/api/print/skip', { method: 'POST', data: { ids } })
 
 // ---- 云切片 ----
 
