@@ -10,6 +10,7 @@ import { EventLog } from './history/eventlog.js'
 import { AutoHarvest } from './eject/auto.js'
 import { makeHarvestRunner } from './api/eject.js'
 import { Snapshots } from './notify/snapshots.js'
+import { HarvestSnapshot } from './notify/afterharvest.js'
 import { FileChecker } from './check/index.js'
 import { PrintSchedule } from './schedule/index.js'
 import * as ftp from './printer/ftp.js'
@@ -34,7 +35,12 @@ const checker = new FileChecker(
 const schedule = new PrintSchedule(config.schedule.path, { notify: (e) => notifier.notifyIfEnabled(e) })
 const history = new History(state, lookupPlate)
 const temps = new Temps(state, 10_000, 1080, config.history.tempsDir, 6, config.history.tempsKeepDays)
-const autoHarvest = new AutoHarvest(state, makeHarvestRunner(state, mqtt, history))
+const harvestSnap = new HarvestSnapshot({
+  bedTemp: () => state.summary().bed.cur,
+  notify: (e) => notifier.notifyIfEnabled(e),
+})
+const onEjected = (bedTarget: number) => harvestSnap.schedule(bedTarget)
+const autoHarvest = new AutoHarvest(state, makeHarvestRunner(state, mqtt, history, onEjected))
 
 async function main() {
   if (!config.api.token) {
@@ -49,7 +55,7 @@ async function main() {
   autoHarvest.start()
   mqtt.start()
   const app = await buildServer(state, mqtt, notifier, history, temps, events, autoHarvest, {
-    snapshots, checker, schedule,
+    snapshots, checker, schedule, onEjected,
   })
   // 开打逻辑在服务器里，接上之后定时器才有意义
   await schedule.start()

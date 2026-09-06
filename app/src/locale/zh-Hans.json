@@ -447,7 +447,9 @@
     "firstLayer": "首层完成",
     "progress": "打印进度",
     "fileCorrupt": "存储卡有损坏文件",
-    "scheduleFailed": "定时打印未能开始"
+    "scheduleFailed": "定时打印未能开始",
+    "harvestDone": "收菜完成",
+    "amsHumid": "AMS 该烘干了"
   },
   "harvest": {
     "title": "收菜",

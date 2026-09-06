@@ -44,7 +44,11 @@ export async function buildServer(
   temps: Temps,
   events: EventLog,
   auto: AutoHarvest,
-  extra: { snapshots: Snapshots; checker: FileChecker; schedule: PrintSchedule },
+  extra: {
+    snapshots: Snapshots; checker: FileChecker; schedule: PrintSchedule
+    /** 推件下发之后安排一次「床空了没」的拍照 */
+    onEjected: (bedTarget: number) => void
+  },
 ) {
   const app = Fastify({ logger: { level: 'warn' } })
   await app.register(websocket)
@@ -134,7 +138,7 @@ export async function buildServer(
   registerErrorRoutes(app, mqtt, state)
   registerNotifyRoutes(app, notifier)
   registerHistoryRoutes(app, history, temps, events)
-  registerEjectRoutes(app, state, mqtt, history, auto)
+  registerEjectRoutes(app, state, mqtt, history, auto, extra.onEjected)
   registerSliceRoutes(app, state)
 
   // ---- 摄像头：在 go2rtc 前面做鉴权代理 ----

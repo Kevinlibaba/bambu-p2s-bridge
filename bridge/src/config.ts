@@ -91,6 +91,9 @@ export const config = {
     publicUrl: process.env.PUBLIC_URL ?? '',
     /** 每前进这么多百分比推一张进度快照。0 = 只推首层 */
     progressStep: Number(process.env.NOTIFY_PROGRESS_STEP ?? 0),
+    /** AMS 湿度提醒：百分比阈值、持续小时数。0 小时 = 关 */
+    humidityPct: Number(process.env.NOTIFY_HUMIDITY_PCT ?? 50),
+    humidityHours: Number(process.env.NOTIFY_HUMIDITY_HOURS ?? 2),
     /** 快照落盘位置。容器里挂 /data */
     snapshotDir: process.env.SNAPSHOT_DIR ?? '/data/snapshots',
   },

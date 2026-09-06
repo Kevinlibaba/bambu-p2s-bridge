@@ -19,7 +19,7 @@
 import type { FastifyInstance } from 'fastify'
 import type { PrinterMqtt } from '../printer/mqtt.js'
 import type { PrinterState } from '../printer/state.js'
-import { planEject, type EjectOptions, type PlateObject } from '../eject/plan.js'
+import { planEject, DEFAULT_BED_TARGET, type EjectOptions, type PlateObject } from '../eject/plan.js'
 import { readEjectSource, EjectSourceError, type EjectSource } from '../eject/source.js'
 import { resolveJobFile } from '../history/resolve.js'
 import { rootListing } from '../history/enrich.js'
@@ -92,6 +92,8 @@ export function makeHarvestRunner(
   state: PrinterState,
   mqtt: PrinterMqtt,
   history: History,
+  /** 推件序列下发之后调，参数是序列里等的热床目标温度。用来安排「床空了没」的拍照 */
+  onEjected?: (bedTarget: number) => void,
 ) {
   const send = async (opts: { coolOnly?: boolean }) => {
     const src = await resolveSource({}, history)
@@ -115,6 +117,7 @@ export function makeHarvestRunner(
       if (s.printError) throw new Error('打印机有未清除的报错')
     }
     mqtt.publish({ print: { command: 'gcode_line', param: gcode.join('\n') + '\n' } })
+    if (!opts.coolOnly) onEjected?.(DEFAULT_BED_TARGET)
   }
   return {
     cool: () => send({ coolOnly: true }),
@@ -171,7 +174,8 @@ export function registerEjectRoutes(
   mqtt: PrinterMqtt,
   history: History,
   auto: AutoHarvest,
-): void {
+  onEjected?: (bedTarget: number) => void,
+) {
   /** 预约状态。armed 之后这一单打完会自动降温并推件 */
   app.get('/api/eject/auto', async () => auto.status())
 
@@ -272,6 +276,9 @@ export function registerEjectRoutes(
       if (BUSY.has(s.state)) throw new EjectError(`打印机正忙（${s.state}），不能推件`, 409)
       if (s.printError) throw new EjectError('打印机有未清除的报错，先处理再推件', 409)
 
+      if (!body.coolOnly) {
+        onEjected?.(Number.isFinite(body.bedTarget as number) ? Number(body.bedTarget) : DEFAULT_BED_TARGET)
+      }
       const sequenceId = mqtt.publish({
         print: { command: 'gcode_line', param: gcode.join('\n') + '\n' },
       })

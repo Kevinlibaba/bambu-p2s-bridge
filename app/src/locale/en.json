@@ -447,7 +447,9 @@
     "firstLayer": "First layer done",
     "progress": "Print progress",
     "fileCorrupt": "Corrupt files on SD card",
-    "scheduleFailed": "Scheduled print did not start"
+    "scheduleFailed": "Scheduled print did not start",
+    "harvestDone": "Harvest done",
+    "amsHumid": "AMS needs drying"
   },
   "harvest": {
     "title": "Harvest",

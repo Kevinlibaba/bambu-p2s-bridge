@@ -19,6 +19,8 @@ export type NotifyKind =
   | 'online'
   | 'fileCorrupt'
   | 'scheduleFailed'
+  | 'harvestDone'
+  | 'amsHumid'
 
 export const NOTIFY_KINDS: NotifyKind[] = [
   'printDone',
@@ -33,10 +35,19 @@ export const NOTIFY_KINDS: NotifyKind[] = [
   'online',
   'fileCorrupt',
   'scheduleFailed',
+  'harvestDone',
+  'amsHumid',
 ]
 
-/** 这些事件推送时带一张摄像头快照 —— 远程开打最缺的就是眼睛 */
-export const SNAPSHOT_KINDS: ReadonlySet<NotifyKind> = new Set(['firstLayer', 'progress'])
+/**
+ * 这些事件推送时带一张摄像头快照 —— 远程开打最缺的就是眼睛。
+ * 失败和暂停尤其要带：远程一眼看出是翘边、拉丝还是堵头，决定要不要重打，
+ * 不用打开 App 去连摄像头。收菜完成的那张（harvestDone）不在这里，它要等
+ * 床冷透、件推走之后才拍，由 afterharvest.ts 自己安排时机。
+ */
+export const SNAPSHOT_KINDS: ReadonlySet<NotifyKind> = new Set([
+  'firstLayer', 'progress', 'printDone', 'printFailed', 'printPaused',
+])
 
 /**
  * 「首层完成」的判据：层号到达 2。

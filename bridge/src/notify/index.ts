@@ -12,6 +12,7 @@ import { describe, toBambuLang } from '../printer/errors.js'
 import { detect, NOTIFY_KINDS, type NotifyEvent, type NotifyKind } from './events.js'
 import { configuredSinks, deliver, vapidReady, vapidSubjectProblem } from './sinks.js'
 import { SNAPSHOT_KINDS } from './events.js'
+import { HumidityWatch, DEFAULT_HUMIDITY } from './humidity.js'
 import type { Snapshots } from './snapshots.js'
 import { PushStore } from './store.js'
 import type { EventLog } from '../history/eventlog.js'
@@ -29,6 +30,11 @@ export interface NotifyRecord extends NotifyEvent {
 export class Notifier {
   readonly store: PushStore
   private prev: Summary | null = null
+  private readonly humidity = new HumidityWatch({
+    ...DEFAULT_HUMIDITY,
+    pct: config.notify.humidityPct,
+    sustainMs: config.notify.humidityHours * 3_600_000,
+  })
   private lastAt = new Map<string, number>()
   private history: NotifyRecord[] = []
 
@@ -63,6 +69,9 @@ export class Notifier {
   private async onUpdate(next: Summary): Promise<void> {
     const prev = this.prev
     this.prev = next
+    if (config.notify.humidityHours > 0) {
+      for (const e of this.humidity.update(next, Date.now())) await this.notifyIfEnabled(e)
+    }
     let events: NotifyEvent[]
     try {
       events = detect(prev, next, { progressStep: config.notify.progressStep })
@@ -100,7 +109,11 @@ export class Notifier {
    * 给状态跃迁之外的来源用（存储卡体检、定时打印）：照样记流水、照样
    * 尊重用户关掉的事件类型，只是事件不是从 Summary 里比出来的。
    */
-  async notifyIfEnabled(e: NotifyEvent): Promise<void> {
+  async notifyIfEnabled(raw: NotifyEvent): Promise<void> {
+    // 收菜完成这种要带图的，抓帧也在这里统一做
+    const e = SNAPSHOT_KINDS.has(raw.kind) || raw.kind === 'harvestDone'
+      ? await this.withSnapshot(raw)
+      : raw
     if (this.log) await this.log.append(e)
     if (!this.enabled(e.kind)) return
     await this.send(e)

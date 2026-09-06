@@ -185,10 +185,13 @@ const HEIGHT_TO_ROD = 32.5
  */
 const TOOLHEAD_MARGIN = 15
 
+/** 推件前热床要冷到的温度。实测 28℃ 就够，留一点余量 */
+export const DEFAULT_BED_TARGET = 25
+
 const DEFAULTS: Required<EjectOptions> = {
   pushZ: 1,
   clearance: 5,
-  bedTarget: 25,
+  bedTarget: DEFAULT_BED_TARGET,
   pushFeed: 1000,
   approach: TOOLHEAD_RADIUS + TOOLHEAD_MARGIN,
   exitY: 0,

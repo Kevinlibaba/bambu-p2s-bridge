@@ -447,7 +447,9 @@
     "firstLayer": "第1層完了",
     "progress": "印刷進捗",
     "fileCorrupt": "SDカードに破損ファイル",
-    "scheduleFailed": "予約印刷を開始できませんでした"
+    "scheduleFailed": "予約印刷を開始できませんでした",
+    "harvestDone": "取り出し完了",
+    "amsHumid": "AMS 乾燥が必要"
   },
   "harvest": {
     "title": "収穫",
