@@ -10,6 +10,7 @@ import {
   type SliceJob, type SliceOptions, type SliceParams,
 } from '../../api/client'
 import { themeClass, applyChrome } from '../../store/prefs'
+import { takePendingOpen, type PendingOpen } from '../../store/reprint'
 import { confirm, toast } from '../../util/dialog'
 import Sheet from '../../components/Sheet.vue'
 import ZoomOverlay from '../../components/ZoomOverlay.vue'
@@ -165,6 +166,19 @@ async function load(p = path.value) {
   } finally { loading.value = false }
 }
 
+// ---- 搜索 ----
+/*
+ * 只按名字过滤当前目录。卡上几十个文件、名字又长又像，翻着找不如打两个字。
+ * 不跨目录搜 —— 列表是按目录一次次取的，跨目录得把整张卡扫一遍。
+ */
+const query = ref('')
+const shown = computed(() => {
+  const q = query.value.trim().toLowerCase()
+  return q ? files.value.filter((f) => f.name.toLowerCase().includes(q)) : files.value
+})
+// 换了目录，上一个目录的关键词多半不再适用；同目录刷新时 path 不变，不会清
+watch(path, () => { query.value = '' })
+
 function up() {
   if (path.value === '/') return
   const parts = path.value.split('/').filter(Boolean); parts.pop()
@@ -242,6 +256,8 @@ const plateUrl = computed(() => {
   return imgRetry.value ? `${u}&r=${imgRetry.value}` : u
 })
 watch(model, (m) => {
+  // 「再打一次」预选的盘号来自旧记录，文件被重切成更少的盘时会越界，退回第 1 盘
+  if (m && plateIdx.value >= m.plates.length) plateIdx.value = 0
   if (m && imgFailed.value && plate.value?.hasThumbnail) {
     imgFailed.value = false
     imgRetry.value += 1
@@ -878,7 +894,29 @@ async function cancelSched() {
   }
 }
 
-onShow(() => { applyChrome('tab.files'); load(); void loadSchedule() })
+/*
+ * 历史页的「再打一次」。只负责带路：进到那个目录、打开详情、预选上次那一盘。
+ * 开打仍走 printSelected 的自检和确认 —— 上次能打不等于现在还能打，料可能早换了。
+ */
+async function openPending(want: PendingOpen) {
+  const cut = want.path.lastIndexOf('/')
+  const dir = cut > 0 ? want.path.slice(0, cut) : '/'
+  const name = want.path.slice(cut + 1)
+  await load(dir)
+  if (error.value) return // 目录都没拿到，页面上已经在说原因了
+  const f = files.value.find((x) => !x.isDirectory && x.name === name)
+  if (!f) { toast(t('files.reprintMissing')); return }
+  open(f)
+  if (want.plate && want.plate > 0) plateIdx.value = want.plate - 1
+}
+
+onShow(() => {
+  applyChrome('tab.files')
+  const want = takePendingOpen()
+  if (want) void openPending(want)
+  else load()
+  void loadSchedule()
+})
 onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 </script>
 
@@ -902,6 +940,12 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
           @click="load(q.path)"><text class="seg-t">{{ q.label }}</text></view>
       </view>
 
+      <view class="search">
+        <input class="sinput" v-model="query" type="text" confirm-type="search"
+          :placeholder="t('files.search')" placeholder-class="ph" />
+        <view v-if="query" class="clear" @click="query = ''"><text class="clear-t">×</text></view>
+      </view>
+
       <view class="crumb">
         <text v-if="path !== '/'" class="up" @click="up">‹ {{ t('files.up') }}</text>
         <text class="path">{{ path }}</text>
@@ -915,9 +959,12 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
       <view v-if="loading" class="empty"><Spinner /></view>
       <view v-else-if="error" class="empty"><text class="empty-s err">{{ error }}</text></view>
       <view v-else-if="!files.length" class="empty"><text class="empty-s">{{ t('files.emptyDir') }}</text></view>
+      <view v-else-if="!shown.length" class="empty">
+        <text class="empty-s">{{ t('files.noMatch', { q: query.trim() }) }}</text>
+      </view>
 
       <view v-else class="card">
-        <view v-for="(f, i) in files" :key="f.name">
+        <view v-for="(f, i) in shown" :key="f.name">
           <view v-if="i > 0" class="hsep" />
           <view class="row" @click="open(f)">
             <FileIcon :kind="f.isDirectory ? 'dir' : kindOf(f.name)" />
@@ -1299,6 +1346,15 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 .seg.on { background: var(--surface-2); }
 .seg-t { font-size: 28rpx; color: var(--ink); letter-spacing: -0.02em; }
 .seg.on .seg-t { font-weight: 600; }
+
+/* 搜索框：和分段控件同一块底色，只在有输入时露出清除钮 */
+.search { display: flex; align-items: center; margin-top: 16rpx; padding: 0 28rpx;
+  min-height: 76rpx; background: var(--surface); border-radius: 20rpx; }
+.sinput { flex: 1; height: 76rpx; font-size: 27rpx; color: var(--ink); letter-spacing: -0.01em; }
+.clear { width: 40rpx; height: 40rpx; border-radius: 50%; background: var(--surface-2);
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-left: 16rpx; }
+.clear:active { opacity: 0.55; }
+.clear-t { font-size: 28rpx; color: var(--ink-2); line-height: 1; margin-top: -2rpx; }
 
 .crumb { display: flex; align-items: center; margin: 28rpx 8rpx 16rpx; min-height: 56rpx; }
 .up { font-size: 26rpx; color: var(--accent); margin-right: 20rpx; letter-spacing: -0.01em; }

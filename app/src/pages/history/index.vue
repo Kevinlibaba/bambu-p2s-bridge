@@ -15,6 +15,7 @@ import {
   type HistoryPayload, type JobRecord, type TempSample, type LoggedEvent,
 } from '../../api/client'
 import { themeClass, applyChrome } from '../../store/prefs'
+import { requestOpen } from '../../store/reprint'
 import Spinner from '../../components/Spinner.vue'
 import Sheet from '../../components/Sheet.vue'
 import ZoomOverlay from '../../components/ZoomOverlay.vue'
@@ -87,6 +88,16 @@ async function openJob(j: JobRecord) {
   } catch {
     tempsState.value = 'error'
   }
+}
+
+/*
+ * 再打一次。这里不开打，只把文件和盘号交给文件页，让它走和手动完全一样的
+ * 自检、配料与确认。文件页是 tab，switchTab 带不了参数，所以经由 store 传话。
+ */
+function reprint(j: JobRecord) {
+  if (!j.file3mf) return
+  requestOpen({ path: j.file3mf, plate: j.plate })
+  uni.switchTab({ url: '/pages/files/index' })
 }
 
 async function load() {
@@ -202,6 +213,14 @@ function sub(j: JobRecord): string {
       <text class="cap">{{ sel ? sub(sel) : '' }}</text>
 
       <image v-if="selThumb" class="shot" :src="selThumb" mode="aspectFit" />
+
+      <!-- 源文件已从卡上删掉的单没有这一行：没有文件就无从再打 -->
+      <view v-if="sel?.file3mf" class="card sheet-card">
+        <view class="line tappable" @click="reprint(sel)">
+          <text class="k">{{ t('history.reprint') }}</text>
+          <text class="v accent">›</text>
+        </view>
+      </view>
 
       <view v-if="tempsState === 'loading'" class="busy"><Spinner :size="40" /></view>
       <view v-else-if="tempsState === 'ok'" class="chart">

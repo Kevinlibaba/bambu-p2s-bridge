@@ -321,7 +321,10 @@
     "clear": "Dismiss",
     "clearing": "Dismissing…",
     "cleared": "Dismissed",
-    "hmsNote": "HMS entries describe a condition that is still true and cannot be dismissed manually — the printer withdraws them once the condition is resolved."
+    "hmsNote": "HMS entries describe a condition that is still true and cannot be dismissed manually — the printer withdraws them once the condition is resolved.",
+    "search": "Search file names",
+    "noMatch": "Nothing matches “{q}”",
+    "reprintMissing": "File not found — it may have been deleted from the printer"
   },
   "history": {
     "title": "Print history",
@@ -345,7 +348,8 @@
     "curveFailed": "Could not load the temperature curve",
     "timeline": "Timeline",
     "noEvents": "No events recorded for this job",
-    "timelapse": "Timelapse"
+    "timelapse": "Timelapse",
+    "reprint": "Print again"
   },
   "chart": {
     "nozzle": "Nozzle",

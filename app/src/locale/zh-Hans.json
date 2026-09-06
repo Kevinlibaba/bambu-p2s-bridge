@@ -321,7 +321,10 @@
     "clear": "清除报错",
     "clearing": "正在清除…",
     "cleared": "已清除",
-    "hmsNote": "带 HMS 编号的条目反映的是当前仍然成立的状况，不能手动清除；按上面的提示处理后打印机会自己撤下。"
+    "hmsNote": "带 HMS 编号的条目反映的是当前仍然成立的状况，不能手动清除；按上面的提示处理后打印机会自己撤下。",
+    "search": "搜索文件名",
+    "noMatch": "没有和「{q}」匹配的文件",
+    "reprintMissing": "找不到这个文件，可能已从打印机上删除"
   },
   "history": {
     "title": "打印历史",
@@ -345,7 +348,8 @@
     "curveFailed": "温度曲线加载失败",
     "timeline": "时间轴",
     "noEvents": "这一单没有记录到事件",
-    "timelapse": "延时录像"
+    "timelapse": "延时录像",
+    "reprint": "再打一次"
   },
   "chart": {
     "nozzle": "喷嘴",
