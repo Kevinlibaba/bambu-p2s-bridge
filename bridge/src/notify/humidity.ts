@@ -27,7 +27,7 @@ export interface HumidityOptions {
    * 显示方向直接拿 MQTT 值比，方向反了，差点把「最干」当成「该烘干」推出去。
    */
   level: number
-  /** 是否启用等级判断。这台固件在 LAN 上不报百分比（humidity_raw 恒为 0），全靠等级 */
+  /** 是否启用等级判断。百分比和等级两个刻度任一超标都提醒 */
   useLevel: boolean
   /** 持续偏高多久才提醒（毫秒） */
   sustainMs: number
@@ -75,9 +75,9 @@ export class HumidityWatch {
    * 永远触发不了；只看等级的话，新款的百分比又白给了。所以两个都看。
    */
   private isHigh(u: Summary['amsUnits'][number]): boolean {
-    // 百分比：只有 1–100 才是真读数，0 是「没报」
+    // 百分比就是 Handy 显示的那个数（这台 AMS 2 Pro 干透时显示 0%）
     const pct = u.humidityPct
-    const pctHigh = pct !== null && pct !== undefined && pct >= 1 && pct >= this.opts.pct
+    const pctHigh = pct !== null && pct !== undefined && pct >= this.opts.pct
     return pctHigh || (this.opts.useLevel && displayLevel(u.humidity) >= this.opts.level)
   }
 
@@ -96,9 +96,9 @@ export class HumidityWatch {
       if (now - t.highSince < this.opts.sustainMs) continue
       if (t.lastNotified !== null && now - t.lastNotified < this.opts.repeatMs) continue
       t.lastNotified = now
-      // 界面上等级显示为 A–E（显示方向）；有真百分比就一起写
+      // 和 Handy 一样以百分比为主，括号里带界面上的 A–E 等级
       const letter = humidityLetter(u.humidity)
-      const reading = u.humidityPct
+      const reading = u.humidityPct !== null && u.humidityPct !== undefined
         ? `${Math.round(u.humidityPct)}%（${letter} 级）`
         : `${letter} 级`
       const hours = Math.round((now - t.highSince) / 3_600_000)

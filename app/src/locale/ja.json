@@ -312,7 +312,8 @@
     "humidityPct": "{p}%",
     "statusLabel": "状態",
     "matLabel": "フィラメント",
-    "humidityLevel": "{l} レベル（A が最も乾燥）"
+    "humidityLevel": "{l} レベル（A が最も乾燥）",
+    "humidityBoth": "{p}%（{l} レベル）"
   },
   "err": {
     "title": "プリンターのエラー",

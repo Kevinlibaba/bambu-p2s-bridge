@@ -84,8 +84,8 @@ export interface AmsUnit {
    */
   humidity: number
   /**
-   * 湿度百分比，来自 humidity_raw。这台 AMS 2 Pro 的固件在 LAN 上恒报 0 ——
-   * 0 是「没报」不是「很干」（pybambu 同样只接受 1–100）。字段缺失或非数字为 null。
+   * 湿度百分比，来自 humidity_raw，就是 Handy / 打印机屏幕显示的那个数 ——
+   * 这台 AMS 2 Pro 干透时两边都显示 0%，0 是真读数。字段缺失或非数字才为 null。
    */
   humidityPct: number | null
   dryStatus: DryStatus

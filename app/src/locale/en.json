@@ -312,7 +312,8 @@
     "humidityPct": "{p}%",
     "statusLabel": "Status",
     "matLabel": "Filament",
-    "humidityLevel": "Level {l} (A = driest)"
+    "humidityLevel": "Level {l} (A = driest)",
+    "humidityBoth": "{p}% (level {l})"
   },
   "err": {
     "title": "Printer errors",

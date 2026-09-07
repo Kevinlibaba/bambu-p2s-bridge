@@ -52,7 +52,7 @@ test('MQTT 等级 5 是最干，不提醒；1 是最湿，提醒', () => {
   assert.equal(ev.length, 1, '3 = 显示 C 级，wiki 说 C 以上算湿')
   assert.match(ev[0].title, /AMS 3/)
   assert.match(ev[0].body, /C 级/)
-  assert.doesNotMatch(ev[0].body, /0%/, '0% 不是真读数，别写进去误导人')
+  assert.match(ev[0].body, /0%（C 级）/, '和 Handy 一样以百分比为主，等级放括号里')
   assert.match(w.update(sum([unit({ id: 3, humidity: 1, humidityPct: 0 })]), 0)[0].body, /E 级/)
 })
 

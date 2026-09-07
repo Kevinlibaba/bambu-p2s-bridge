@@ -424,15 +424,16 @@ it has no RFID, so `remain` is meaningless there.
 | `humidity` | Level 1–5 (BambuStudio's `m_humidity_level`) |
 | `humidity_raw` | Percentage (`m_humidity_percent`) — this is what Studio displays |
 
-`humidity_raw` reads `"0"` on this unit (an **AMS 2 Pro**) at all times over LAN MQTT, even
-though the printer screen and Bambu Handy show a percentage for it. Treat `0` as "not
-reported" (ha-bambulab's pybambu likewise only accepts 1–100); only 1–100 is a reading.
+`humidity_raw` is the percentage Bambu Handy and the printer screen display. On this unit
+(an **AMS 2 Pro**) it reads `"0"` with fresh desiccant, and Handy shows `0 %` at the same
+moment — so `0` is a real reading, not a missing value. Treat only a missing or
+non-numeric field as unknown.
 
 **The `humidity` level runs the opposite way from what the apps display.** ha-bambulab's
 `definitions.py` documents it in code: *"We subtract from 6 to match the new Bambu
 Handy/Studio presentation of 1 = dry, 5 = wet while the printer sends 1 = wet, 5 = dry."*
-So MQTT `5` is the driest state (this unit reports `5` with fresh desiccant), and the
-displayed A–E letter is `6 − humidity`. Bambu's wiki threshold is in display terms:
+So MQTT `5` is the driest state — confirmed on this unit: Handy showed `0 %` while MQTT
+reported `humidity: 5` — and the displayed A–E letter is `6 − humidity`. Bambu's wiki threshold is in display terms:
 *"when the display shows Level C or above, the AMS chamber is relatively humid"* — i.e.
 MQTT `humidity <= 3`. An earlier revision of this section had the direction wrong.
 

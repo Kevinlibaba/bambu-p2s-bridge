@@ -312,7 +312,8 @@
     "humidityPct": "{p}%",
     "statusLabel": "状态",
     "matLabel": "耗材类型",
-    "humidityLevel": "{l} 级（A 最干）"
+    "humidityLevel": "{l} 级（A 最干）",
+    "humidityBoth": "{p}%（{l} 级）"
   },
   "err": {
     "title": "打印机报错",
