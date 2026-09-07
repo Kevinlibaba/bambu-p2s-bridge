@@ -557,5 +557,65 @@
     "cancelTitle": "Cancel schedule",
     "cancelDesc": "Cancel the scheduled print of \"{name}\"?",
     "cancelled": "Cancelled"
+  },
+  "queue": {
+    "action": "Add to queue",
+    "added": "Queued: {name}",
+    "banner": "Print queue · {n} · {state}",
+    "view": "View",
+    "title": "Print queue",
+    "expTitle": "Experimental: the queue starts the next job unattended and has not been fully verified on real hardware. Use with care.",
+    "note": "Each job is harvested when it finishes; jobs whose harvest plan has warnings stop afterwards and wait for you. Starts run the same preflight as a manual start; a failed check skips the item.",
+    "empty": "The queue is empty",
+    "waitingCount": "{n} waiting",
+    "plateN": "Plate {n}",
+    "manualAfter": "waits for confirmation after printing",
+    "start": "Start queue",
+    "pauseAction": "Pause (stop after this job)",
+    "resume": "Resume",
+    "resumeSafety": "Bed is clear, resume",
+    "clear": "Clear finished",
+    "up": "Move up",
+    "down": "Move down",
+    "remove": "Remove",
+    "removeTitle": "Remove from queue",
+    "removeDesc": "Remove \"{name}\" from the queue?",
+    "removed": "Removed from queue",
+    "state": {
+      "idle": "idle",
+      "running": "running",
+      "paused": "paused"
+    },
+    "phase": {
+      "idle": "idle",
+      "starting": "starting",
+      "printing": "printing",
+      "cooling": "waiting for bed to cool",
+      "ejecting": "ejecting",
+      "settling": "settling",
+      "gap": "preparing next job"
+    },
+    "status": {
+      "waiting": "Waiting",
+      "printing": "Printing",
+      "harvesting": "Harvesting",
+      "done": "Done",
+      "failed": "Failed",
+      "skipped": "Skipped"
+    },
+    "reason": {
+      "safety": "Confirm the bed is clear",
+      "failed": "Print failed, queue stopped",
+      "manual": "Paused manually",
+      "foreign": "A print outside the queue is running",
+      "blocked": "Printer is not ready to continue"
+    },
+    "reasonHint": {
+      "safety": "The last part has been pushed off the bed. Check the photo and make sure nothing is left on the plate before resuming — otherwise the next job prints on top of the leftovers.",
+      "failed": "The last job failed to start or failed while printing. Fix the problem, then resume; the queue continues with the next item.",
+      "manual": "The next job will not start after the current one finishes. Resume to continue automatically.",
+      "foreign": "Someone started a print outside the queue. Wait for it to finish and clear the bed before resuming.",
+      "blocked": "For example the bed did not cool down in time. Make sure the printer is ready before resuming."
+    }
   }
 }
