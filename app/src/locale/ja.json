@@ -455,7 +455,9 @@
     "fileCorrupt": "SDカードに破損ファイル",
     "scheduleFailed": "予約印刷を開始できませんでした",
     "harvestDone": "取り出し完了",
-    "amsHumid": "AMS 乾燥が必要"
+    "amsHumid": "AMS 乾燥が必要",
+    "queuePaused": "印刷キューが停止",
+    "queueDone": "印刷キューが完了"
   },
   "harvest": {
     "title": "収穫",

@@ -21,6 +21,8 @@ import { registerSkipRoutes } from './skip.js'
 import { registerSliceRoutes } from './slice.js'
 import { registerCheckRoutes } from './check.js'
 import { registerScheduleRoutes } from './schedule.js'
+import { registerQueueRoutes } from './queue.js'
+import type { PrintQueue } from '../queue/index.js'
 import { readFile } from 'node:fs/promises'
 import type { Snapshots } from '../notify/snapshots.js'
 import type { FileChecker } from '../check/index.js'
@@ -49,6 +51,9 @@ export async function buildServer(
     snapshots: Snapshots; checker: FileChecker; schedule: PrintSchedule
     /** 推件下发之后安排一次「床空了没」的拍照 */
     onEjected: (bedTarget: number) => void
+    queue: PrintQueue
+    /** 把开打函数交回给 index.ts，队列要用 */
+    attachStart: (fn: (body: Record<string, unknown>) => Promise<unknown>) => void
   },
 ) {
   const app = Fastify({ logger: { level: 'warn' } })
@@ -120,6 +125,8 @@ export async function buildServer(
   registerFileRoutes(app, undefined, (name) => history.lastPrintedAt(name))
   const { start: startPrint } = registerPrintRoutes(app, mqtt, state)
   extra.schedule.attach(startPrint)
+  // 队列也走同一个开打函数 —— 定时、队列、手动三条路不可能少检查一项
+  extra.attachStart(startPrint)
   registerScheduleRoutes(app, extra.schedule)
   registerCheckRoutes(app, extra.checker)
 
@@ -141,6 +148,7 @@ export async function buildServer(
   registerHistoryRoutes(app, history, temps, events)
   registerEjectRoutes(app, state, mqtt, history, auto, extra.onEjected)
   registerSkipRoutes(app, state, mqtt)
+  registerQueueRoutes(app, extra.queue)
   registerSliceRoutes(app, state)
 
   // ---- 摄像头：在 go2rtc 前面做鉴权代理 ----

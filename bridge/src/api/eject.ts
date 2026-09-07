@@ -97,8 +97,9 @@ export function makeHarvestRunner(
   /** 推件序列下发之后调，参数是序列里等的热床目标温度。用来安排「床空了没」的拍照 */
   onEjected?: (bedTarget: number) => void,
 ) {
-  const send = async (opts: { coolOnly?: boolean }) => {
-    const src = await resolveSource({}, history)
+  const send = async (opts: { coolOnly?: boolean; path?: string; plate?: number; silent?: boolean }) => {
+    // 指定了文件就推那个（队列用），否则推「最近打完的那一单」（预约收菜用）
+    const src = await resolveSource(opts.path ? { path: opts.path, plate: opts.plate } : {}, history)
     const plan = planEject(src.objects, { bed: BED, maxZ: src.maxZ }, {
       mode: 'standalone',
       brimWidth: src.brimWidth,
@@ -119,11 +120,14 @@ export function makeHarvestRunner(
       if (s.printError) throw new Error('打印机有未清除的报错')
     }
     mqtt.publish({ print: { command: 'gcode_line', param: gcode.join('\n') + '\n' } })
-    if (!opts.coolOnly) onEjected?.(DEFAULT_BED_TARGET)
+    // 队列自己拍「床空了没」，不要这里再拍一张
+    if (!opts.coolOnly && !opts.silent) onEjected?.(DEFAULT_BED_TARGET)
   }
   return {
     cool: () => send({ coolOnly: true }),
     eject: () => send({}),
+    /** 队列用：推指定文件，且不触发预约收菜那条路的拍照 */
+    ejectFile: (path: string, plate: number) => send({ path, plate, silent: true }),
   }
 }
 

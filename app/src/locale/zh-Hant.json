@@ -455,7 +455,9 @@
     "fileCorrupt": "儲存卡有損壞檔案",
     "scheduleFailed": "定時列印未能開始",
     "harvestDone": "收菜完成",
-    "amsHumid": "AMS 該烘乾了"
+    "amsHumid": "AMS 該烘乾了",
+    "queuePaused": "列印佇列已停下",
+    "queueDone": "列印佇列全部完成"
   },
   "harvest": {
     "title": "收菜",

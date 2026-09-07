@@ -13,6 +13,9 @@ import { Snapshots } from './notify/snapshots.js'
 import { HarvestSnapshot } from './notify/afterharvest.js'
 import { FileChecker } from './check/index.js'
 import { PrintSchedule } from './schedule/index.js'
+import { PrintQueue } from './queue/index.js'
+import { readEjectSource } from './eject/source.js'
+import { planEject } from './eject/plan.js'
 import * as ftp from './printer/ftp.js'
 
 const state = new PrinterState()
@@ -40,7 +43,33 @@ const harvestSnap = new HarvestSnapshot({
   notify: (e) => notifier.notifyIfEnabled(e),
 })
 const onEjected = (bedTarget: number) => harvestSnap.schedule(bedTarget)
-const autoHarvest = new AutoHarvest(state, makeHarvestRunner(state, mqtt, history, onEjected))
+const runner = makeHarvestRunner(state, mqtt, history, onEjected)
+const autoHarvest = new AutoHarvest(state, runner)
+const queue = new PrintQueue(config.queue.path, {
+  start: (body) => startPrintRef.current(body),
+  plan: async (path, plate) => {
+    const src = await readEjectSource(path, plate)
+    const injected = /\.harvest\.gcode\.3mf$/i.test(path)
+    const plan = planEject(src.objects, { bed: { width: 256, depth: 256 }, maxZ: src.maxZ }, {
+      mode: injected ? 'endGcode' : 'standalone', brimWidth: src.brimWidth,
+    })
+    return { injected, warnings: plan.warnings, pushable: plan.order.length > 0 }
+  },
+  cool: () => runner.cool(),
+  eject: (path, plate) => runner.ejectFile(path, plate),
+  snapshot: () => snapshots.capture().then((s) => (s ? { url: s.url, file: s.file } : null)),
+  notify: (e) => notifier.notifyIfEnabled(e),
+  printerReady: () => {
+    const s = state.summary()
+    if (!mqtt.connected) return { ok: false, why: '打印机未连接' }
+    if (BUSY.has(s.state)) return { ok: false, why: `打印机正忙（${s.state}）` }
+    if (s.printError) return { ok: false, why: '打印机有未清除的报错' }
+    return { ok: true, why: '' }
+  },
+  autoHarvestArmed: () => autoHarvest.status().armed,
+})
+/** 开打函数在路由模块里建好之后才有，先留一个引用 */
+const startPrintRef = { current: (_b: Record<string, unknown>): Promise<unknown> => Promise.reject(new Error('服务还没起来')) }
 
 async function main() {
   if (!config.api.token) {
@@ -55,8 +84,11 @@ async function main() {
   autoHarvest.start()
   mqtt.start()
   const app = await buildServer(state, mqtt, notifier, history, temps, events, autoHarvest, {
-    snapshots, checker, schedule, onEjected,
+    snapshots, checker, schedule, onEjected, queue,
+    attachStart: (fn) => { startPrintRef.current = fn },
   })
+  await queue.load()
+  state.on('update', (s) => { void queue.onUpdate(s) })
   // 开打逻辑在服务器里，接上之后定时器才有意义
   await schedule.start()
   await app.listen({ port: config.api.port, host: config.api.host })

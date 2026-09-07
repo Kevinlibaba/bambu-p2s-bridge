@@ -32,6 +32,10 @@ export const config = {
     intervalH: Number(process.env.FILE_CHECK_INTERVAL_H ?? 24),
     statePath: process.env.FILE_CHECK_STATE ?? '/data/filecheck.json',
   },
+  queue: {
+    /** 打印队列的落盘位置。重启不丢 */
+    path: process.env.QUEUE_PATH ?? '/data/queue.json',
+  },
   schedule: {
     /** 定时打印的落盘位置。桥接重启不该把预约丢掉 */
     path: process.env.SCHEDULE_PATH ?? '/data/schedule.json',

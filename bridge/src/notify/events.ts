@@ -21,6 +21,8 @@ export type NotifyKind =
   | 'scheduleFailed'
   | 'harvestDone'
   | 'amsHumid'
+  | 'queuePaused'
+  | 'queueDone'
 
 export const NOTIFY_KINDS: NotifyKind[] = [
   'printDone',
@@ -37,6 +39,8 @@ export const NOTIFY_KINDS: NotifyKind[] = [
   'scheduleFailed',
   'harvestDone',
   'amsHumid',
+  'queuePaused',
+  'queueDone',
 ]
 
 /**

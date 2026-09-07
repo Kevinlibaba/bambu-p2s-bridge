@@ -455,7 +455,9 @@
     "fileCorrupt": "Corrupt files on SD card",
     "scheduleFailed": "Scheduled print did not start",
     "harvestDone": "Harvest done",
-    "amsHumid": "AMS needs drying"
+    "amsHumid": "AMS needs drying",
+    "queuePaused": "Print queue paused",
+    "queueDone": "Print queue finished"
   },
   "harvest": {
     "title": "Harvest",
