@@ -555,5 +555,65 @@
     "cancelTitle": "取消定時",
     "cancelDesc": "取消「{name}」的定時列印？",
     "cancelled": "已取消"
+  },
+  "queue": {
+    "action": "加入佇列",
+    "added": "已加入佇列：{name}",
+    "banner": "列印佇列 · {n} 項 · {state}",
+    "view": "查看",
+    "title": "列印佇列",
+    "expTitle": "實驗功能：佇列會在無人值守時自動開始下一件，尚未在真機上充分驗證，請謹慎使用",
+    "note": "每件列印完會先收件；收件規劃有提醒的項目列印完會停下等人確認。開始時走和手動一樣的自檢，不通過就跳過這一項。",
+    "empty": "佇列是空的",
+    "waitingCount": "{n} 項等待列印",
+    "plateN": "第 {n} 盤",
+    "manualAfter": "列印完等人確認",
+    "start": "開始佇列",
+    "pauseAction": "暫停（這件印完就停）",
+    "resume": "繼續",
+    "resumeSafety": "床已清空，繼續",
+    "clear": "清理已完成",
+    "up": "上移",
+    "down": "下移",
+    "remove": "移除",
+    "removeTitle": "移出佇列",
+    "removeDesc": "把「{name}」移出佇列？",
+    "removed": "已移出佇列",
+    "state": {
+      "idle": "未執行",
+      "running": "執行中",
+      "paused": "已暫停"
+    },
+    "phase": {
+      "idle": "閒置",
+      "starting": "正在開始",
+      "printing": "列印中",
+      "cooling": "等熱床冷卻",
+      "ejecting": "正在推件",
+      "settling": "等件落定",
+      "gap": "準備下一件"
+    },
+    "status": {
+      "waiting": "等待",
+      "printing": "列印中",
+      "harvesting": "收件中",
+      "done": "完成",
+      "failed": "失敗",
+      "skipped": "已跳過"
+    },
+    "reason": {
+      "safety": "請確認熱床已清空",
+      "failed": "列印失敗，佇列已停",
+      "manual": "已手動暫停",
+      "foreign": "佇列外有列印在進行",
+      "blocked": "機器狀態不允許繼續"
+    },
+    "reasonHint": {
+      "safety": "上一件已經推下熱床。看一眼照片，確認板上什麼都沒剩再繼續 —— 否則下一件會直接印在殘件上。",
+      "failed": "上一件開始或列印中出了問題。處理好之後點繼續，佇列從下一項接著跑。",
+      "manual": "目前這件印完後不會再開始下一件。點繼續恢復自動執行。",
+      "foreign": "有人在佇列之外開了一筆列印。等它結束、清空熱床後再繼續。",
+      "blocked": "例如等熱床冷卻逾時。確認機器已經就緒再繼續。"
+    }
   }
 }

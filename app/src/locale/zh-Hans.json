@@ -555,5 +555,65 @@
     "cancelTitle": "取消定时",
     "cancelDesc": "取消「{name}」的定时打印？",
     "cancelled": "已取消"
+  },
+  "queue": {
+    "action": "加入队列",
+    "added": "已加入队列：{name}",
+    "banner": "打印队列 · {n} 项 · {state}",
+    "view": "查看",
+    "title": "打印队列",
+    "expTitle": "实验功能：队列会在无人值守时自动开打下一件，尚未在真机上充分验证，请谨慎使用",
+    "note": "每件打完会先收菜；收菜规划有提醒的项打完会停下等人确认。开打走和手动一样的自检，不通过就跳过这一项。",
+    "empty": "队列是空的",
+    "waitingCount": "{n} 项等待打印",
+    "plateN": "第 {n} 盘",
+    "manualAfter": "打完等人确认",
+    "start": "开始队列",
+    "pauseAction": "暂停（打完这件停）",
+    "resume": "继续",
+    "resumeSafety": "床已清空，继续",
+    "clear": "清理已完成",
+    "up": "上移",
+    "down": "下移",
+    "remove": "移除",
+    "removeTitle": "移出队列",
+    "removeDesc": "把「{name}」移出队列？",
+    "removed": "已移出队列",
+    "state": {
+      "idle": "未运行",
+      "running": "运行中",
+      "paused": "已暂停"
+    },
+    "phase": {
+      "idle": "空闲",
+      "starting": "正在开打",
+      "printing": "打印中",
+      "cooling": "等热床冷却",
+      "ejecting": "正在推件",
+      "settling": "等件落定",
+      "gap": "准备下一件"
+    },
+    "status": {
+      "waiting": "等待",
+      "printing": "打印中",
+      "harvesting": "收菜中",
+      "done": "完成",
+      "failed": "失败",
+      "skipped": "已跳过"
+    },
+    "reason": {
+      "safety": "请确认热床已清空",
+      "failed": "打印失败，队列已停",
+      "manual": "已手动暂停",
+      "foreign": "队列外有打印在进行",
+      "blocked": "机器状态不允许继续"
+    },
+    "reasonHint": {
+      "safety": "上一件已经推下热床。看一眼照片，确认板上什么都没剩再继续 —— 否则下一件会直接打在残件上。",
+      "failed": "上一件开打或打印中出了问题。处理好之后点继续，队列从下一项接着跑。",
+      "manual": "当前这件打完后不会再起下一件。点继续恢复自动执行。",
+      "foreign": "有人在队列之外开了一单打印。等它结束、清空热床后再继续。",
+      "blocked": "比如等热床冷却超时。确认机器已经就绪再继续。"
+    }
   }
 }

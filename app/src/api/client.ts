@@ -586,6 +586,82 @@ export const setSchedule = (at: number, print: PrintRequest, name: string) =>
   request<ScheduleStatus>('/api/print/schedule', { method: 'POST', data: { at, print, name } })
 export const cancelSchedule = () => request<ScheduleStatus>('/api/print/schedule', { method: 'DELETE' })
 
+// ---- 打印队列 ----
+/*
+ * 队列由桥接自动执行：打完一件、收菜、确认床空了再起下一件。
+ * 字段名和桥接的契约一一对应，这里只做类型描述，不做任何转换。
+ */
+export type QueueState = 'idle' | 'running' | 'paused'
+/**
+ * 暂停原因。
+ *   safety  上一件收菜后要人看照片确认床已清空
+ *   failed  开打或打印失败
+ *   manual  用户按了暂停
+ *   foreign 队列之外有人开了打印
+ *   blocked 等热床冷却超时之类，机器状态不允许继续
+ */
+export type QueuePauseReason = 'safety' | 'failed' | 'manual' | 'foreign' | 'blocked'
+export type QueuePhase = 'idle' | 'starting' | 'printing' | 'cooling' | 'ejecting' | 'settling' | 'gap'
+export type QueueItemStatus = 'waiting' | 'printing' | 'harvesting' | 'done' | 'failed' | 'skipped'
+
+export interface QueueWarning {
+  code: string
+  level: 'error' | 'warn' | 'info'
+  params?: Record<string, string | number>
+}
+
+export interface QueueItem {
+  id: string
+  path: string
+  name: string
+  plate: number
+  slots?: Record<string, number>
+  status: QueueItemStatus
+  error: string | null
+  /** 文件本身带收菜序列（.harvest.gcode.3mf） */
+  injected: boolean
+  /** 收菜规划没有 warn/error 告警 → 打完可自动衔接下一件；否则打完停下等人确认 */
+  harvestAuto: boolean
+  warnings: QueueWarning[]
+  addedAt: number
+  startedAt: number | null
+  endedAt: number | null
+  /** 收菜后的快照相对 URL（/api/snapshots/<id>.jpg），免鉴权，拼上 baseUrl 即可显示 */
+  photo: string | null
+}
+
+export interface QueueStatus {
+  /** idle = 没在自动执行（可能有待打项）；running = 自动执行中；paused = 停下等人 */
+  state: QueueState
+  pause: { reason: QueuePauseReason; message: string; photo: string | null } | null
+  /** 正在处理的 item id */
+  current: string | null
+  phase: QueuePhase
+  items: QueueItem[]
+  updatedAt: number
+}
+
+export const fetchQueue = () => request<QueueStatus>('/api/queue')
+export const enqueue = (path: string, plate?: number, slots?: Record<string, number>) =>
+  request<QueueStatus>('/api/queue', { method: 'POST', data: { path, plate, slots } })
+export const dequeue = (id: string) =>
+  request<QueueStatus>(`/api/queue/${encodeURIComponent(id)}`, { method: 'DELETE' })
+/** waiting 项的新顺序 */
+export const reorderQueue = (ids: string[]) =>
+  request<QueueStatus>('/api/queue/reorder', { method: 'POST', data: { ids } })
+export const startQueue = () => request<QueueStatus>('/api/queue/start', { method: 'POST' })
+/** 打完当前这件后不再起下一件 */
+export const pauseQueue = () => request<QueueStatus>('/api/queue/pause', { method: 'POST' })
+/** 从 paused 恢复。安全门就在这里：人看过照片确认床空了才点 */
+export const resumeQueue = () => request<QueueStatus>('/api/queue/resume', { method: 'POST' })
+/** 清掉 done/failed/skipped */
+export const clearQueue = () => request<QueueStatus>('/api/queue/clear', { method: 'POST' })
+
+/** 队列快照是免鉴权的相对地址，不走 tokenizedUrl —— 多带一个 token 参数反而会打进日志 */
+export function queuePhotoUrl(photo: string): string {
+  return url(photo)
+}
+
 /** 某一单期间发生过什么。和温度曲线叠起来看才能定位问题 */
 export const fetchJobEvents = (jobId: string) =>
   request<{ events: LoggedEvent[] }>(`/api/history/events?job=${encodeURIComponent(jobId)}`)
