@@ -434,6 +434,34 @@ something else.
 preflight fails, nothing starts and you get a notification; at 3 a.m. a refused start is
 safer than a forced one. One pending schedule, survives restarts.
 
+## Print queue
+
+The end state of unattended remote printing: queue N files → print → harvest → snapshot →
+next. "Add to queue" in the file sheet; the banner at the top of the Files tab opens the
+queue panel: start / pause (after the current one) / resume, reorder, remove.
+
+**The safety gate is a hard rule with no switch:**
+
+- Before the next print starts, the previous one must have been harvested **and its eject
+  plan must carry no warn/error-level notes** (brim, long-and-narrow may rotate, too tall…).
+  A part with notes stops the queue after harvest; you get the "is the bed clear?" snapshot,
+  look at it in the panel, and press "bed is clear, continue". The machine cannot confirm a
+  part actually left the bed — a brim has pulled one back in testing — and starting on an
+  occupied bed crashes the first layer straight into it.
+- Starts go through exactly the manual start function (preflight, AMS mapping, never
+  `force`); a failed preflight stops the queue.
+- A failed print, a print started outside the queue, or a cooling timeout all stop the
+  queue and notify you.
+
+`.harvest.gcode.3mf` files eject themselves at the end of the job; the queue only waits and
+photographs. Plain sliced files are cooled and ejected by the queue after FINISH. The queue is
+persisted across bridge restarts: an in-progress print keeps being watched; a harvest that was
+mid-way becomes a "please look" stop. Mutually exclusive with "harvest after this print".
+
+> ⚠️ A **full cycle — two prints back to back with an automatic harvest between — has not
+> been run on the machine yet.** The state machine is unit-tested and queue editing was
+> verified live. Watch the first hand-off in person.
+
 ## Security model
 
 - The printer never reaches the internet. The bridge never listens on a public interface.
