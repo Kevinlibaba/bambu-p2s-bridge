@@ -27,6 +27,13 @@ export const config = {
   pushallIntervalMs: Number(process.env.PUSHALL_INTERVAL_MS ?? 5 * 60 * 1000),
   /** 允许 gcode_line 这类危险命令 */
   allowRawGcode: process.env.ALLOW_RAW_GCODE === 'true',
+  recordings: {
+    /**
+     * 打印机「视频录制」写在 /ipcam 的录像总量上限（MB）。超了从最旧的删。
+     * 0 = 不管。打印机自己不删旧录像，两天就能把卡写满。
+     */
+    quotaMB: Number(process.env.IPCAM_QUOTA_MB ?? 2048),
+  },
   check: {
     /** 存储卡体检的间隔（小时），0 = 不自动跑。只在打印机空闲时跑 */
     intervalH: Number(process.env.FILE_CHECK_INTERVAL_H ?? 24),

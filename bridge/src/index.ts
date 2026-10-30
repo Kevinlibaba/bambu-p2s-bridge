@@ -12,6 +12,7 @@ import { makeHarvestRunner } from './api/eject.js'
 import { Snapshots } from './notify/snapshots.js'
 import { HarvestSnapshot } from './notify/afterharvest.js'
 import { FileChecker } from './check/index.js'
+import { RecordingQuota } from './check/recordings.js'
 import { PrintSchedule } from './schedule/index.js'
 import { PrintQueue } from './queue/index.js'
 import { readEjectSource } from './eject/source.js'
@@ -34,6 +35,15 @@ const checker = new FileChecker(
     notify: (e) => notifier.notifyIfEnabled(e),
   },
   config.check.intervalH * 3_600_000,
+)
+const recordings = new RecordingQuota(
+  {
+    list: (p) => ftp.listDir(p),
+    remove: (p) => ftp.remove(p),
+    readsActive: () => ftp.readsActive(),
+    log: (m) => console.log(m),
+  },
+  config.recordings.quotaMB * 1048576,
 )
 const schedule = new PrintSchedule(config.schedule.path, { notify: (e) => notifier.notifyIfEnabled(e) })
 const history = new History(state, lookupPlate)
@@ -79,6 +89,7 @@ async function main() {
   await snapshots.start()
   await notifier.start()
   await checker.start()
+  recordings.start()
   await history.start()
   await temps.start()
   autoHarvest.start()
@@ -100,6 +111,7 @@ async function main() {
     mqtt.stop()
     schedule.stop()
     checker.stop()
+    recordings.stop()
     // 先把没落盘的采样冲下去，否则最后一段曲线会丢
     await temps.flush()
     await app.close()
