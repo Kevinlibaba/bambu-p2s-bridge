@@ -156,8 +156,8 @@ export interface EjectPlan {
   /** 按推的先后排好序的件 */
   order: {
     id: number; name: string; pushX: number; startY: number
-    /** 长条件分段推的左右两个落点。没有就是单点推 pushX */
-    pushXs?: number[]
+    /** 分段推的左右两个落点（宽度的 1/4、3/4）。pushX 是中线，只用于展示 */
+    pushXs: [number, number]
   }[]
   /** 生成的 G-code，逐行 */
   gcode: string[]
@@ -235,8 +235,6 @@ const DEFAULT_Z_PROBE = { x: 128, y: 128 }
  * 从画面上看「推了但件没动」，很容易误判成附着力问题。
  */
 const PROBE_MARGIN = TOOLHEAD_RADIUS
-/** 短于这个长度的件，两个落点挨得太近，分段推没意义 */
-const LONG_PART_MIN = 60
 /** 分段推每一步往前推多少 */
 const STAGGER_STEP = 20
 
@@ -394,16 +392,19 @@ export function planEject(
     }
 
     /*
-     * 长条件分段推：在长度的 1/4 和 3/4 两处交替推，每次只往前一小步。
+     * 所有件都分段推：在宽度的 1/4 和 3/4 两处交替推，每次只往前一小步。
      * 只顶中间一点的话，任何一端还粘着就会以那端为轴转 —— 2026-11 实测，
-     * 117×17mm 的丝杆清洁工具被推得斜过来、一端伸出床沿，没掉下去。
-     * 两端交替走，偏一点下一步就被另一边拉回来。
+     * 117×17mm 的丝杆清洁工具被推得斜过来、一端伸出床沿，没掉下去，
+     * 最后是手动抬头、绕到后面、降到 Z1 再推一次才救回来。
+     * 两边交替走，偏一点下一步就被另一边拉回来。
+     *
+     * 一开始只给细长件用，后来改成一律这么推：多花的只是时间，
+     * 而单点推出事的代价是人到场收拾。窄件的两个落点挨得很近，
+     * 就退化成「单点、分小步推」，同样无害。
      */
-    const pushXs = depth > 0 && width > depth * 3 && width >= LONG_PART_MIN
-      ? [r2(xmin + width / 4), r2(xmax - width / 4)]
-      : undefined
+    const pushXs: [number, number] = [r2(xmin + width / 4), r2(xmax - width / 4)]
 
-    order.push({ id: obj.id, name: obj.name, pushX, startY, ...(pushXs ? { pushXs } : {}) })
+    order.push({ id: obj.id, name: obj.name, pushX, startY, pushXs })
   }
 
   return { order, gcode: render(order, safeZ, o, homeAt), warnings }
@@ -469,42 +470,30 @@ function render(
    * 推完立刻恢复。
    */
   for (const p of order) {
-    if (p.pushXs && p.pushXs.length === 2) {
-      g.push(`; -- ${p.name}（长条件，左右交替分段推）--`)
-      const [xl, xr] = p.pushXs
-      let yl = p.startY
-      let yr = p.startY
-      for (let y = p.startY - STAGGER_STEP; ; y -= STAGGER_STEP) {
-        const target = Math.max(o.exitY, r2(y))
-        for (const side of ['L', 'R'] as const) {
-          const x = side === 'L' ? xl : xr
-          const from = side === 'L' ? yl : yr
-          // 换边之前先抬到件上方再横移：此时推头贴着件的后沿，贴着横移会把它带歪
-          g.push(
-            `G0 Z${safeZ} F1200`,
-            `G0 X${x} Y${from} F12000`,
-            `G0 Z${o.pushZ} F900`,
-            'M17 X0.8 Y0.8 Z0.5',
-            `G1 Y${target} F${o.pushFeed}`,
-            'M17 R',
-          )
-          if (side === 'L') yl = target
-          else yr = target
-        }
-        if (target <= o.exitY) break
+    g.push(`; -- ${p.name}（左右交替分段推）--`)
+    const [xl, xr] = p.pushXs
+    let yl = p.startY
+    let yr = p.startY
+    for (let y = p.startY - STAGGER_STEP; ; y -= STAGGER_STEP) {
+      const target = Math.max(o.exitY, r2(y))
+      for (const side of ['L', 'R'] as const) {
+        const x = side === 'L' ? xl : xr
+        const from = side === 'L' ? yl : yr
+        // 换边之前先抬到件上方再横移：此时推头贴着件的后沿，贴着横移会把它带歪
+        g.push(
+          `G0 Z${safeZ} F1200`,
+          `G0 X${x} Y${from} F12000`,
+          `G0 Z${o.pushZ} F900`,
+          'M17 X0.8 Y0.8 Z0.5',
+          `G1 Y${target} F${o.pushFeed}`,
+          'M17 R',
+        )
+        if (side === 'L') yl = target
+        else yr = target
       }
-      g.push(`G0 Z${safeZ} F1200 ; 抬起`)
-      continue
+      if (target <= o.exitY) break
     }
-    g.push(
-      `; -- ${p.name} --`,
-      `G0 X${p.pushX} Y${p.startY} F12000 ; 满电流走位到件正后方`,
-      `G0 Z${o.pushZ} F900 ; 降到推的高度`,
-      'M17 X0.8 Y0.8 Z0.5 ; 推之前把电机电流降到 45%：件没脱开时丢步，而不是硬顶',
-      `G1 Y${o.exitY} F${o.pushFeed} ; 推出前沿`,
-      'M17 R ; 推完立刻恢复电流',
-      `G0 Z${safeZ} F1200 ; 抬起`,
-    )
+    g.push(`G0 Z${safeZ} F1200 ; 抬起`)
   }
 
   g.push('M400', 'M17 R ; 兜底：确保电流已恢复', '; ==== 推件结束 ====')

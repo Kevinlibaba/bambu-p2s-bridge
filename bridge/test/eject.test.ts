@@ -17,8 +17,8 @@ const line = (p: ReturnType<typeof planEject>, re: RegExp) => p.gcode.find((l) =
  */
 test('起点按打印头半径退到件后方，X 取 bbox 中心', () => {
   const p = planEject([obj(1, [100, 80, 140, 160])], BED)
-  assert.deepEqual(p.order, [{ id: 1, name: 'o1', pushX: 120, startY: 247 }])
-  assert.match(line(p, /^G0 X120 Y247/)!, /F12000/)
+  assert.deepEqual(p.order, [{ id: 1, name: 'o1', pushX: 120, startY: 247, pushXs: [110, 130] }])
+  assert.match(line(p, /^G0 X110 Y247/)!, /F12000/, '第一下从左边落点、件后方起步')
   assert.ok(line(p, /^G1 Y0 F1000/), '要一路推到前沿')
 })
 
@@ -67,11 +67,12 @@ test('降电流紧贴着推，走位在满电流下完成', () => {
   assert.ok(lo < push && push < hi, '推被降电流与恢复夹住')
 })
 
-test('每个件都各自降一次、恢复一次，末尾还有一道兜底', () => {
+test('每一下推都各自降一次、恢复一次，末尾还有一道兜底', () => {
   const p = planEject([obj(1, [10, 20, 50, 60]), obj(2, [10, 110, 50, 160])], BED)
   assert.equal(p.order.length, 2, '两个件都该够得着')
-  assert.equal(p.gcode.filter((l) => l.startsWith('M17 X0.8')).length, 2)
-  assert.equal(p.gcode.filter((l) => l.startsWith('M17 R')).length, 3, '两次恢复 + 一次兜底')
+  const pushes = p.gcode.filter((l) => /^G1 Y/.test(l)).length
+  assert.equal(p.gcode.filter((l) => l.startsWith('M17 X0.8')).length, pushes)
+  assert.equal(p.gcode.filter((l) => l.startsWith('M17 R')).length, pushes + 1, '每下一次恢复 + 一次兜底')
   assert.ok(p.gcode[p.gcode.length - 2].startsWith('M17 R'), '最后一定以恢复电流收尾')
 })
 
@@ -299,9 +300,16 @@ test('长条件在 1/4、3/4 两处交替推，每步前进一小段，两边同
   assert.equal(p.gcode.filter((l) => l.startsWith('M17 X0.8')).length, pushes.length)
 })
 
-test('短件或不细长的件仍然单点推', () => {
-  assert.equal(planEject([obj(1, [100, 100, 140, 120])], BED).order[0].pushXs, undefined, '40mm 太短')
-  assert.equal(planEject([obj(2, [60, 100, 180, 160])], BED).order[0].pushXs, undefined, '不细长')
+test('短件、不细长的件也一样左右交替分段推', () => {
+  const short = planEject([obj(1, [100, 100, 140, 120])], BED)
+  assert.deepEqual(short.order[0].pushXs, [110, 130])
+  const wide = planEject([obj(2, [60, 100, 180, 160])], BED)
+  assert.deepEqual(wide.order[0].pushXs, [90, 150])
+  for (const p of [short, wide]) {
+    const ys = p.gcode.filter((l) => /^G1 Y/.test(l)).map((l) => Number(/Y(-?[\d.]+)/.exec(l)![1]))
+    assert.ok(ys.length >= 4 && ys.length % 2 === 0, '成对、分多步')
+    assert.equal(ys.at(-1), 0)
+  }
 })
 
 test('M190 只剩 R 一条，S 那条兜底已删', () => {
