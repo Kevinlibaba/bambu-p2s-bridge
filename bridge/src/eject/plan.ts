@@ -236,7 +236,7 @@ const DEFAULT_Z_PROBE = { x: 128, y: 128 }
  */
 const PROBE_MARGIN = TOOLHEAD_RADIUS
 /** 分段推每一步往前推多少 */
-const STAGGER_STEP = 20
+const STAGGER_STEP = 10
 
 /** 点到某个 bbox 的最短距离，点在框内时为 0 */
 function distToBox(x: number, y: number, [xmin, ymin, xmax, ymax]: Bbox): number {
