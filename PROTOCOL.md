@@ -437,6 +437,13 @@ reported `humidity: 5` — and the displayed A–E letter is `6 − humidity`. B
 *"when the display shows Level C or above, the AMS chamber is relatively humid"* — i.e.
 MQTT `humidity <= 3`. An earlier revision of this section had the direction wrong.
 
+#### No remote reboot over LAN
+
+Third-party libraries (e.g. bambu-rs) list `{"system": {"command": "reboot"}}`; neither
+BambuStudio nor ha-bambulab use it. Tried on this P2S while idle (2026-11-03): published to
+`device/<serial>/request`, the printer sent **no reply** to it and stayed online — ping and
+MQTT reports continued uninterrupted for two minutes. Treat remote reboot as unavailable.
+
 ### 3.3b Capability bits — `fun`
 
 `print.fun` is a hex string used as a bitfield. BambuStudio reads individual bits out
