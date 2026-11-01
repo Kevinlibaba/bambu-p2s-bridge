@@ -140,7 +140,7 @@ function goSettings() {
  * 热床温度单独拎出来显示并挡住按钮，因为「热的时候推不动、硬推只会把力
  * 顶在热端上」是实测结论，不是保守估计。
  */
-const HARVEST_BED_MAX = 30
+const HARVEST_BED_MAX = 28
 const hSheet = ref(false)
 const hPlan = ref<HarvestPlan | null>(null)
 const hAuto = ref<HarvestAuto | null>(null)
@@ -148,7 +148,21 @@ const hErr = ref('')
 const hBusy = ref(false)
 const hRunning = computed(() => ['RUNNING', 'PREPARE', 'SLICING', 'PAUSE'].includes(s.value?.state ?? ''))
 const hBedNow = computed(() => Math.round(s.value?.bed.cur ?? 0))
-const hBedHot = computed(() => hBedNow.value > HARVEST_BED_MAX || hRunning.value)
+/** 推件前要降到的温度，以桥接给的为准（三条收菜路共用一个值） */
+const hTarget = computed(() => hAuto.value?.bedTarget ?? HARVEST_BED_MAX)
+const hBedHot = computed(() => hBedNow.value > hTarget.value || hRunning.value)
+/*
+ * 「现在收菜」进行中：风扇开着、桥接在等床降温，或者正在推。
+ * 和「打完这一件后收菜」的预约共用同一个状态机，所以要靠 phase 区分 ——
+ * 预约开关只认 waitingPrint，不然点一下收菜，预约开关也跟着亮了。
+ */
+const hNowRunning = computed(() => ['cooling', 'ejecting'].includes(hAuto.value?.phase ?? ''))
+const hScheduled = computed(() => !!hAuto.value?.armed && hAuto.value?.phase === 'waitingPrint')
+let hPoll = 0
+watch(hNowRunning, (on) => {
+  clearInterval(hPoll)
+  if (on) hPoll = setInterval(() => void refreshAuto(), 5000) as unknown as number
+})
 /** 桥接只给 path/plate，「第 N 盘」这句话按当前语言在这里拼 */
 const hSource = computed(() => {
   const p = hPlan.value
@@ -202,7 +216,8 @@ const hBlockReason = computed(() => {
   if (!p.order.length) return t('harvest.nothing')
   const bad = p.warnings.find((w) => w.level === 'error')
   if (bad) return t('harvestWarn.' + bad.code, bad.params || {})
-  if (hBedNow.value > HARVEST_BED_MAX) return t('harvest.tooHot', { max: HARVEST_BED_MAX })
+  if (hNowRunning.value) return t('harvest.coolingWait', { cur: hBedNow.value, t: hTarget.value })
+  // 床热不再挡按钮：按下去桥接会先开风扇，自己盯着降到目标再推
   return ''
 })
 
@@ -223,9 +238,10 @@ async function doHarvest() {
   if (!(await confirmAsk(t('harvest.title'), t('harvest.confirm')))) return
   hBusy.value = true
   try {
-    await runHarvest()
-    hSheet.value = false
-    toast(t('harvest.started'))
+    const r = await runHarvest() as HarvestPlan & { deferred?: boolean }
+    await refreshAuto()
+    toast(r.deferred ? t('harvest.deferred', { t: hTarget.value }) : t('harvest.started'))
+    if (!r.deferred) hSheet.value = false
   } catch (e) {
     toast((e as Error).message)
   } finally {
@@ -632,7 +648,7 @@ async function send(c: Command, confirmText?: string) {
                 <text class="hbtn-beta">β</text>
               </view>
               <view class="hbtn" :class="{ on: hAuto?.armed }" @click="openHarvest">
-                <text class="hbtn-t">{{ hAuto?.armed ? t('harvest.armed') : t('harvest.title') }}</text>
+                <text class="hbtn-t">{{ hNowRunning ? t('harvest.coolingShort') : hScheduled ? t('harvest.armed') : t('harvest.title') }}</text>
                 <text class="hbtn-beta">β</text>
               </view>
             </view>
@@ -724,6 +740,8 @@ async function send(c: Command, confirmText?: string) {
               <text class="v" :class="hBedHot ? 'warn' : ''">{{ hBedNow }}℃</text>
             </view>
           </view>
+          <!-- 床还热时不挡按钮，只提前说清楚按下去会发生什么 -->
+          <text v-if="hBedHot && !hRunning && !hNowRunning" class="note">{{ t('harvest.hotInfo', { t: hTarget }) }}</text>
 
           <template v-if="hPlan.warnings.length">
             <text class="grouphead">{{ t('harvest.warnings') }}</text>
@@ -748,13 +766,13 @@ async function send(c: Command, confirmText?: string) {
             <view class="line">
               <text class="k">{{ t('harvest.auto') }}</text>
               <switch
-                class="sw" :checked="!!hAuto?.armed" :disabled="hBusy"
+                class="sw" :checked="hScheduled" :disabled="hBusy || hNowRunning"
                 color="#2997ff" @change="toggleArm"
               />
             </view>
             <view class="hsep" />
             <view class="line stack">
-              <text class="sub">{{ t('harvest.autoHint', { t: hAuto?.bedTarget ?? 30 }) }}</text>
+              <text class="sub">{{ t('harvest.autoHint', { t: hTarget }) }}</text>
               <text class="sub warn">{{ t('harvest.expAuto') }}</text>
             </view>
           </view>

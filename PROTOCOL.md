@@ -437,6 +437,17 @@ reported `humidity: 5` — and the displayed A–E letter is `6 − humidity`. B
 *"when the display shows Level C or above, the AMS chamber is relatively humid"* — i.e.
 MQTT `humidity <= 3`. An earlier revision of this section had the direction wrong.
 
+#### `M190 R` does wait for the bed to cool — with a side effect
+
+Verified 2026-11 during a manual harvest: submitted at a 30 ℃ bed, the printer held at
+`M190 R25` until the bed reached 25 ℃, then continued with the push. So `R` waits in both
+directions on this firmware. Two side effects make it a poor way to wait, though:
+the printer raises HMS `0300_0100_0003_0008` (bed temperature setting out of range) the
+moment it hits that line, and while it waits nothing visibly happens — it reads as a stall.
+The bridge therefore waits on `bed_temper` itself for every eject it sends, and keeps
+`M190 R` only for sequences injected into a print file's end G-code, where nothing else can
+wait. The fallback `M190 S` line was dropped.
+
 #### No remote reboot over LAN
 
 Third-party libraries (e.g. bambu-rs) list `{"system": {"command": "reboot"}}`; neither

@@ -273,3 +273,39 @@ test('降 Z 必须发生在远离件的位置，而不是件旁边', () => {
   assert.ok(startY - 106.7 >= 86.9,
     `降 Z 的位置离件只有 ${(startY - 106.7).toFixed(1)}mm，不足打印头半径 72 + 余量 15`)
 })
+
+/*
+ * 长条件分段推。2026-11 实测：117×17mm 的丝杆清洁工具被单点推得斜过来、
+ * 一端伸出床沿没掉下去。两点交替、每步只前进一点，两端一起走就转不起来。
+ */
+test('长条件在 1/4、3/4 两处交替推，每步前进一小段，两边同步推到出口', () => {
+  const p = planEject([obj(87, [70, 120, 187.65, 137.17])], BED, { mode: 'standalone' })
+  const o = p.order[0]
+  assert.deepEqual(o.pushXs, [99.41, 158.24])
+  const pushes = p.gcode.filter((l) => /^G1 Y/.test(l))
+  assert.ok(pushes.length >= 10, '应当分成很多小步')
+  // 交替：每一对推的目标 Y 相同，而且单调减小
+  const ys = pushes.map((l) => Number(/Y(-?[\d.]+)/.exec(l)![1]))
+  for (let i = 0; i + 1 < ys.length; i += 2) assert.equal(ys[i], ys[i + 1], '左右两边推到同一个 Y')
+  for (let i = 2; i < ys.length; i += 2) assert.ok(ys[i] < ys[i - 2], '每一步都要往前')
+  assert.equal(ys.at(-1), 0, '最后推到出口')
+  // 换边之前必须先抬起，不能贴着件横移
+  const moves = p.gcode.filter((l) => /^G0 X/.test(l))
+  for (const m of moves) {
+    const i = p.gcode.indexOf(m)
+    assert.match(p.gcode[i - 1], /^G0 Z/, '横移之前一定先抬 Z')
+  }
+  // 每一下推都包在降电流里
+  assert.equal(p.gcode.filter((l) => l.startsWith('M17 X0.8')).length, pushes.length)
+})
+
+test('短件或不细长的件仍然单点推', () => {
+  assert.equal(planEject([obj(1, [100, 100, 140, 120])], BED).order[0].pushXs, undefined, '40mm 太短')
+  assert.equal(planEject([obj(2, [60, 100, 180, 160])], BED).order[0].pushXs, undefined, '不细长')
+})
+
+test('M190 只剩 R 一条，S 那条兜底已删', () => {
+  const g = planEject([obj(1, [10, 20, 50, 70])], BED).gcode
+  assert.equal(g.filter((l) => l.startsWith('M190 R')).length, 1)
+  assert.equal(g.filter((l) => l.startsWith('M190 S')).length, 0)
+})

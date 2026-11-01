@@ -282,6 +282,22 @@ export function registerEjectRoutes(
       if (BUSY.has(s.state)) throw new EjectError(`打印机正忙（${s.state}），不能推件`, 409)
       if (s.printError) throw new EjectError('打印机有未清除的报错，先处理再推件', 409)
 
+      /*
+       * App 的「收菜」按钮走这里（空 body = 最近打完的那一单）。交给预约收菜
+       * 那个状态机：桥接侧等温，不发 M190 —— 见 AutoHarvest.harvestNow。
+       * 显式给了 path/objects、homeOnly、cool:false 的调试调用仍按原样直发。
+       */
+      const plain = !body.path && !body.objects && !body.homeOnly && !body.coolOnly && cool
+      if (plain) {
+        const st = await auto.harvestNow()
+        if (st.phase === 'failed') throw new EjectError(st.error ?? '收菜失败', 502)
+        const waiting = s.bed.cur > st.bedTarget
+        return {
+          sent: true, deferred: waiting, bedTarget: st.bedTarget, cool, ...info,
+          order: plan.order, warnings: plan.warnings, gcode,
+        }
+      }
+
       if (!body.coolOnly) {
         onEjected?.(Number.isFinite(body.bedTarget as number) ? Number(body.bedTarget) : DEFAULT_BED_TARGET)
       }

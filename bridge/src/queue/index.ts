@@ -23,7 +23,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import type { Summary } from '../printer/state.js'
 import type { NotifyEvent } from '../notify/events.js'
-import type { EjectWarning } from '../eject/plan.js'
+import { DEFAULT_BED_TARGET, type EjectWarning } from '../eject/plan.js'
 
 export type ItemStatus = 'waiting' | 'printing' | 'harvesting' | 'done' | 'failed' | 'skipped'
 export type QueueState = 'idle' | 'running' | 'paused'
@@ -94,8 +94,8 @@ export interface QueueDeps {
 
 /** 打印中的状态。从这些跃迁到 FINISH 才算一单结束 */
 const ACTIVE = new Set(['RUNNING', 'PREPARE', 'SLICING'])
-/** 推件前热床要冷到的温度。与 eject/plan.ts 的 DEFAULT_BED_TARGET 一致 */
-const BED_TARGET = 25
+/** 推件前热床要冷到的温度。三条收菜路共用一个值 */
+const BED_TARGET = DEFAULT_BED_TARGET
 /** 等冷却最多这么久 */
 const COOL_TIMEOUT_MS = 45 * 60_000
 /** 推件序列下发之后，给动作走完留的时间 */

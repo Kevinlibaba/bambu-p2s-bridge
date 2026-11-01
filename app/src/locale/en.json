@@ -490,7 +490,11 @@
     "fileDesc": "Writes the eject sequence into this plate’s end G-code and saves it as \"{name}\". Print that file and the parts are pushed off the bed once it has cooled. The original is untouched.",
     "fileWarnDesc": "The plan has these notes:\n{list}\n\nMake it anyway?",
     "fileDone": "Harvest version created",
-    "fileNone": "Nothing on this plate can be pushed"
+    "fileNone": "Nothing on this plate can be pushed",
+    "coolingWait": "Cooling: bed {cur}℃, pushes automatically at {t}℃",
+    "hotInfo": "The bed is still warm. Pressing this turns the fans on; the bridge waits for {t}℃ and then pushes. No need to stay.",
+    "deferred": "Fans on — pushes at {t}℃",
+    "coolingShort": "Cooling"
   },
   "harvestWarn": {
     "tooFlat": "Part is too short for the nozzle to reach",

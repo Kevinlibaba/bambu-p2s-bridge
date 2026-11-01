@@ -40,8 +40,7 @@ export interface AutoDeps {
   now?: () => number
 }
 
-/** 降到这个温度才推。实测 28℃ 就够，留一点余量 */
-const DEFAULT_BED_TARGET = 30
+import { DEFAULT_BED_TARGET } from './plan.js'
 /** 降温最多等这么久，超时就放弃 —— 环境温度本来就可能高于阈值 */
 const COOL_TIMEOUT_MS = 45 * 60_000
 
@@ -74,6 +73,31 @@ export class AutoHarvest {
     this.phase = on ? 'waitingPrint' : 'idle'
     this.error = null
     this.coolingSince = 0
+    return this.status()
+  }
+
+  /**
+   * 现在就收菜：开风扇，桥接盯着热床，降到目标再推。
+   *
+   * 手动收菜以前直接把带 M190 的整段序列丢给打印机，让它自己等降温 ——
+   * 能等，但会报 HMS「热床温度设定超限」，而且等待期间看起来就是卡住了。
+   * 改成和预约收菜同一条路：等温在桥接这边，打印机只收到「开风扇」和
+   * 「推」两段不带 M190 的指令。床已经够凉的话下一次状态更新就推。
+   */
+  async harvestNow(): Promise<AutoStatus> {
+    if (this.running || this.phase === 'cooling' || this.phase === 'ejecting') return this.status()
+    this.armed = true
+    this.phase = 'cooling'
+    this.error = null
+    this.coolingSince = this.now()
+    this.running = true
+    try {
+      await this.deps.cool()
+    } catch (e) {
+      this.fail(`开风扇失败: ${(e as Error).message}`)
+    } finally {
+      this.running = false
+    }
     return this.status()
   }
 

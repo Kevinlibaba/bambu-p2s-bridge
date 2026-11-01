@@ -490,7 +490,11 @@
     "fileDesc": "把推件序列寫進這一盤的結束 G-code 裡，另存為「{name}」。列印這個檔案，印完會自動等熱床冷透、把件推下熱床。原檔不動。",
     "fileWarnDesc": "規劃有以下提醒：\n{list}\n\n仍要產生嗎？",
     "fileDone": "已產生收菜版本",
-    "fileNone": "這一盤沒有可推的件"
+    "fileNone": "這一盤沒有可推的件",
+    "coolingWait": "正在降溫：熱床 {cur}℃，降到 {t}℃ 自動推",
+    "hotInfo": "熱床還有溫度。按下後會先開風扇，橋接盯著降到 {t}℃ 再自動推，不用守著。",
+    "deferred": "風扇已開，降到 {t}℃ 自動推",
+    "coolingShort": "降溫中"
   },
   "harvestWarn": {
     "tooFlat": "件太矮，噴嘴構不到",

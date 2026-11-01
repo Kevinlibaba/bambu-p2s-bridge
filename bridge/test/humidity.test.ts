@@ -4,7 +4,8 @@ import { HumidityWatch } from '../src/notify/humidity.js'
 import type { Summary } from '../src/printer/state.js'
 
 const H = 3_600_000
-const unit = (o: Partial<Summary['amsUnits'][number]>) =>
+type Unit = Summary['amsUnits'][number]
+const unit = (o: Partial<Unit>): Unit =>
   ({ id: 0, temp: 25, humidity: 3, humidityPct: null, dryStatus: 'off', dryRemainMin: 0, loadedSlot: null, ...o })
 const sum = (units: Summary['amsUnits']) => ({ amsUnits: units }) as unknown as Summary
 

@@ -146,3 +146,28 @@ test('推件失败时如实记下原因，并解除预约', async () => {
   assert.equal(auto.status().error, '打印机正忙')
   assert.equal(auto.status().armed, false)
 })
+
+/*
+ * 手动「收菜」以前直接把带 M190 的序列丢给打印机，让它自己等降温 ——
+ * 能等，但报 HMS「热床温度设定超限」，等待期间看起来就是卡住了。
+ * 现在走同一个状态机：先开风扇，桥接盯着热床，到温度才推。
+ */
+test('现在收菜：先开风扇，床没凉不推，凉了马上推，推完解除', async () => {
+  const r = rig(28)
+  await r.tick('FINISH', 30)
+  const st = await r.auto.harvestNow()
+  assert.equal(st.phase, 'cooling')
+  assert.deepEqual(r.calls, ['cool'])
+  await r.tick('FINISH', 29)
+  assert.deepEqual(r.calls, ['cool'], '29℃ 还不推')
+  await r.tick('FINISH', 28)
+  assert.deepEqual(r.calls, ['cool', 'eject'])
+  assert.equal(r.auto.status().armed, false)
+  assert.equal(r.auto.status().phase, 'done')
+})
+
+test('现在收菜：重复点不会叠加', async () => {
+  const r = rig(28)
+  await r.auto.harvestNow(); await r.auto.harvestNow()
+  assert.deepEqual(r.calls, ['cool'])
+})

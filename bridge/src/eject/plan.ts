@@ -154,7 +154,11 @@ export interface EjectWarning {
 
 export interface EjectPlan {
   /** 按推的先后排好序的件 */
-  order: { id: number; name: string; pushX: number; startY: number }[]
+  order: {
+    id: number; name: string; pushX: number; startY: number
+    /** 长条件分段推的左右两个落点。没有就是单点推 pushX */
+    pushXs?: number[]
+  }[]
   /** 生成的 G-code，逐行 */
   gcode: string[]
   warnings: EjectWarning[]
@@ -185,8 +189,12 @@ const HEIGHT_TO_ROD = 32.5
  */
 const TOOLHEAD_MARGIN = 15
 
-/** 推件前热床要冷到的温度。实测 28℃ 就够，留一点余量 */
-export const DEFAULT_BED_TARGET = 25
+/**
+ * 推件前热床要冷到的温度。实测 28℃ 就能推下来（PLA / 纹理 PEI）。
+ * 以前是 25，在室温 22℃ 左右时从 30 降到 25 要等很久，看起来就像卡住了 ——
+ * 2026-11 那次手动收菜就是这样。手动、预约、队列三条路都用这一个值。
+ */
+export const DEFAULT_BED_TARGET = 28
 
 const DEFAULTS: Required<EjectOptions> = {
   pushZ: 1,
@@ -227,6 +235,10 @@ const DEFAULT_Z_PROBE = { x: 128, y: 128 }
  * 从画面上看「推了但件没动」，很容易误判成附着力问题。
  */
 const PROBE_MARGIN = TOOLHEAD_RADIUS
+/** 短于这个长度的件，两个落点挨得太近，分段推没意义 */
+const LONG_PART_MIN = 60
+/** 分段推每一步往前推多少 */
+const STAGGER_STEP = 20
 
 /** 点到某个 bbox 的最短距离，点在框内时为 0 */
 function distToBox(x: number, y: number, [xmin, ymin, xmax, ymax]: Bbox): number {
@@ -381,7 +393,17 @@ export function planEject(
       warnings.push({ code: 'alreadyAtEdge', level: LEVELS.alreadyAtEdge, objectId: obj.id, params: { ymin: r2(ymin) } })
     }
 
-    order.push({ id: obj.id, name: obj.name, pushX, startY })
+    /*
+     * 长条件分段推：在长度的 1/4 和 3/4 两处交替推，每次只往前一小步。
+     * 只顶中间一点的话，任何一端还粘着就会以那端为轴转 —— 2026-11 实测，
+     * 117×17mm 的丝杆清洁工具被推得斜过来、一端伸出床沿，没掉下去。
+     * 两端交替走，偏一点下一步就被另一边拉回来。
+     */
+    const pushXs = depth > 0 && width > depth * 3 && width >= LONG_PART_MIN
+      ? [r2(xmin + width / 4), r2(xmax - width / 4)]
+      : undefined
+
+    order.push({ id: obj.id, name: obj.name, pushX, startY, ...(pushXs ? { pushXs } : {}) })
   }
 
   return { order, gcode: render(order, safeZ, o, homeAt), warnings }
@@ -429,13 +451,11 @@ function render(
     'M106 P3 S255 ; 腔体降温风扇',
     'M106 P10 S255 ; 左侧辅助风扇',
     'M140 S0',
-    // Marlin 里 M190 S 只在升温时等待，降温不等；等降温要用 M190 R。
-    // 社区那份 P1S 方案用的是 S 并声称可用，但 Bambu 固件不是原版 Marlin，
-    // 这条尚未验证。万一两条都不等待，就会在热床还烫的时候去推 —— 件推不动，
-    // 力全顶在热端上。所以两条都发：R 若不被支持，S 至少是社区验证过的写法。
-    // 真要更稳，应由调用方在下发之前自己确认 bed_temper 已经降下来。
+    // M190 R 在 P2S 上**确实会等降温**（2026-11 实测：30℃ 提交，打印机停在这里直到
+    // 降到目标才继续）。但它有副作用：同时报 HMS 0300_0100_0003_0008（热床温度设定
+    // 超限），而且等待期间看起来就是卡住了。所以桥接自己下发的推件（手动、预约、
+    // 队列）都在桥接侧等温、把这几行滤掉；只有注入进打印文件的 endGcode 模式还靠它。
     `M190 R${o.bedTarget} ; 等热床冷透 —— 不冷透件还粘在板上，推不动`,
-    `M190 S${o.bedTarget} ; 兜底：固件若不认 R，这条至少是社区验证过的写法`,
     'M106 P2 S0',
     'M106 P3 S0',
     'M106 P10 S0',
@@ -449,6 +469,33 @@ function render(
    * 推完立刻恢复。
    */
   for (const p of order) {
+    if (p.pushXs && p.pushXs.length === 2) {
+      g.push(`; -- ${p.name}（长条件，左右交替分段推）--`)
+      const [xl, xr] = p.pushXs
+      let yl = p.startY
+      let yr = p.startY
+      for (let y = p.startY - STAGGER_STEP; ; y -= STAGGER_STEP) {
+        const target = Math.max(o.exitY, r2(y))
+        for (const side of ['L', 'R'] as const) {
+          const x = side === 'L' ? xl : xr
+          const from = side === 'L' ? yl : yr
+          // 换边之前先抬到件上方再横移：此时推头贴着件的后沿，贴着横移会把它带歪
+          g.push(
+            `G0 Z${safeZ} F1200`,
+            `G0 X${x} Y${from} F12000`,
+            `G0 Z${o.pushZ} F900`,
+            'M17 X0.8 Y0.8 Z0.5',
+            `G1 Y${target} F${o.pushFeed}`,
+            'M17 R',
+          )
+          if (side === 'L') yl = target
+          else yr = target
+        }
+        if (target <= o.exitY) break
+      }
+      g.push(`G0 Z${safeZ} F1200 ; 抬起`)
+      continue
+    }
     g.push(
       `; -- ${p.name} --`,
       `G0 X${p.pushX} Y${p.startY} F12000 ; 满电流走位到件正后方`,

@@ -490,7 +490,11 @@
     "fileDesc": "把推件序列写进这一盘的结束 G-code 里，另存为「{name}」。打这个文件，打完会自动等热床冷透、把件推下热床。原文件不动。",
     "fileWarnDesc": "规划有以下提醒：\n{list}\n\n仍要生成吗？",
     "fileDone": "已生成收菜版本",
-    "fileNone": "这一盘没有可推的件"
+    "fileNone": "这一盘没有可推的件",
+    "coolingWait": "正在降温：热床 {cur}℃，降到 {t}℃ 自动推",
+    "hotInfo": "热床还有温度。按下后会先开风扇，桥接盯着降到 {t}℃ 再自动推，不用守着。",
+    "deferred": "风扇已开，降到 {t}℃ 自动推",
+    "coolingShort": "降温中"
   },
   "harvestWarn": {
     "tooFlat": "件太矮，喷嘴够不到",
