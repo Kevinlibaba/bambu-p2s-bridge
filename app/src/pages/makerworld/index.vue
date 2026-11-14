@@ -280,6 +280,10 @@ function count(n: number): string {
   return n >= 10000 ? `${(n / 1000).toFixed(0)}k` : n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 }
 
+function openFiles() {
+  uni.navigateTo({ url: '/pages/files/index' })
+}
+
 async function doImport() {
   if (!chosen.value || importing.value) return
   if (!account.value) {
@@ -293,9 +297,9 @@ async function doImport() {
     toast(t('import.done', { name: r.name }))
     importing.value = false
     detailOpen.value = false
-    // 跳回文件页直接打开它，接着切片 / 打印
+    // 进文件页直接打开它，接着切片 / 打印
     requestOpen({ path: r.path, plate: null })
-    uni.switchTab({ url: '/pages/files/index' })
+    uni.navigateTo({ url: '/pages/files/index' })
   } catch (e) {
     toast(errText(e))
     if ((e as { code?: string }).code === 'auth') {
@@ -308,7 +312,7 @@ async function doImport() {
 }
 
 onShow(async () => {
-  applyChrome('tab.makerworld')
+  applyChrome('mw.title')
   if (!configured.value) return
   await loadAccount()
   if (!items.value.length && !listLoading.value) void loadList(true)
@@ -329,8 +333,17 @@ onPullDownRefresh(async () => {
     <view v-else-if="!accountLoaded" class="busy"><Spinner :size="40" /></view>
 
     <template v-else>
-      <!-- 账号：浏览不用登录，导入才要 -->
+      <!-- 打印机上的文件：不单独占一个标签，入口放这里 -->
       <view class="card who">
+        <view class="line tappable" @click="openFiles">
+          <view class="stackmeta">
+            <text class="k">{{ t('mw.files') }}</text>
+            <text class="sub">{{ t('mw.filesSub') }}</text>
+          </view>
+          <text class="v">›</text>
+        </view>
+        <view class="hsep" />
+      <!-- 账号：浏览不用登录，导入才要 -->
         <view v-if="account" class="line">
           <view class="row grow">
             <image v-if="account.avatar" class="avatar" :src="account.avatar" mode="aspectFill" />
@@ -495,7 +508,7 @@ onPullDownRefresh(async () => {
 .card { background: var(--surface); border-radius: 22rpx; padding: 0 28rpx; }
 .sheet-card { margin-top: 24rpx; }
 .who { margin-top: 20rpx; }
-.who .line { min-height: 88rpx; }
+.who .line { min-height: 100rpx; padding: 16rpx 0; box-sizing: border-box; }
 .hsep { height: 1rpx; background: var(--separator); }
 .line { display: flex; align-items: center; justify-content: space-between; min-height: 96rpx; }
 .row { display: flex; align-items: center; }

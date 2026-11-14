@@ -1059,7 +1059,7 @@ async function makeHarvest() {
 }
 
 onShow(() => {
-  applyChrome('tab.files')
+  applyChrome('files.title')
   const want = takePendingOpen()
   if (want) void openPending(want)
   else load()

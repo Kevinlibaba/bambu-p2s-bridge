@@ -4,8 +4,7 @@
   },
   "tab": {
     "device": "设备",
-    "files": "文件",
-    "makerworld": "MakerWorld",
+    "makerworld": "MW",
     "settings": "设置"
   },
   "state": {
@@ -161,7 +160,9 @@
     "prevPlate": "上一盘",
     "nextPlate": "下一盘",
     "unsliced": "未切片",
-    "zoomView": "放大查看"
+    "zoomView": "放大查看",
+    "title": "文件",
+    "search": "搜索文件名"
   },
   "settings": {
     "serverGroup": "服务器",
@@ -699,6 +700,8 @@
       "category_2000": "AI 生成",
       "category_500": "教育"
     },
-    "end": "已经到底了"
+    "end": "已经到底了",
+    "files": "打印机上的文件",
+    "filesSub": "模型、延时摄影、录像；切片和打印"
   }
 }

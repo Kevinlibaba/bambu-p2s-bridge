@@ -92,12 +92,12 @@ async function openJob(j: JobRecord) {
 
 /*
  * 再打一次。这里不开打，只把文件和盘号交给文件页，让它走和手动完全一样的
- * 自检、配料与确认。文件页是 tab，switchTab 带不了参数，所以经由 store 传话。
+ * 自检、配料与确认。要打开哪个文件经由 store 传话。
  */
 function reprint(j: JobRecord) {
   if (!j.file3mf) return
   requestOpen({ path: j.file3mf, plate: j.plate })
-  uni.switchTab({ url: '/pages/files/index' })
+  uni.navigateTo({ url: '/pages/files/index' })
 }
 
 async function load() {

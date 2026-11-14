@@ -4,8 +4,7 @@
   },
   "tab": {
     "device": "裝置",
-    "files": "檔案",
-    "makerworld": "MakerWorld",
+    "makerworld": "MW",
     "settings": "設定"
   },
   "state": {
@@ -161,7 +160,9 @@
     "prevPlate": "上一盤",
     "nextPlate": "下一盤",
     "unsliced": "未切片",
-    "zoomView": "放大檢視"
+    "zoomView": "放大檢視",
+    "title": "檔案",
+    "search": "搜尋檔名"
   },
   "settings": {
     "serverGroup": "伺服器",
@@ -699,6 +700,8 @@
       "category_2000": "AI 生成",
       "category_500": "教育"
     },
-    "end": "已經到底了"
+    "end": "已經到底了",
+    "files": "印表機上的檔案",
+    "filesSub": "模型、縮時攝影、錄影；切片和列印"
   }
 }

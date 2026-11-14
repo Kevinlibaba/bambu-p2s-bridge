@@ -4,8 +4,7 @@
   },
   "tab": {
     "device": "デバイス",
-    "files": "ファイル",
-    "makerworld": "MakerWorld",
+    "makerworld": "MW",
     "settings": "設定"
   },
   "state": {
@@ -161,7 +160,9 @@
     "prevPlate": "前のプレート",
     "nextPlate": "次のプレート",
     "unsliced": "未スライス",
-    "zoomView": "拡大表示"
+    "zoomView": "拡大表示",
+    "title": "ファイル",
+    "search": "ファイル名を検索"
   },
   "settings": {
     "serverGroup": "サーバー",
@@ -699,6 +700,8 @@
       "category_2000": "AI 生成",
       "category_500": "教育"
     },
-    "end": "これ以上はありません"
+    "end": "これ以上はありません",
+    "files": "プリンター上のファイル",
+    "filesSub": "モデル、タイムラプス、録画。スライスと印刷"
   }
 }

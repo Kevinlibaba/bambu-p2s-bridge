@@ -4,8 +4,7 @@
   },
   "tab": {
     "device": "Device",
-    "files": "Files",
-    "makerworld": "MakerWorld",
+    "makerworld": "MW",
     "settings": "Settings"
   },
   "state": {
@@ -161,7 +160,9 @@
     "prevPlate": "Previous plate",
     "nextPlate": "Next plate",
     "unsliced": "Not sliced",
-    "zoomView": "Zoom view"
+    "zoomView": "Zoom view",
+    "title": "Files",
+    "search": "Search file names"
   },
   "settings": {
     "serverGroup": "Server",
@@ -699,6 +700,8 @@
       "category_2000": "Generative 3D",
       "category_500": "Education"
     },
-    "end": "You've reached the end"
+    "end": "You've reached the end",
+    "files": "Files on the printer",
+    "filesSub": "Models, timelapses, recordings; slice and print"
   }
 }
