@@ -80,13 +80,16 @@ export function request<T>(
       success: (res) => {
         const code = res.statusCode
         if (code >= 200 && code < 300) return resolve(res.data as T)
-        const payload = res.data as { error?: string; blockers?: unknown } | undefined
+        const payload = res.data as { error?: string; blockers?: unknown; code?: string } | undefined
         const msg = payload?.error ?? `HTTP ${code}`
-        const err = new ApiError(code === 401 ? 'Token 无效或未授权' : msg, code) as ApiError & {
+        // MakerWorld 的 401 是「MW 没登录」，不是桥接 token 不对 —— 它带着 code，按它自己的说法报
+        const err = new ApiError(code === 401 && !payload?.code ? 'Token 无效或未授权' : msg, code) as ApiError & {
           blockers?: unknown
+          code?: string
         }
         // 409 时服务端会附带 blockers，调用方要靠它决定给出哪种补救操作
         if (payload?.blockers) err.blockers = payload.blockers
+        if (payload?.code) err.code = payload.code
         reject(err)
       },
       fail: (e) => reject(new ApiError(e.errMsg || '网络请求失败')),
@@ -272,6 +275,67 @@ export function uploadFile(
 
 export const importUrl = (link: string, name: string) =>
   request<ThreeMfInfo>('/api/files/import', { method: 'POST', data: { url: link, name }, timeout: 10 * 60 * 1000 })
+
+// ---------- MakerWorld（国际版） ----------
+
+export interface MwAccount {
+  account: string
+  uid?: number
+  name?: string
+  avatar?: string
+  loginAt: number
+  expiresAt?: number
+}
+
+export type MwLoginReply =
+  | { ok: true; account: MwAccount }
+  | { ok: false; next: 'verifyCode' }
+  | { ok: false; next: 'tfa'; tfaKey: string }
+
+export interface MwCard {
+  id: number
+  title: string
+  cover: string
+  creator: string
+  likeCount: number
+  downloadCount: number
+}
+
+export interface MwInstance {
+  id: number
+  profileId: number
+  title: string
+  cover: string
+  isDefault: boolean
+  printTime: number
+  weight: number
+  plates: number
+  needAms: boolean
+  filaments: { type: string; color: string }[]
+  printer: string
+  native: boolean
+  layerHeight?: string
+  downloadCount: number
+  printCount: number
+}
+
+export interface MwDesign extends MwCard {
+  instances: MwInstance[]
+  selected: number | null
+}
+
+export const mwAccount = () => request<{ account: MwAccount | null }>('/api/mw/account')
+export const mwLogout = () => request<{ ok: boolean }>('/api/mw/logout', { method: 'POST' })
+export const mwLogin = (data: { account: string; password?: string; code?: string; tfaKey?: string }) =>
+  request<MwLoginReply>('/api/mw/login', { method: 'POST', data })
+export const mwSendCode = (account: string) =>
+  request<{ ok: boolean }>('/api/mw/code', { method: 'POST', data: { account } })
+export const mwDesign = (link: string) =>
+  request<MwDesign>('/api/mw/design?link=' + encodeURIComponent(link))
+export const mwList = (kind: 'favorites' | 'likes', offset = 0) =>
+  request<{ items: MwCard[]; total: number }>(`/api/mw/list?kind=${kind}&offset=${offset}&limit=20`)
+export const mwImport = (instanceId: number) =>
+  request<ThreeMfInfo>('/api/mw/import', { method: 'POST', data: { instanceId }, timeout: 10 * 60 * 1000 })
 
 export const deleteFile = (path: string) =>
   request<{ ok: boolean }>('/api/files?path=' + encodeURIComponent(path), { method: 'DELETE' })

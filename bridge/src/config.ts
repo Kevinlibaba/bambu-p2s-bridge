@@ -43,6 +43,10 @@ export const config = {
     /** 打印队列的落盘位置。重启不丢 */
     path: process.env.QUEUE_PATH ?? '/data/queue.json',
   },
+  makerworld: {
+    /** MakerWorld 登录 token 落盘位置（0600）。只存 token，从不存密码 */
+    storePath: process.env.MAKERWORLD_STORE ?? '/data/makerworld.json',
+  },
   schedule: {
     /** 定时打印的落盘位置。桥接重启不该把预约丢掉 */
     path: process.env.SCHEDULE_PATH ?? '/data/schedule.json',

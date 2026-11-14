@@ -25,6 +25,12 @@
       }
     },
     {
+      "path": "pages/makerworld/index",
+      "style": {
+        "navigationBarTitleText": "%mw.title%"
+      }
+    },
+    {
       "path": "pages/history/index",
       "style": {
         "navigationBarTitleText": "%history.title%"

@@ -387,6 +387,24 @@ adds a confirmation that spells out what is about to happen.
 > verified end to end on a P2S** — doing so means starting a real print. Supervise the
 > first one.
 
+### Importing from MakerWorld
+
+**Files → Import → From MakerWorld** signs in to a MakerWorld (global, makerworld.com)
+account and imports models straight to the printer: paste a model link (the app's
+*Share → Copy link* works, `#profileId-` anchors pick that print profile) or pick from
+your collection / likes, choose a print profile, and the bridge downloads the 3MF and
+uploads it to the SD card. The app then opens it on the Files tab for slicing and printing.
+
+- Sign-in uses Bambu's own login API (password, email code, or authenticator code). The
+  password only passes through to obtain a token; the bridge stores just the token, in
+  `/data/makerworld.json` (mode 0600, override with `MAKERWORLD_STORE`).
+- Everything goes through `api.bambulab.com`, not `makerworld.com/api` — same backend and
+  token, without the Cloudflare / captcha layer in front of the website.
+- Each import spends one of the account's daily MakerWorld downloads. If MakerWorld asks
+  for a captcha, download any model once on the website to clear it.
+- MakerWorld China (makerworld.com.cn) is a separate account system and model library and
+  is not supported; its links are rejected rather than resolved to the wrong model.
+
 ### Slicing on the bridge
 
 Models downloaded from MakerWorld are usually *unsliced*, and the printer cannot start

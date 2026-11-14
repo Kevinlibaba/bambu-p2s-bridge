@@ -125,7 +125,10 @@ export function registerFileRoutes(
   backend: FileBackend = ftp,
   /** 查某个文件上次打印的时间。只传一个函数，不把整个 History 拖进来。 */
   lastPrintedAt?: (name: string) => number | null,
-): void {
+): {
+  importFromUrl: (url: URL, name: unknown) => Promise<ImportResult>
+  fail: (reply: FastifyReply, e: unknown) => FastifyReply
+} {
   const zipCache = new Map<string, ZipCacheItem>()
   const noImage = new Map<string, number>()
 
@@ -472,29 +475,33 @@ export function registerFileRoutes(
       } catch {
         fallback = url.pathname
       }
-      const name = safeName(body.name || fallback)
-
-      let res: Response
-      try {
-        res = await fetch(url, { redirect: 'follow' })
-      } catch (e) {
-        // 兜底分支会把这类错误说成 "FTPS 失败"，与实际原因南辕北辙
-        throw new BadRequest(`无法访问该链接：${(e as Error).message}`)
-      }
-      if (!res.ok || !res.body) throw new BadRequest(`下载失败：HTTP ${res.status}`)
-
-      const path = '/' + name
-      await backend.uploadStream(
-        path,
-        Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]),
-      )
-      forget(path)
-      const info = await verifyOrRemove(path)
-      return { path, name, size: await backend.stat(path).catch(() => 0), ...info }
+      return await importFromUrl(url, body.name || fallback)
     } catch (e) {
       return fail(reply, e)
     }
   })
+
+  /** 桥接自己去取链接、边下边传到打印机，再校验。MakerWorld 导入也走这里 */
+  async function importFromUrl(url: URL, rawName: unknown): Promise<ImportResult> {
+    const name = safeName(rawName)
+    let res: Response
+    try {
+      res = await fetch(url, { redirect: 'follow' })
+    } catch (e) {
+      // 兜底分支会把这类错误说成 "FTPS 失败"，与实际原因南辕北辙
+      throw new BadRequest(`无法访问该链接：${(e as Error).message}`)
+    }
+    if (!res.ok || !res.body) throw new BadRequest(`下载失败：HTTP ${res.status}`)
+
+    const path = '/' + name
+    await backend.uploadStream(
+      path,
+      Readable.fromWeb(res.body as Parameters<typeof Readable.fromWeb>[0]),
+    )
+    forget(path)
+    const info = await verifyOrRemove(path)
+    return { path, name, size: await backend.stat(path).catch(() => 0), ...info }
+  }
 
   app.delete('/api/files', async (req, reply) => {
     try {
@@ -507,9 +514,12 @@ export function registerFileRoutes(
     }
   })
 
+  return { importFromUrl, fail }
 }
 
-class BadRequest extends Error {
+export type ImportResult = { path: string; name: string; size: number } & Awaited<ReturnType<typeof describeThreeMf>>
+
+export class BadRequest extends Error {
   constructor(message: string) {
     super(message)
     this.name = 'BadRequest'

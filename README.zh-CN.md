@@ -204,6 +204,22 @@ App 侧还有一层写明后果的二次确认。
 > ⚠️ `project_file` 的参数沿用 X1/P1 的公开格式，**尚未在 P2S 上端到端验证过**——
 > 验证意味着真的开一次打印。首次使用请在旁看管。
 
+## 从 MakerWorld 导入
+
+**文件 → 导入 → 从 MakerWorld 导入**：登录 MakerWorld 国际版（makerworld.com）账号后，
+粘贴模型链接（App 里「分享 → 复制链接」即可，带 `#profileId-` 的会选中那个打印配置），
+或者从「我的收藏 / 我的点赞」里挑，选好打印配置，桥接下载 3MF 并传到打印机，
+之后 App 自动在文件页打开它，接着切片、打印。
+
+- 登录走 Bambu 自己的登录接口（密码、邮箱验证码或验证器验证码）。密码只经手一次换 token，
+  桥接只存 token：`/data/makerworld.json`（权限 0600，可用 `MAKERWORLD_STORE` 改路径）。
+- 全部请求走 `api.bambulab.com`，不走 `makerworld.com/api` —— 同一个后端、同一个 token，
+  但没有网站前面那层 Cloudflare / 验证码。
+- 每导入一次消耗一次账号的 MakerWorld 每日下载次数。遇到要求人工验证时，去网页上手动下载
+  一次任意模型过一下验证码即可。
+- 国内版（makerworld.com.cn）是另一套账号和模型库，不支持；国内链接会直接报错，
+  不会被当成国际版的同号模型下错。
+
 ## 云切片
 
 从 MakerWorld 下来的模型多半是**未切片**的，打印机认不了。这类文件在 App 的文件详情里

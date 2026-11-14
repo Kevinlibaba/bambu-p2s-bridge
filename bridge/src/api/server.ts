@@ -22,6 +22,8 @@ import { registerSliceRoutes } from './slice.js'
 import { registerCheckRoutes } from './check.js'
 import { registerScheduleRoutes } from './schedule.js'
 import { registerQueueRoutes } from './queue.js'
+import { registerMakerWorldRoutes } from './makerworld.js'
+import { MakerWorld } from '../makerworld/client.js'
 import type { PrintQueue } from '../queue/index.js'
 import { readFile } from 'node:fs/promises'
 import type { Snapshots } from '../notify/snapshots.js'
@@ -122,7 +124,8 @@ export async function buildServer(
   })
 
   // ---- 文件（FTPS）：列目录、Range 流式读取、3MF 预览 ----
-  registerFileRoutes(app, undefined, (name) => history.lastPrintedAt(name))
+  const fileRoutes = registerFileRoutes(app, undefined, (name) => history.lastPrintedAt(name))
+  registerMakerWorldRoutes(app, new MakerWorld(config.makerworld.storePath), fileRoutes)
   const { start: startPrint } = registerPrintRoutes(app, mqtt, state)
   extra.schedule.attach(startPrint)
   // 队列也走同一个开打函数 —— 定时、队列、手动三条路不可能少检查一项

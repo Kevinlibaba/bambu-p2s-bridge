@@ -533,6 +533,11 @@ function pickFile() {
   })
 }
 
+function openMakerWorld() {
+  closeImport()
+  uni.navigateTo({ url: '/pages/makerworld/index' })
+}
+
 function doImportLink() {
   const link = linkText.value.trim()
   if (!link) return
@@ -1537,6 +1542,11 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
           <view class="line stack tappable" @click="importStep = 'link'">
             <text class="k accent">{{ t('import.fromLink') }}</text>
             <text class="opt-sub">{{ t('import.fromLinkHint') }}</text>
+          </view>
+          <view class="hsep" />
+          <view class="line stack tappable" @click="openMakerWorld">
+            <text class="k accent">{{ t('import.fromMw') }}</text>
+            <text class="opt-sub">{{ t('import.fromMwHint') }}</text>
           </view>
         </view>
         <text class="hint">{{ t('import.note') }}</text>
