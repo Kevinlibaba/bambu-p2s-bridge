@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { readStoredConfig, pick, CONFIG_PATH } from './setup/store.js'
 
 /*
@@ -6,6 +7,21 @@ import { readStoredConfig, pick, CONFIG_PATH } from './setup/store.js'
  * 进程照常起来，但只提供网页向导，不连打印机。
  */
 const stored = readStoredConfig()
+
+/*
+ * Home Assistant 加载项的选项（Supervisor 写在 /data/options.json）。
+ * 只认 port —— 宿主机网络下 8080 可能被别的加载项占了，要能改。
+ */
+function haOptions(): { port?: number } {
+  try {
+    return JSON.parse(readFileSync(process.env.HA_OPTIONS ?? '/data/options.json', 'utf8')) as { port?: number }
+  } catch {
+    return {}
+  }
+}
+const ha = haOptions()
+/** 单容器模式：go2rtc 由桥接自己拉起，端口见镜像里的 go2rtc.yaml */
+const embedGo2rtc = /^(1|true|yes)$/i.test(process.env.GO2RTC_EMBED ?? '')
 const printerHost = pick('BAMBU_HOST', stored.printer?.host)
 const printerSerial = pick('BAMBU_SERIAL', stored.printer?.serial)
 const printerCode = pick('BAMBU_ACCESS_CODE', stored.printer?.accessCode)
@@ -23,14 +39,16 @@ export const config = {
     ftpPort: 990,
   },
   api: {
-    port: Number(process.env.PORT ?? 8080),
+    port: Number(process.env.PORT ?? ha.port ?? 8080),
     host: process.env.BIND_HOST ?? '0.0.0.0',
     /** 为空则不鉴权（仅限本地调试）。生产必须设置。 */
     token: pick('API_TOKEN', stored.apiToken),
   },
   camera: {
     /** go2rtc 地址，桥接服务在其前面做鉴权代理 */
-    go2rtc: process.env.GO2RTC_URL ?? 'http://127.0.0.1:1984',
+    go2rtc: process.env.GO2RTC_URL ?? (embedGo2rtc ? 'http://127.0.0.1:11984' : 'http://127.0.0.1:1984'),
+    /** 由桥接自己拉起 go2rtc（单容器部署） */
+    embed: embedGo2rtc,
     stream: process.env.GO2RTC_STREAM ?? 'bambu_p2s',
   },
   /** 长时间没收到 report 时重新对齐的间隔（毫秒）。固件对 pushall 有限速，勿调小。 */

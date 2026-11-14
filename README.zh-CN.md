@@ -140,6 +140,28 @@ cd bambu-p2s-bridge
 
 宿主机**不需要**装 Node —— 前端在镜像里构建。重复执行是安全的：它会问你要不要沿用现有的 `.env`。
 
+### Home Assistant、Unraid、群晖等 NAS
+
+同一个镜像也能**单容器**运行：设 `GO2RTC_EMBED=1`，桥接会在容器里自己拉起摄像头转发（go2rtc），
+端口是 11984 / 18554（只在本机）和 18555（WebRTC）—— 刻意避开 go2rtc 默认的那几个，
+装了 Frigate 的话它自带的 go2rtc 正占着。配置全在网页设置向导里做，事先什么都不用填。
+
+- **Home Assistant**：设置 → 加载项 → 加载项商店 → ⋮ → 仓库，添加
+  `https://github.com/Kevinlibaba/bambu-p2s-bridge`，安装「Bambu P2S Bridge」，启动后点「打开网页界面」。
+  支持 amd64 和 aarch64；切片只在 amd64 上可用。
+- **Unraid**：Docker → Template repositories 里加同一个地址，然后 Add Container 选
+  `bambu-p2s-bridge`（[模板](deploy/unraid/bambu-p2s-bridge.xml)）。
+- **群晖 Container Manager**（或其他支持 Compose 的 NAS）：用
+  [`deploy/synology/docker-compose.yml`](deploy/synology/docker-compose.yml) 新建项目。
+- **直接用 Docker**：
+
+  ```bash
+  docker run -d --name bambu-bridge --restart unless-stopped --network host \
+    -e GO2RTC_EMBED=1 -v "$PWD/data:/data" ghcr.io/kevinlibaba/bambu-p2s-bridge:latest
+  ```
+
+装好后打开 `http://<机器 IP>:8080/app/`，跟着向导走。
+
 ### 先体检（可选）
 
 出问题时，这几个脚本能告诉你是哪一层协议不通。只用标准库。

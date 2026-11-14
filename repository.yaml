@@ -1,0 +1,5 @@
+# Home Assistant 加载项仓库。在 HA 的「加载项商店 → ⋮ → 仓库」里添加本仓库地址即可：
+#   https://github.com/Kevinlibaba/bambu-p2s-bridge
+name: Bambu P2S Bridge
+url: https://github.com/Kevinlibaba/bambu-p2s-bridge
+maintainer: Kevin Li

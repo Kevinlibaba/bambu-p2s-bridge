@@ -1,0 +1,21 @@
+# 群晖 Container Manager / 其他 NAS 的单容器部署。
+#
+# 群晖：Container Manager → 项目 → 新增 → 路径选一个空文件夹（比如 /docker/bambu），
+# 来源选「创建 docker-compose.yml」，把这个文件的内容贴进去，完成后打开 http://<NAS 的 IP>:8080/app/
+# 跟着设置向导走。
+#
+# 单容器：摄像头转发（go2rtc）由桥接在容器里自己拉起，不需要第二个容器。
+# 更新：在项目里「操作 → 清除并重建」，或者 docker compose pull && docker compose up -d
+services:
+  bambu-bridge:
+    image: ghcr.io/kevinlibaba/bambu-p2s-bridge:latest
+    container_name: bambu-bridge
+    restart: unless-stopped
+    # 要收打印机的局域网广播、给手机直连 WebRTC，用宿主机网络
+    network_mode: host
+    environment:
+      - GO2RTC_EMBED=1
+      - PORT=8080
+    volumes:
+      # 配置、打印历史、MakerWorld 登录、下载的切片器都在这里
+      - ./data:/data

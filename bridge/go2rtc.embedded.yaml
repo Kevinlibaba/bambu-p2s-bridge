@@ -1,0 +1,21 @@
+# 内置 go2rtc 的配置（GO2RTC_EMBED=1，单容器模式：Home Assistant 加载项、Unraid、群晖）。
+#
+# 端口刻意避开 go2rtc 默认的 1984 / 8554 / 8555：Home Assistant 的用户很多装了 Frigate，
+# 它自带的 go2rtc 用的就是那三个，宿主机网络下会直接撞端口。
+#
+# API 和 RTSP 只听回环地址，go2rtc 自己没有鉴权，对外一律经桥接的鉴权代理。
+# WebRTC 要让手机直连拿媒体流，所以听所有地址。
+# 视频流不写在这里，桥接启动后通过 API 注册（见 src/printer/camera.ts）。
+api:
+  listen: "127.0.0.1:11984"
+
+rtsp:
+  listen: "127.0.0.1:18554"
+
+webrtc:
+  listen: ":18555"
+
+log:
+  level: warn
+
+streams: {}

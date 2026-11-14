@@ -184,6 +184,29 @@ cd bambu-p2s-bridge
 Node is **not** a prerequisite — the web app is built inside the image. Re-running is safe:
 it offers to keep the existing `.env`.
 
+### Home Assistant, Unraid, Synology and other NAS
+
+The same image also runs as **a single container**: with `GO2RTC_EMBED=1` the bridge starts
+the camera relay (go2rtc) inside itself, on ports 11984/18554 (localhost) and 18555 (WebRTC) —
+deliberately not go2rtc's defaults, which Frigate's built-in go2rtc already holds. Configuration
+then happens entirely in the setup wizard, so there is nothing to fill in up front.
+
+- **Home Assistant** — Settings → Add-ons → Add-on store → ⋮ → Repositories, add
+  `https://github.com/Kevinlibaba/bambu-p2s-bridge`, install *Bambu P2S Bridge*, start it and
+  press *Open Web UI*. amd64 and aarch64; slicing only on amd64.
+- **Unraid** — Docker → Template repositories, add the same URL, then *Add Container* and pick
+  `bambu-p2s-bridge` ([template](deploy/unraid/bambu-p2s-bridge.xml)).
+- **Synology Container Manager** (or any NAS with Compose) — create a project from
+  [`deploy/synology/docker-compose.yml`](deploy/synology/docker-compose.yml).
+- **Plain Docker:**
+
+  ```bash
+  docker run -d --name bambu-bridge --restart unless-stopped --network host \
+    -e GO2RTC_EMBED=1 -v "$PWD/data:/data" ghcr.io/kevinlibaba/bambu-p2s-bridge:latest
+  ```
+
+Then open `http://<host>:8080/app/` and follow the wizard.
+
 ### Check your printer first (optional)
 
 If something doesn't work, these tell you which protocol is at fault. Stdlib only.

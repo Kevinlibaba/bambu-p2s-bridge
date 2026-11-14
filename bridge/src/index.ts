@@ -19,6 +19,7 @@ import { readEjectSource } from './eject/source.js'
 import { planEject } from './eject/plan.js'
 import * as ftp from './printer/ftp.js'
 import { CameraStream } from './printer/camera.js'
+import { EmbeddedGo2rtc } from './printer/go2rtc-embed.js'
 import { buildSetupServer } from './setup/server.js'
 
 const state = new PrinterState()
@@ -100,6 +101,7 @@ async function setupMain() {
 }
 
 const camera = new CameraStream()
+const go2rtc = config.camera.embed ? new EmbeddedGo2rtc() : null
 
 async function main() {
   if (config.setupMode) return setupMain()
@@ -115,6 +117,7 @@ async function main() {
   await temps.start()
   autoHarvest.start()
   mqtt.start()
+  go2rtc?.start()
   camera.start()
   const app = await buildServer(state, mqtt, notifier, history, temps, events, autoHarvest, {
     snapshots, checker, schedule, onEjected, queue,
@@ -132,6 +135,7 @@ async function main() {
     console.log(`\n[${sig}] 关闭中…`)
     mqtt.stop()
     camera.stop()
+    go2rtc?.stop()
     schedule.stop()
     checker.stop()
     recordings.stop()

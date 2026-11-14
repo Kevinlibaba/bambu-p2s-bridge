@@ -1,0 +1,25 @@
+# Home Assistant 加载项。镜像就是一行命令安装用的那一个（预构建，amd64 / aarch64），
+# Supervisor 按 version 拉取同名标签：发版时这里的 version 要和 git 标签一致（不带 v）。
+name: Bambu P2S Bridge
+version: "0.4.0"
+slug: bambu_p2s_bridge
+description: 局域网模式下的 Bambu Lab P2S 远程监控与控制 —— 摄像头、开打、收菜、打印队列、MakerWorld 导入
+url: https://github.com/Kevinlibaba/bambu-p2s-bridge
+arch:
+  - amd64
+  - aarch64
+image: ghcr.io/kevinlibaba/bambu-p2s-bridge
+# 要收打印机的 SSDP 广播、给手机直连的 WebRTC 端口，所以用宿主机网络
+host_network: true
+webui: "http://[HOST]:[PORT:8080]/app/"
+ports:
+  8080/tcp: 8080
+ports_description:
+  8080/tcp: 网页界面与接口
+environment:
+  # 单容器：go2rtc 由桥接自己拉起，端口 11984 / 18554 / 18555，避开 Frigate 自带的那套
+  GO2RTC_EMBED: "1"
+options:
+  port: 8080
+schema:
+  port: port

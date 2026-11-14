@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<!--
+  Unraid 模板。Docker 页 → 底部 Template Repositories 里加上
+    https://github.com/Kevinlibaba/bambu-p2s-bridge
+  然后 Add Container → 模板下拉里选 bambu-p2s-bridge。
+  单容器（GO2RTC_EMBED=1），配置全在网页设置向导里做，这里只有数据目录和端口。
+-->
+<Container version="2">
+  <Name>bambu-p2s-bridge</Name>
+  <Repository>ghcr.io/kevinlibaba/bambu-p2s-bridge:latest</Repository>
+  <Registry>https://github.com/Kevinlibaba/bambu-p2s-bridge/pkgs/container/bambu-p2s-bridge</Registry>
+  <Network>host</Network>
+  <MyIP/>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/Kevinlibaba/bambu-p2s-bridge/issues</Support>
+  <Project>https://github.com/Kevinlibaba/bambu-p2s-bridge</Project>
+  <Overview>Remote monitoring and control for a Bambu Lab P2S in LAN mode: live camera, start/pause, temperatures and AMS, automatic part ejection, print queue, MakerWorld import, slicing on the server. No vendor cloud. After starting, open the WebUI and follow the setup wizard (pick the printer, enter the access code, scan the QR code on your phone).</Overview>
+  <Category>Tools: HomeAutomation:</Category>
+  <WebUI>http://[IP]:[PORT:8080]/app/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/Kevinlibaba/bambu-p2s-bridge/main/deploy/unraid/bambu-p2s-bridge.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/Kevinlibaba/bambu-p2s-bridge/main/bambu_p2s_bridge/icon.png</Icon>
+  <ExtraParams>--restart unless-stopped</ExtraParams>
+  <Config Name="Data" Target="/data" Default="/mnt/user/appdata/bambu-p2s-bridge" Mode="rw" Description="Settings, print history, MakerWorld login and the downloaded slicer live here." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/bambu-p2s-bridge</Config>
+  <Config Name="Web UI port" Target="PORT" Default="8080" Mode="" Description="Port for the web app and API (host network)." Type="Variable" Display="always" Required="true" Mask="false">8080</Config>
+  <Config Name="Embedded go2rtc" Target="GO2RTC_EMBED" Default="1" Mode="" Description="Run the camera relay inside this container (ports 11984/18554 on localhost, 18555 for WebRTC). Leave at 1." Type="Variable" Display="advanced" Required="true" Mask="false">1</Config>
+</Container>

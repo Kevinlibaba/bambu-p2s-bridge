@@ -114,6 +114,16 @@ jobs:
           [ "$code" = 503 ] || { echo "::error::设置模式下其余接口应当 503，实际 $code"; exit 1; }
           docker rm -f setup
 
+  ha-addon:
+    name: Home Assistant add-on · lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # HA 社区通用的加载项检查：config.yaml 的键、类型、架构名都按 Supervisor 的规则校验
+      - uses: frenck/action-addon-linter@v2
+        with:
+          path: ./bambu_p2s_bridge
+
   secrets:
     name: Guard · no credentials committed
     runs-on: ubuntu-latest

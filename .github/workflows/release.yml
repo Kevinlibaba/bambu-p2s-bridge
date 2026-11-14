@@ -30,6 +30,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Home Assistant 的 Supervisor 按加载项 config.yaml 里的 version 拉同名标签。
+      # 打 vX.Y.Z 时两边对不上，HA 用户装的就是一个不存在的镜像 —— 宁可这里直接失败。
+      - name: Add-on version matches the tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          want="${GITHUB_REF_NAME#v}"
+          got=$(grep -E '^version:' bambu_p2s_bridge/config.yaml | sed -E 's/^version: *"?([^"]+)"?/\1/')
+          [ "$got" = "$want" ] || { echo "::error::bambu_p2s_bridge/config.yaml 的 version 是 $got，标签是 $want"; exit 1; }
+
       # arm64 只有最后一层（apt 和拷文件）在 QEMU 里跑，JS 构建钉在构建机原生架构上，见 Dockerfile
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3

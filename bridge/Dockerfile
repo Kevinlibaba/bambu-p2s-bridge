@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # 多段构建。app 与 bridge 各自编译，最终镜像只留运行期需要的东西。
 # 构建上下文是仓库根目录（见 docker-compose.yml），这样一条
 # `docker compose up -d --build` 就能出成品 —— 宿主机不需要装 Node。
@@ -37,7 +38,18 @@ WORKDIR /app
 COPY bridge/package*.json ./
 RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
 
-# ---- 4. 运行期 ----
+# ---- 4. go2rtc（单容器模式内置，见 GO2RTC_EMBED）----
+# 钉在实测可用的 v1.9.14（CT102 上跑的就是它），用官方发布页的 sha256 校验。
+# 按目标架构各取各的静态二进制；FROM go2rtc-${TARGETARCH} 选中其中一个。
+FROM scratch AS go2rtc-amd64
+ADD --checksum=sha256:32d616af226bd731678ffde328b94cfb94e30339bfefc469cfb76323144615a6 \
+    https://github.com/AlexxIT/go2rtc/releases/download/v1.9.14/go2rtc_linux_amd64 /go2rtc
+FROM scratch AS go2rtc-arm64
+ADD --checksum=sha256:359fabade8a7a51e81a55fe6df6b0ef81764a5e1d63179577534eaaa71904b50 \
+    https://github.com/AlexxIT/go2rtc/releases/download/v1.9.14/go2rtc_linux_arm64 /go2rtc
+FROM go2rtc-${TARGETARCH} AS go2rtc
+
+# ---- 5. 运行期 ----
 FROM node:22-slim
 ARG TARGETARCH
 WORKDIR /app
@@ -59,10 +71,20 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
       && rm -rf /var/lib/apt/lists/*; \
     fi
 
+# go2rtc 截图（/api/frame.jpeg）要调 ffmpeg 把 H.264 帧转成 JPEG。官方 go2rtc 镜像里自带，
+# 我们内置的只是个二进制，所以要自己装 —— 少了它推送快照、收菜后的照片、队列的安全确认都拿不到图。
+# 两容器部署时截图走的是 go2rtc 容器自己的 ffmpeg，这里装上也不碍事。
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ffmpeg \
+ && rm -rf /var/lib/apt/lists/*
+
 COPY bridge/package.json ./
 COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=app /src/dist/build/h5 ./public
+# 单容器模式用：GO2RTC_EMBED=1 时桥接自己把 go2rtc 拉起来。两容器的 compose 部署用不到它
+COPY --from=go2rtc --chmod=755 /go2rtc /usr/local/bin/go2rtc
+COPY bridge/go2rtc.embedded.yaml /app/go2rtc.yaml
 EXPOSE 8080
 CMD ["node", "dist/index.js"]
 
