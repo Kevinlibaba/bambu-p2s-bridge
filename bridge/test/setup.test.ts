@@ -56,7 +56,7 @@ test('配置：环境变量优先，缺的从文件补；文件 0600', async () 
 })
 
 test('视频流地址：访问码里的特殊字符要转义', () => {
-  assert.equal(streamSource('192.168.1.42', 'ab@cd:12'), 'rtsps://bblp:ab%40cd%3A12@192.168.1.42:322/streaming/live/1')
+  assert.equal(streamSource('203.0.113.5', 'ab@cd:12'), 'rtsps://bblp:ab%40cd%3A12@203.0.113.5:322/streaming/live/1')
 })
 
 async function setupApp(over: Partial<Parameters<typeof registerSetupRoutes>[1]> = {}) {
