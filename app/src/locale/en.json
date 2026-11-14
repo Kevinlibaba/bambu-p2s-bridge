@@ -650,7 +650,6 @@
     "likes": "Liked",
     "noFavorites": "No models in your collection yet",
     "noLikes": "No liked models yet",
-    "more": "Load more",
     "profiles": "Choose a print profile",
     "noProfiles": "This model has no print profiles; download the raw files on the website instead",
     "untitled": "Untitled profile",
@@ -699,6 +698,7 @@
       "category_200": "Fashion",
       "category_2000": "Generative 3D",
       "category_500": "Education"
-    }
+    },
+    "end": "You've reached the end"
   }
 }

@@ -650,7 +650,6 @@
     "likes": "我的点赞",
     "noFavorites": "还没有收藏的模型",
     "noLikes": "还没有点赞的模型",
-    "more": "加载更多",
     "profiles": "选择打印配置",
     "noProfiles": "这个模型没有打印配置，只能在网页上下载原始文件",
     "untitled": "未命名配置",
@@ -699,6 +698,7 @@
       "category_200": "时尚",
       "category_2000": "AI 生成",
       "category_500": "教育"
-    }
+    },
+    "end": "已经到底了"
   }
 }

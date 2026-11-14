@@ -8,7 +8,7 @@
  */
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { onShow, onPullDownRefresh } from '@dcloudio/uni-app'
+import { onShow, onPullDownRefresh, onReachBottom } from '@dcloudio/uni-app'
 import {
   configured, mwAccount, mwLogin, mwLogout, mwSendCode, mwDesign, mwList, mwImport,
   type MwAccount, type MwCard, type MwDesign, type MwInstance,
@@ -313,6 +313,10 @@ onShow(async () => {
   await loadAccount()
   if (!items.value.length && !listLoading.value) void loadList(true)
 })
+// 手机上翻到底自动接着加载，不用再去点按钮
+onReachBottom(() => {
+  if (hasMore.value && !listLoading.value && !listErr.value) void loadList()
+})
 onPullDownRefresh(async () => {
   await loadList(true)
   uni.stopPullDownRefresh()
@@ -346,6 +350,8 @@ onPullDownRefresh(async () => {
         </view>
       </view>
 
+      <!-- 搜索框和分类吸顶：翻了几屏也能随时换分类、改关键词 -->
+      <view class="bar">
       <!-- 搜索框兼收链接：关键词搜社区，MakerWorld 链接或编号直接打开 -->
       <view class="card search">
         <view class="field row">
@@ -371,6 +377,7 @@ onPullDownRefresh(async () => {
           </view>
         </view>
       </scroll-view>
+      </view>
 
       <text v-if="source.kind === 'search' && !listLoading && !listErr" class="cap">
         {{ t('mw.resultCount', { n: total }) }}
@@ -388,7 +395,7 @@ onPullDownRefresh(async () => {
         </view>
       </view>
       <view v-if="listLoading" class="busy"><Spinner :size="36" /></view>
-      <button v-else-if="hasMore" class="cta more" @click="loadList()">{{ t('mw.more') }}</button>
+      <text v-else-if="items.length && !hasMore" class="end">{{ t('mw.end') }}</text>
     </template>
 
     <!-- 模型详情：选打印配置、导入 -->
@@ -487,7 +494,8 @@ onPullDownRefresh(async () => {
   margin: 40rpx 0 16rpx 8rpx; letter-spacing: 0.01em; }
 .card { background: var(--surface); border-radius: 22rpx; padding: 0 28rpx; }
 .sheet-card { margin-top: 24rpx; }
-.who { margin-top: 24rpx; }
+.who { margin-top: 20rpx; }
+.who .line { min-height: 88rpx; }
 .hsep { height: 1rpx; background: var(--separator); }
 .line { display: flex; align-items: center; justify-content: space-between; min-height: 96rpx; }
 .row { display: flex; align-items: center; }
@@ -523,30 +531,39 @@ onPullDownRefresh(async () => {
   margin: 20rpx 8rpx 0; line-height: 1.6; letter-spacing: -0.01em; }
 .cap { display: block; font-size: 23rpx; color: var(--ink-2); margin: 18rpx 8rpx 0; letter-spacing: -0.01em; }
 
-.avatar { width: 64rpx; height: 64rpx; border-radius: 50%; margin-right: 20rpx; background: var(--surface-2); flex-shrink: 0; }
+.avatar { width: 56rpx; height: 56rpx; border-radius: 50%; margin-right: 20rpx; background: var(--surface-2); flex-shrink: 0; }
 
 .ph-box { margin-top: 24rpx; padding: 90rpx 0; background: var(--surface); border-radius: 24rpx; text-align: center; }
 .ph-t { font-size: 26rpx; color: var(--ink-2); letter-spacing: -0.01em; }
 
-.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20rpx; margin-top: 24rpx; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18rpx; margin-top: 8rpx; }
 .tile { background: var(--surface); border-radius: 22rpx; overflow: hidden; padding-bottom: 18rpx; min-width: 0; }
-.cover { width: 100%; height: 260rpx; display: block; background: var(--surface-2); }
+.cover { width: 100%; height: auto; aspect-ratio: 4 / 3; display: block; background: var(--surface-2); }
 .tt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-  font-size: 25rpx; color: var(--ink); margin: 14rpx 18rpx 0; line-height: 1.35; letter-spacing: -0.01em; }
+  font-size: 25rpx; color: var(--ink); margin: 14rpx 18rpx 0; line-height: 1.35; letter-spacing: -0.01em;
+  /* 固定两行高，一行标题的卡片不会比旁边矮一截 */
+  min-height: calc(25rpx * 1.35 * 2); }
 .tile .sub { margin: 6rpx 18rpx 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .more { margin-top: 28rpx; }
 .search { margin-top: 24rpx; }
 .k.accent, .v.accent { color: var(--accent); }
 .v { font-size: 28rpx; color: var(--ink-2); }
-.chips { margin-top: 24rpx; white-space: nowrap; }
-.chips-row { display: inline-flex; gap: 14rpx; padding-right: 32rpx; }
-.chip { display: inline-flex; padding: 14rpx 26rpx; border-radius: 999rpx; background: var(--surface); }
+.bar { position: sticky; top: var(--window-top, 0px); z-index: 10; background: var(--bg);
+  margin: 0 -32rpx; padding: 16rpx 32rpx 20rpx; }
+.bar .search { margin-top: 0; }
+.bar .list-segs { margin-top: 16rpx; }
+/* 横向滑动的分类：贴着屏幕两边，能看出还有更多 */
+.chips { margin: 16rpx -32rpx 0; width: calc(100% + 64rpx); white-space: nowrap; }
+.chips-row { display: inline-flex; flex-wrap: nowrap; gap: 14rpx; padding: 0 32rpx; }
+.chip { display: inline-flex; flex-shrink: 0; align-items: center; height: 64rpx; padding: 0 26rpx;
+  border-radius: 999rpx; background: var(--surface); }
 .chip.on { background: var(--ink); }
-.chip-t { font-size: 25rpx; color: var(--ink); letter-spacing: -0.01em; }
+.chip-t { font-size: 26rpx; color: var(--ink); letter-spacing: -0.01em; white-space: nowrap; }
 .chip.on .chip-t { color: var(--bg); font-weight: 600; }
+.end { display: block; text-align: center; font-size: 22rpx; color: var(--ink-3); padding: 36rpx 0 8rpx; }
 .inset { background: var(--surface-2); }
 
-.hero { width: 100%; height: 360rpx; border-radius: 18rpx; margin-top: 12rpx; background: var(--surface-2); }
+.hero { width: 100%; height: auto; aspect-ratio: 16 / 10; border-radius: 18rpx; margin-top: 12rpx; background: var(--surface-2); }
 .inst { display: flex; align-items: flex-start; padding: 24rpx 0; }
 .radio { width: 34rpx; height: 34rpx; border-radius: 50%; border: 3rpx solid var(--ink-3);
   margin: 4rpx 22rpx 0 0; flex-shrink: 0; box-sizing: border-box; }

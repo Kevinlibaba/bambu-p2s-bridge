@@ -650,7 +650,6 @@
     "likes": "我的按讚",
     "noFavorites": "還沒有收藏的模型",
     "noLikes": "還沒有按讚的模型",
-    "more": "載入更多",
     "profiles": "選擇列印設定",
     "noProfiles": "這個模型沒有列印設定，只能在網頁上下載原始檔案",
     "untitled": "未命名設定",
@@ -699,6 +698,7 @@
       "category_200": "時尚",
       "category_2000": "AI 生成",
       "category_500": "教育"
-    }
+    },
+    "end": "已經到底了"
   }
 }
