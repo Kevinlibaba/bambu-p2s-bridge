@@ -133,23 +133,29 @@ curl -fsSL https://raw.githubusercontent.com/Kevinlibaba/bambu-p2s-bridge/main/g
 
 No git, no source checkout, no local build. It downloads a handful of config files to
 `~/bambu-p2s-bridge` (`/opt/bambu-p2s-bridge` as root), pulls the prebuilt multi-arch image
-(amd64 / arm64), finds the printer over SSDP, asks for the Access Code, generates the API
-token and the Web Push keys, starts everything, and verifies it can actually talk to the
-printer before telling you it worked. Then it prints the URL and token to enter on your phone.
+(amd64 / arm64) and starts it. **The rest happens in the browser:**
 
 ```
-==> 查找打印机
-  监听 SSDP 广播，约 8 秒…
-  选中 192.168.1.42（00M00A000000000）
-...
-==> 自检
-  接口已就绪：{"ok":true,"printerConnected":true,...}
-  打印机：在线，状态 RUNNING
+服务已启动，还差最后一步
 
-部署完成
-  地址   http://192.168.1.10:8080/app/
-  Token  8f3a…（48 位十六进制）
+  用手机或电脑的浏览器打开：
+
+      http://192.168.1.10:8080
 ```
+
+Open that address and a setup wizard takes over: it lists the printers it finds on the LAN
+(or lets you type the IP and serial), asks for the Access Code, **connects to the printer
+for real before saving anything**, generates the API token and Web Push keys, and restarts
+the bridge into normal mode. The device you used is signed in already; the last page shows
+a QR code — scan it with your phone camera and the app opens signed in too. Nothing to copy.
+
+The wizard is only reachable while the bridge has no printer configured, and the only way
+through it is the Access Code shown on the printer's screen, checked against the printer
+itself. Configuration lands in `data/config.json` (mode 0600). Settings → *Use on another
+device* shows the pairing QR code again later.
+
+Prefer the terminal? Answer "n" to the browser question, or pass the Access Code — the
+script then discovers the printer over SSDP and configures everything itself, as before.
 
 Installing Docker needs root; if the current user can't use Docker, the script tells you to
 re-run it with `| sudo bash`.
@@ -157,7 +163,7 @@ re-run it with `| sudo bash`.
 **Updating:** `docker compose pull && docker compose up -d` in the install directory, or
 just run the same one-liner again — it keeps the existing `.env` and only refreshes the image.
 
-Non-interactive:
+Non-interactive (`--yes` without an Access Code installs and leaves the rest to the browser wizard):
 
 ```bash
 curl -fsSL …/get.sh | BAMBU_ACCESS_CODE=xxxxxxxx bash -s -- --yes --no-tailscale

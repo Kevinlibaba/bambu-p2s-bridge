@@ -16,6 +16,7 @@ import {
   type ThemePref, type LocalePref,
 } from '../../store/prefs'
 import { LOCALES } from '../../locale'
+import { pairUrl, qrDataUri } from '../../util/pair'
 import { confirm } from '../../util/dialog'
 import Sheet from '../../components/Sheet.vue'
 import Spinner from '../../components/Spinner.vue'
@@ -244,6 +245,18 @@ function clearAll() {
   })
 }
 
+// ---- 在其他设备上使用：扫码配对 ----
+/** 用已保存（测试通过）的地址和 token，不用表单里可能还没保存的值 */
+const pairOpen = ref(false)
+const pairLink = computed(() => {
+  const s = loadSettings()
+  return s.baseUrl && s.token ? pairUrl(s.baseUrl, s.token) : ''
+})
+const pairQr = computed(() => (pairOpen.value && pairLink.value ? qrDataUri(pairLink.value) : ''))
+function copyPair() {
+  uni.setClipboardData({ data: pairLink.value, success: () => uni.showToast({ title: t('settings.pairCopied'), icon: 'none' }) })
+}
+
 // ---- 外观 ----
 const themeOptions = computed(() => [
   { key: 'auto' as ThemePref, label: t('settings.themeAuto') },
@@ -301,6 +314,24 @@ function pickLocale() {
         <view class="rdot" :class="ok ? 'good' : 'bad'" />
         <text class="rtext">{{ result }}</text>
       </view>
+
+      <view v-if="pairLink" class="card mt">
+        <view class="line tappable" @click="pairOpen = true">
+          <text class="k accent">{{ t('settings.pairEntry') }}</text>
+          <text class="v">›</text>
+        </view>
+      </view>
+
+      <Sheet :visible="pairOpen" :title="t('settings.pairEntry')" @close="pairOpen = false">
+        <view class="card sheet-card pair">
+          <image class="pair-qr" :src="pairQr" mode="aspectFit" />
+          <text class="opt-sub pair-t">{{ t('settings.pairDesc') }}</text>
+        </view>
+        <text class="note">{{ t('settings.pairWarn') }}</text>
+        <template #footer>
+          <button class="cta fill" @click="copyPair">{{ t('settings.pairCopy') }}</button>
+        </template>
+      </Sheet>
 
       <!-- 外观：语言与主题都以「跟随系统」为默认 -->
       <text class="grouphead">{{ t('settings.appearanceGroup') }}</text>
@@ -571,4 +602,7 @@ function pickLocale() {
 .link { font-size: 24rpx; color: var(--accent); padding: 6rpx 8rpx; }
 .link:active { opacity: 0.55; }
 .cta.danger { background: var(--danger, #ff453a); color: #fff; }
+.pair { display: flex; flex-direction: column; align-items: center; padding: 36rpx 28rpx 30rpx; }
+.pair-qr { width: 380rpx; height: 380rpx; background: #fff; border-radius: 16rpx; }
+.pair-t { text-align: center; margin-top: 20rpx; }
 </style>

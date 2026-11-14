@@ -276,6 +276,24 @@ export function uploadFile(
 export const importUrl = (link: string, name: string) =>
   request<ThreeMfInfo>('/api/files/import', { method: 'POST', data: { url: link, name }, timeout: 10 * 60 * 1000 })
 
+// ---------- 首次设置向导 ----------
+// 设置模式下桥接还没有 token，这几个接口免鉴权（带个空的 Authorization 也无妨）
+
+export interface FoundPrinter {
+  ip: string
+  serial: string
+  model: string
+  modelName: string
+  name: string
+  version: string
+}
+
+export const setupStatus = () => request<{ needed: boolean }>('/api/setup/status', { timeout: 5000 })
+export const setupDiscover = () =>
+  request<{ printers: FoundPrinter[] }>('/api/setup/discover', { timeout: 15000 })
+export const setupApply = (data: { host: string; serial: string; code: string }) =>
+  request<{ ok: true; token: string; state?: string }>('/api/setup/apply', { method: 'POST', data, timeout: 30000 })
+
 // ---------- MakerWorld（国际版） ----------
 
 export interface MwAccount {

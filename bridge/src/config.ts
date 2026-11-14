@@ -1,14 +1,24 @@
-function req(name: string): string {
-  const v = process.env[name]
-  if (!v) throw new Error(`缺少必需的环境变量: ${name}`)
-  return v
-}
+import { readStoredConfig, pick, CONFIG_PATH } from './setup/store.js'
+
+/*
+ * 打印机凭据、接口 token、推送密钥：环境变量优先，缺的从首次设置向导写下的
+ * /data/config.json 里补（见 setup/store.ts）。打印机三件套凑不齐就是设置模式 ——
+ * 进程照常起来，但只提供网页向导，不连打印机。
+ */
+const stored = readStoredConfig()
+const printerHost = pick('BAMBU_HOST', stored.printer?.host)
+const printerSerial = pick('BAMBU_SERIAL', stored.printer?.serial)
+const printerCode = pick('BAMBU_ACCESS_CODE', stored.printer?.accessCode)
 
 export const config = {
+  /** 还没配置打印机：只跑设置向导 */
+  setupMode: !printerHost || !printerSerial || !printerCode,
+  /** 向导把配置写到哪 */
+  configPath: CONFIG_PATH,
   printer: {
-    host: req('BAMBU_HOST'),
-    serial: req('BAMBU_SERIAL'),
-    accessCode: req('BAMBU_ACCESS_CODE'),
+    host: printerHost,
+    serial: printerSerial,
+    accessCode: printerCode,
     mqttPort: 8883,
     ftpPort: 990,
   },
@@ -16,7 +26,7 @@ export const config = {
     port: Number(process.env.PORT ?? 8080),
     host: process.env.BIND_HOST ?? '0.0.0.0',
     /** 为空则不鉴权（仅限本地调试）。生产必须设置。 */
-    token: process.env.API_TOKEN ?? '',
+    token: pick('API_TOKEN', stored.apiToken),
   },
   camera: {
     /** go2rtc 地址，桥接服务在其前面做鉴权代理 */
@@ -85,10 +95,10 @@ export const config = {
     /** Web Push 订阅落盘位置。容器里挂 /data */
     storePath: process.env.NOTIFY_STORE ?? '/data/push-subscriptions.json',
     vapid: {
-      publicKey: process.env.VAPID_PUBLIC_KEY ?? '',
-      privateKey: process.env.VAPID_PRIVATE_KEY ?? '',
+      publicKey: pick('VAPID_PUBLIC_KEY', stored.vapid?.publicKey),
+      privateKey: pick('VAPID_PRIVATE_KEY', stored.vapid?.privateKey),
       /** RFC 8292 要求的联系方式，浏览器厂商用它联系推送发起方 */
-      subject: process.env.VAPID_SUBJECT ?? 'mailto:admin@example.com',
+      subject: pick('VAPID_SUBJECT', stored.vapid?.subject) || 'mailto:admin@example.com',
     },
     /** https://api.day.app/<设备key> */
     bark: process.env.BARK_URL ?? '',

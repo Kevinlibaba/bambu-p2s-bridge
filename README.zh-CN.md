@@ -95,16 +95,33 @@ curl -fsSL https://raw.githubusercontent.com/Kevinlibaba/bambu-p2s-bridge/main/g
 ```
 
 不需要 git、不需要源码，也不在本机构建：它只下载几个配置文件到 `~/bambu-p2s-bridge`
-（root 下是 `/opt/bambu-p2s-bridge`），拉取预构建好的镜像（amd64 / arm64），然后：
-通过 SSDP 找到打印机、问你要访问码、生成 API Token 与 Web Push 密钥、启动，
-最后**确认真的能和打印机通上**再告诉你成功，并把手机上要填的地址和 Token 打出来。
+（root 下是 `/opt/bambu-p2s-bridge`），拉取预构建好的镜像（amd64 / arm64）并启动。**剩下的在浏览器里完成：**
+
+```
+服务已启动，还差最后一步
+
+  用手机或电脑的浏览器打开：
+
+      http://192.168.1.10:8080
+```
+
+打开这个地址就是设置向导：列出局域网里找到的打印机（找不到就手填 IP 和序列号）、
+填访问码，**先真的连上打印机再保存**，然后生成 API Token 与 Web Push 密钥、自动重启进入正常模式。
+做设置的这台设备直接就登录好了；最后一页有个二维码，手机相机扫一下，App 打开时也已经登录，
+什么都不用抄。
+
+向导只在还没配置打印机时可用，能过这一关的只有打印机屏幕上的访问码，而且是拿打印机本身来验证的。
+配置写在 `data/config.json`（权限 0600）。以后想在别的设备上用，设置 →「在其他设备上使用」还能再出二维码。
+
+更习惯终端？问你要不要用浏览器时答「n」，或者直接给出访问码 —— 脚本会像以前一样
+通过 SSDP 找打印机、在终端里配好一切。
 
 装 Docker 需要 root。当前用户用不了 Docker 时，它会提示你改用 `| sudo bash` 重跑。
 
 **更新**：在安装目录里 `docker compose pull && docker compose up -d`，
 或者把上面那行命令再跑一次 —— 它会沿用现有的 `.env`，只更新镜像。
 
-非交互：
+非交互（`--yes` 但不给访问码：装好后交给网页向导）：
 
 ```bash
 curl -fsSL …/get.sh | BAMBU_ACCESS_CODE=xxxxxxxx bash -s -- --yes --no-tailscale

@@ -22,6 +22,7 @@ import { registerSliceRoutes } from './slice.js'
 import { registerCheckRoutes } from './check.js'
 import { registerScheduleRoutes } from './schedule.js'
 import { registerQueueRoutes } from './queue.js'
+import { registerSetupRoutes } from '../setup/routes.js'
 import { registerMakerWorldRoutes } from './makerworld.js'
 import { MakerWorld } from '../makerworld/client.js'
 import type { PrintQueue } from '../queue/index.js'
@@ -93,6 +94,8 @@ export async function buildServer(
   app.addHook('onRequest', async (req, reply) => {
     if (!config.api.token) return          // 未配置 token = 调试模式
     if (req.url.startsWith('/api/health')) return
+    // App 启动时靠它判断要不要进设置向导，这时手里还没有 token
+    if (req.url.startsWith('/api/setup/status')) return
     // 推送里的快照由手机系统去取，带不上 token。文件名是 128 位随机数，见 snapshots.ts
     if (req.url.startsWith('/api/snapshots/')) return
     // 应用外壳必须能在用户填入 token 之前加载
@@ -109,6 +112,9 @@ export async function buildServer(
     printerConnected: mqtt.connected,
     lastReportAt: state.lastReportAt,
   }))
+
+  // 已配置：status 永远说不用设置，其余向导接口 409
+  registerSetupRoutes(app, { needed: false, onApplied: () => {} })
 
   app.get('/api/state', async () => state.summary())
 

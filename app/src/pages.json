@@ -41,6 +41,12 @@
       "style": {
         "navigationBarTitleText": "%queue.title%"
       }
+    },
+    {
+      "path": "pages/setup/index",
+      "style": {
+        "navigationBarTitleText": "%setup.title%"
+      }
     }
   ],
   "globalStyle": {

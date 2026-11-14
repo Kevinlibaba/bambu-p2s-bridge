@@ -101,15 +101,18 @@ jobs:
           push: false
           load: true
           tags: bambu-bridge:ci
-      - name: Container starts and reports missing config
+      - name: Unconfigured container starts in setup mode
         run: |
-          # 无凭据时应快速失败并说明原因，而不是静默挂起
-          set +e
-          out=$(docker run --rm bambu-bridge:ci 2>&1); code=$?
-          set -e
-          echo "$out"
-          [ $code -ne 0 ] || { echo "::error::缺少环境变量时未失败"; exit 1; }
-          echo "$out" | grep -q "BAMBU_HOST" || { echo "::error::未提示缺失的变量名"; exit 1; }
+          # 没有打印机配置时不该退出，而是进入设置模式、只提供网页向导（一行命令安装后的状态）
+          docker run -d --name setup -p 18080:8080 -e BRIDGE_CONFIG=/tmp/none.json bambu-bridge:ci
+          for i in $(seq 1 20); do curl -fsS http://127.0.0.1:18080/api/health >/dev/null 2>&1 && break; sleep 1; done
+          docker logs setup
+          curl -fsS http://127.0.0.1:18080/api/health | grep -q '"setup":true' || { echo "::error::没有进入设置模式"; exit 1; }
+          curl -fsS http://127.0.0.1:18080/api/setup/status | grep -q '"needed":true' || { echo "::error::向导状态不对"; exit 1; }
+          curl -fsS -o /dev/null http://127.0.0.1:18080/app/ || { echo "::error::网页没出来"; exit 1; }
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:18080/api/state)
+          [ "$code" = 503 ] || { echo "::error::设置模式下其余接口应当 503，实际 $code"; exit 1; }
+          docker rm -f setup
 
   secrets:
     name: Guard · no credentials committed

@@ -18,6 +18,8 @@ import { PrintQueue } from './queue/index.js'
 import { readEjectSource } from './eject/source.js'
 import { planEject } from './eject/plan.js'
 import * as ftp from './printer/ftp.js'
+import { CameraStream } from './printer/camera.js'
+import { buildSetupServer } from './setup/server.js'
 
 const state = new PrinterState()
 const mqtt = new PrinterMqtt(state)
@@ -81,7 +83,26 @@ const queue = new PrintQueue(config.queue.path, {
 /** 开打函数在路由模块里建好之后才有，先留一个引用 */
 const startPrintRef = { current: (_b: Record<string, unknown>): Promise<unknown> => Promise.reject(new Error('服务还没起来')) }
 
+/**
+ * 设置模式：还没配置打印机。只起网页 App 和向导，什么都不连。
+ * 向导写完配置后进程退出，交给 Docker 按新配置重新拉起（restart: unless-stopped）。
+ */
+async function setupMain() {
+  const app = await buildSetupServer(() => {
+    console.log('[setup] 配置已写入，重启以生效')
+    process.exit(0)
+  })
+  await app.listen({ port: config.api.port, host: config.api.host })
+  console.log(`[setup] 还没配置打印机。用浏览器打开 http://<本机IP>:${config.api.port}/ 完成设置`)
+  const stop = async () => { await app.close(); process.exit(0) }
+  process.on('SIGTERM', () => void stop())
+  process.on('SIGINT', () => void stop())
+}
+
+const camera = new CameraStream()
+
 async function main() {
+  if (config.setupMode) return setupMain()
   if (!config.api.token) {
     console.warn('[警告] 未设置 API_TOKEN —— 接口无鉴权，仅限本地调试')
   }
@@ -94,6 +115,7 @@ async function main() {
   await temps.start()
   autoHarvest.start()
   mqtt.start()
+  camera.start()
   const app = await buildServer(state, mqtt, notifier, history, temps, events, autoHarvest, {
     snapshots, checker, schedule, onEjected, queue,
     attachStart: (fn) => { startPrintRef.current = fn },
@@ -109,6 +131,7 @@ async function main() {
   const shutdown = async (sig: string) => {
     console.log(`\n[${sig}] 关闭中…`)
     mqtt.stop()
+    camera.stop()
     schedule.stop()
     checker.stop()
     recordings.stop()

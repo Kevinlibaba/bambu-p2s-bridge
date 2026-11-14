@@ -7,8 +7,8 @@
 #
 # 没有源码的目录（get.sh 装出来的）自动用预构建镜像，不构建。
 #
-# 它会自动发现打印机、生成密钥、构建并启动，最后把访问地址打出来。
-# 需要你提供的只有打印机屏幕上那串 8 位访问码。
+# 默认在浏览器里完成设置：脚本只负责启动服务，打印机、访问码都在网页向导里选和填，
+# 填完扫码就能在手机上用。想全在终端里配的，回答「否」，或者直接给出访问码（见下）。
 #
 # 非交互（CI / 无人值守）：
 #     BAMBU_ACCESS_CODE=xxxxxxxx ./install.sh --yes
@@ -89,7 +89,41 @@ if [ -f "$ENV_FILE" ]; then
   fi
 fi
 
-if [ "$KEEP_ENV" = 0 ]; then
+# 网页设置：给了访问码就在终端配；否则默认交给网页向导（无人值守时也是）
+WEB=0
+if [ "$KEEP_ENV" = 0 ] && [ -z "${BAMBU_ACCESS_CODE:-}" ]; then
+  if [ "$ASSUME_YES" = 1 ]; then
+    WEB=1
+  else
+    say ""
+    ANS=$(ask "在浏览器里完成设置？（推荐：选打印机、填访问码都在网页上，最后扫码连手机）[Y/n]" "Y")
+    [[ "$ANS" =~ ^[Nn] ]] || WEB=1
+  fi
+fi
+
+if [ "$KEEP_ENV" = 0 ] && [ "$WEB" = 1 ]; then
+  step "生成配置"
+  umask 077
+  cat > "$ENV_FILE" <<ENVEOF
+# 由 install.sh 生成于 $(date -Iseconds)
+# 打印机、接口 Token、推送密钥由网页设置向导写进 data/config.json，这里不需要填。
+# 想改用环境变量也行：这里的值优先于 data/config.json。
+
+PORT=8080
+BIND_HOST=0.0.0.0
+GO2RTC_URL=http://127.0.0.1:1984
+GO2RTC_STREAM=bambu_p2s
+ALLOW_RAW_GCODE=false
+PUSHALL_INTERVAL_MS=300000
+HISTORY_PATH=/data/jobs.jsonl
+
+NOTIFY_ENABLED=true
+NOTIFY_EVENTS=all
+NOTIFY_LANG=zh-Hans
+ENVEOF
+  chmod 600 "$ENV_FILE"
+  say "  已写入 $ENV_FILE（权限 600），打印机留给网页向导"
+elif [ "$KEEP_ENV" = 0 ]; then
   # ---------- 3. 发现打印机 ----------
   step "查找打印机"
   HOST="${BAMBU_HOST:-}"; SERIAL="${BAMBU_SERIAL:-}"
@@ -180,7 +214,9 @@ fi
 
 # ---------- 7. Web Push 密钥 ----------
 # 放在构建之后：直接用镜像里的 web-push 生成，宿主机不需要装 Node
-if ! grep -q '^VAPID_PRIVATE_KEY=.\+' "$ENV_FILE" 2>/dev/null; then
+# 只有在终端里配了打印机才在这里生成；网页设置由桥接在向导完成时生成
+if grep -q '^BAMBU_HOST=.\+' "$ENV_FILE" 2>/dev/null \
+   && ! grep -q '^VAPID_PRIVATE_KEY=.\+' "$ENV_FILE" 2>/dev/null; then
   step "生成 Web Push 密钥"
   KEYS=$(docker run --rm --entrypoint node "$($DC config --images | grep -v go2rtc | head -1)" \
         -e 'const k=require("web-push").generateVAPIDKeys();console.log(k.publicKey+" "+k.privateKey)' 2>/dev/null || true)
@@ -207,17 +243,21 @@ sleep 4
 
 # ---------- 9. 自检 ----------
 step "自检"
-PORT_N=$(grep -E '^PORT=' "$ENV_FILE" | cut -d= -f2); PORT_N=${PORT_N:-8080}
-TOKEN_N=$(grep -E '^API_TOKEN=' "$ENV_FILE" | cut -d= -f2)
+PORT_N=$(grep -E '^PORT=' "$ENV_FILE" | cut -d= -f2 || true); PORT_N=${PORT_N:-8080}
+TOKEN_N=$(grep -E '^API_TOKEN=' "$ENV_FILE" | cut -d= -f2 || true)  # 网页设置模式下没有这一行
 OK=0
+SETUP=0
 for i in $(seq 1 20); do
   if curl -fsS "http://127.0.0.1:$PORT_N/api/health" >/tmp/.bambu_health 2>/dev/null; then OK=1; break; fi
   sleep 2
 done
 if [ "$OK" = 1 ]; then
   say "  接口已就绪：$(cat /tmp/.bambu_health)"
+  grep -q '"setup":true' /tmp/.bambu_health && SETUP=1
   rm -f /tmp/.bambu_health
-  if command -v python3 >/dev/null 2>&1; then
+  if [ "$SETUP" = 1 ]; then
+    say "  打印机：还没配置，等你在网页上完成设置"
+  elif command -v python3 >/dev/null 2>&1; then
     CONN=$(curl -fsS -H "Authorization: Bearer $TOKEN_N" "http://127.0.0.1:$PORT_N/api/state" 2>/dev/null \
       | python3 -c 'import sys,json;d=json.load(sys.stdin);print(("在线，状态 "+str(d.get("state"))) if d.get("online") else "尚未连上打印机")' 2>/dev/null || echo "读取状态失败")
     say "  打印机：$CONN"
@@ -228,8 +268,9 @@ fi
 
 # ---------- 10. Tailscale ----------
 # hostname -I 是 GNU 的；Alpine / BusyBox 上没有，退回去问路由表
-LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
-[ -n "$LAN_IP" ] || LAN_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") {print $(i+1); exit}}')
+# 这几处都要 || true：开着 pipefail，管道里任何一环失败都会让脚本在这里静默退出
+LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}' || true)
+[ -n "$LAN_IP" ] || LAN_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") {print $(i+1); exit}}' || true)
 URL="http://${LAN_IP:-<本机IP>}:$PORT_N"
 if [ "$SKIP_TAILSCALE" = 0 ] && command -v tailscale >/dev/null 2>&1; then
   step "通过 Tailscale 对外暴露"
@@ -248,6 +289,23 @@ fi
 
 # ---------- 完成 ----------
 if [ "$MODE" = pull ]; then UPDATE="$DC pull && $DC up -d"; else UPDATE="git pull && $DC up -d --build"; fi
+if [ "$SETUP" = 1 ]; then
+cat <<EOF
+
+$B服务已启动，还差最后一步$N
+
+  用手机或电脑的浏览器打开：
+
+      $B$URL$N
+
+  按网页上的提示选打印机、填访问码。完成后页面会给一个二维码，手机扫一下就连上了。
+
+  查看日志   cd $PWD && $DC logs -f bridge
+  更新       cd $PWD && $UPDATE
+  停止       cd $PWD && $DC down
+EOF
+exit 0
+fi
 cat <<EOF
 
 $B部署完成$N

@@ -4,11 +4,30 @@ import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
 import { start, stop, printer } from './store/printer'
 import { applyChrome, watchSystem } from './store/prefs'
 import { registerServiceWorker } from './util/sw'
+import { loadSettings } from './api/client'
+
+/*
+ * 桥接还没配置打印机（一行命令刚装好）时，直接进设置向导。
+ * 这个接口免鉴权；拿不到就当不需要，别因为网络抖一下把人甩进向导。
+ */
+function checkSetup() {
+  const base = loadSettings().baseUrl
+  if (!base) return
+  uni.request({
+    url: `${base}/api/setup/status`,
+    timeout: 5000,
+    success: (r) => {
+      if ((r.data as { needed?: boolean } | undefined)?.needed) uni.reLaunch({ url: '/pages/setup/index' })
+    },
+    fail: () => {},
+  })
+}
 
 onLaunch(() => {
   watchSystem()
   applyChrome()
   registerServiceWorker()
+  checkSetup()
   start()
 })
 onShow(() => {
