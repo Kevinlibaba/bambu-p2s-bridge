@@ -333,33 +333,24 @@ onPullDownRefresh(async () => {
     <view v-else-if="!accountLoaded" class="busy"><Spinner :size="40" /></view>
 
     <template v-else>
-      <!-- 打印机上的文件：不单独占一个标签，入口放这里 -->
-      <view class="card who">
-        <view class="line tappable" @click="openFiles">
+      <!-- 头部：左边账号，右边「文件」入口（文件页不单独占标签） -->
+      <view class="head">
+        <view v-if="account" class="acct tappable" @click="logout">
+          <image v-if="account.avatar" class="avatar" :src="account.avatar" mode="aspectFill" />
           <view class="stackmeta">
-            <text class="k">{{ t('mw.files') }}</text>
-            <text class="sub">{{ t('mw.filesSub') }}</text>
+            <text class="acct-n">{{ account.name || account.account }}</text>
+            <text class="sub">{{ t('mw.signedIn') }}</text>
           </view>
-          <text class="v">›</text>
         </view>
-        <view class="hsep" />
-      <!-- 账号：浏览不用登录，导入才要 -->
-        <view v-if="account" class="line">
-          <view class="row grow">
-            <image v-if="account.avatar" class="avatar" :src="account.avatar" mode="aspectFill" />
-            <view class="stackmeta">
-              <text class="k">{{ account.name || account.account }}</text>
-              <text class="sub">{{ t('mw.signedIn') }}</text>
-            </view>
-          </view>
-          <text class="link" @click="logout">{{ t('mw.logout') }}</text>
-        </view>
-        <view v-else class="line tappable" @click="loginOpen = true">
+        <view v-else class="acct tappable" @click="loginOpen = true">
           <view class="stackmeta">
-            <text class="k accent">{{ t('mw.loginRow') }}</text>
+            <text class="acct-n accent">{{ t('mw.loginRow') }}</text>
             <text class="sub">{{ t('mw.loginRowSub') }}</text>
           </view>
-          <text class="v accent">›</text>
+        </view>
+        <view class="files-btn tappable" @click="openFiles">
+          <view class="fold" />
+          <text class="files-t">{{ t('mw.filesShort') }}</text>
         </view>
       </view>
 
@@ -507,8 +498,6 @@ onPullDownRefresh(async () => {
   margin: 40rpx 0 16rpx 8rpx; letter-spacing: 0.01em; }
 .card { background: var(--surface); border-radius: 22rpx; padding: 0 28rpx; }
 .sheet-card { margin-top: 24rpx; }
-.who { margin-top: 20rpx; }
-.who .line { min-height: 100rpx; padding: 16rpx 0; box-sizing: border-box; }
 .hsep { height: 1rpx; background: var(--separator); }
 .line { display: flex; align-items: center; justify-content: space-between; min-height: 96rpx; }
 .row { display: flex; align-items: center; }
@@ -544,7 +533,7 @@ onPullDownRefresh(async () => {
   margin: 20rpx 8rpx 0; line-height: 1.6; letter-spacing: -0.01em; }
 .cap { display: block; font-size: 23rpx; color: var(--ink-2); margin: 18rpx 8rpx 0; letter-spacing: -0.01em; }
 
-.avatar { width: 56rpx; height: 56rpx; border-radius: 50%; margin-right: 20rpx; background: var(--surface-2); flex-shrink: 0; }
+.avatar { width: 64rpx; height: 64rpx; border-radius: 50%; margin-right: 20rpx; background: var(--surface-2); flex-shrink: 0; }
 
 .ph-box { margin-top: 24rpx; padding: 90rpx 0; background: var(--surface); border-radius: 24rpx; text-align: center; }
 .ph-t { font-size: 26rpx; color: var(--ink-2); letter-spacing: -0.01em; }
@@ -585,4 +574,18 @@ onPullDownRefresh(async () => {
 .badge { font-size: 20rpx; color: var(--ink-2); background: var(--surface-2); border-radius: 8rpx; padding: 4rpx 12rpx; }
 .badge.good { color: var(--good); }
 .swatch { width: 24rpx; height: 24rpx; border-radius: 50%; box-shadow: 0 0 0 1rpx var(--swatch-ring); }
+
+/* —— 头部 —— */
+.head { display: flex; align-items: center; justify-content: space-between; padding: 24rpx 4rpx 4rpx; }
+.acct { display: flex; align-items: center; min-width: 0; flex: 1; }
+.acct-n { font-size: 30rpx; font-weight: 600; color: var(--ink); letter-spacing: -0.02em;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.acct-n.accent { color: var(--accent); }
+.acct .sub { margin-top: 2rpx; }
+.files-btn { display: flex; align-items: center; flex-shrink: 0; margin-left: 24rpx;
+  height: 68rpx; padding: 0 28rpx 0 24rpx; border-radius: 999rpx; background: var(--surface); }
+.fold { width: 30rpx; height: 30rpx; margin-right: 10rpx; background-color: var(--accent);
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-size: contain; mask-size: contain;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%20fill%3D%22%23000%22%3E%3Cpath%20d%3D%22M9.828%203h3.982a2%202%200%200%201%201.992%202.181l-.637%207A2%202%200%200%201%2013.174%2014H2.825a2%202%200%200%201-1.991-1.819l-.637-7a2%202%200%200%201%20.342-1.31L.5%203a2%202%200%200%201%202-2h3.672a2%202%200%200%201%201.414.586l.828.828A2%202%200%200%200%209.828%203m-8.322.12q.322-.119.684-.12h5.396l-.707-.707A1%201%200%200%200%206.172%202H2.5a1%201%200%200%200-1%20.981z%22%2F%3E%3C%2Fsvg%3E"); mask-image: url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2016%2016%22%20fill%3D%22%23000%22%3E%3Cpath%20d%3D%22M9.828%203h3.982a2%202%200%200%201%201.992%202.181l-.637%207A2%202%200%200%201%2013.174%2014H2.825a2%202%200%200%201-1.991-1.819l-.637-7a2%202%200%200%201%20.342-1.31L.5%203a2%202%200%200%201%202-2h3.672a2%202%200%200%201%201.414.586l.828.828A2%202%200%200%200%209.828%203m-8.322.12q.322-.119.684-.12h5.396l-.707-.707A1%201%200%200%200%206.172%202H2.5a1%201%200%200%200-1%20.981z%22%2F%3E%3C%2Fsvg%3E"); }
+.files-t { font-size: 27rpx; font-weight: 500; color: var(--accent); letter-spacing: -0.02em; }
 </style>

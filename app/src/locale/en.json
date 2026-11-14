@@ -701,7 +701,6 @@
       "category_500": "Education"
     },
     "end": "You've reached the end",
-    "files": "Files on the printer",
-    "filesSub": "Models, timelapses, recordings; slice and print"
+    "filesShort": "Files"
   }
 }
