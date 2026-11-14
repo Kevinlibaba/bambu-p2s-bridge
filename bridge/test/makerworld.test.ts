@@ -158,3 +158,22 @@ test('收藏列表按登录时存下的用户编号取', async () => {
   assert.equal(r.items[0].title, 'T')
   assert.equal(r.items[0].creator, 'n')
 })
+
+test('浏览和搜索是公开的：不带 token；搜索走 design2；排序参数照传', async () => {
+  const f = fakeFetch({
+    '/select/design/nav': () => ({ json: { total: 3, hits: [{ id: 1, title: 'A', cover: 'c', designCreator: { name: 'x' } }] } }),
+    '/select/design2': () => ({ json: { total: 9, hits: [{ id: 2, title: 'B', cover: 'c' }] } }),
+  })
+  const mw = new MakerWorld(await store(), f.impl)
+  const b = await mw.browse('category_700', 20)
+  assert.equal(b.items[0].title, 'A')
+  assert.ok(f.calls[0].url.includes('navKey=category_700&offset=20'))
+  assert.equal(f.calls[0].auth, null)
+  const s = await mw.search('龙 dragon', 'downloadCount')
+  assert.equal(s.total, 9)
+  assert.ok(f.calls[1].url.includes('keyword=%E9%BE%99%20dragon'))
+  assert.ok(f.calls[1].url.includes('orderBy=downloadCount'))
+  assert.deepEqual(await mw.search('   '), { items: [], total: 0 }, '空关键词不发请求')
+  assert.equal(f.calls.length, 2)
+  await assert.rejects(mw.browse('Following'), (e: MwError) => e.code === 'badLink')
+})

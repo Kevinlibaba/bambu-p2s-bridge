@@ -645,10 +645,7 @@
     "logout": "ログアウト",
     "logoutTitle": "MakerWorld からログアウト",
     "logoutDesc": "ブリッジに保存したログイン用トークンを削除します。",
-    "linkHead": "モデルのリンクを貼り付け",
-    "linkPh": "https://makerworld.com/…/models/…",
     "open": "開く",
-    "linkHint": "MakerWorld のアプリやサイトで「共有 → リンクをコピー」して貼り付けるか、モデル番号を直接入力してください。",
     "favorites": "コレクション",
     "likes": "いいね",
     "noFavorites": "コレクションにモデルがありません",
@@ -676,6 +673,32 @@
       "codeExpired": "コードの有効期限が切れました。再送してください",
       "badPassword": "アカウントまたはパスワードが正しくありません",
       "upstream": "MakerWorld に接続できません。しばらくしてから再試行してください"
+    },
+    "loginRow": "MakerWorld にログイン",
+    "loginRowSub": "閲覧はログイン不要。プリンターへの読み込みにはログインが必要です",
+    "welcome": "{name} でログインしました",
+    "searchPh": "モデルを検索、または MakerWorld のリンクを貼り付け",
+    "search": "検索",
+    "clear": "クリア",
+    "sortRelevance": "関連度",
+    "sortDownloads": "ダウンロード数",
+    "sortLikes": "いいね数",
+    "resultCount": "{n} 件",
+    "noResults": "モデルが見つかりません",
+    "loginToImport": "ログインして読み込む",
+    "cat": {
+      "Trending": "トレンド",
+      "category_400": "日用品",
+      "category_800": "おもちゃ・ゲーム",
+      "category_700": "ツール",
+      "category_300": "ホビー・DIY",
+      "category_900": "3D プリンター",
+      "category_100": "アート",
+      "category_600": "ミニチュア",
+      "category_1000": "小道具・コスプレ",
+      "category_200": "ファッション",
+      "category_2000": "AI 生成",
+      "category_500": "教育"
     }
   }
 }

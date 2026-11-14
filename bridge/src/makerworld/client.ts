@@ -113,6 +113,19 @@ export interface DesignDetail extends DesignCard {
 
 type Fetch = typeof fetch
 
+/**
+ * 可浏览的分类，取自 /search-service/homepage/nav（2026-11）。
+ * 去掉了 Following / Foryou（要登录、走别的接口）和 LaserCut（激光切割，不是打印件）。
+ */
+export const NAV_KEYS = [
+  'Trending',
+  'category_400', 'category_800', 'category_700', 'category_300', 'category_900', 'category_100',
+  'category_600', 'category_1000', 'category_200', 'category_2000', 'category_500',
+]
+
+/** 实测有效的排序。createTime 传了没效果，就不给 */
+export type SearchSort = '' | 'downloadCount' | 'likeCount'
+
 const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v)
 const str = (v: unknown) => (typeof v === 'string' ? v : '')
 const num = (v: unknown) => {
@@ -446,6 +459,34 @@ export class MakerWorld {
     const { status, data } = await this.call(`${API}/design-service/my/design/like?offset=${offset}&limit=${limit}`, {
       auth: true,
     })
+    if (status !== 200) throw new MwError('upstream', `MakerWorld 返回 HTTP ${status}`, 502)
+    return { items: listOf(data).map(toCard).filter((c): c is DesignCard => !!c), total: isRecord(data) ? num(data.total) : 0 }
+  }
+
+  /**
+   * 社区浏览：热门（Trending）或某个分类（category_400 这种）。公开接口，不用登录。
+   * 分类键取自 /search-service/homepage/nav，前端写死了一份，见 NAV_KEYS。
+   */
+  async browse(navKey: string, offset = 0, limit = 20): Promise<{ items: DesignCard[]; total: number }> {
+    if (!NAV_KEYS.includes(navKey)) throw new MwError('badLink', '不认识的分类')
+    const { status, data } = await this.call(
+      `${API}/search-service/select/design/nav?navKey=${encodeURIComponent(navKey)}&offset=${offset}&limit=${limit}`,
+    )
+    if (status !== 200) throw new MwError('upstream', `MakerWorld 返回 HTTP ${status}`, 502)
+    return { items: listOf(data).map(toCard).filter((c): c is DesignCard => !!c), total: isRecord(data) ? num(data.total) : 0 }
+  }
+
+  /**
+   * 关键词搜索。是 design2 不是 design —— 后者对同样的关键词永远回 0 条（实测）。
+   * 中文关键词照样能搜。sort 留空是按相关度。
+   */
+  async search(keyword: string, sort: SearchSort = '', offset = 0, limit = 20): Promise<{ items: DesignCard[]; total: number }> {
+    const q = keyword.trim()
+    if (!q) return { items: [], total: 0 }
+    const order = sort ? `&orderBy=${sort}` : ''
+    const { status, data } = await this.call(
+      `${API}/search-service/select/design2?keyword=${encodeURIComponent(q)}&offset=${offset}&limit=${limit}${order}`,
+    )
     if (status !== 200) throw new MwError('upstream', `MakerWorld 返回 HTTP ${status}`, 502)
     return { items: listOf(data).map(toCard).filter((c): c is DesignCard => !!c), total: isRecord(data) ? num(data.total) : 0 }
   }

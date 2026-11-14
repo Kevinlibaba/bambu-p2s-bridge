@@ -390,7 +390,8 @@ adds a confirmation that spells out what is about to happen.
 ### Importing from MakerWorld
 
 **Files → Import → From MakerWorld** signs in to a MakerWorld (global, makerworld.com)
-account and imports models straight to the printer: paste a model link (the app's
+account and imports models straight to the printer. Browse Trending and the site's
+categories or search by keyword (no sign-in needed for any of that), paste a model link (the app's
 *Share → Copy link* works, `#profileId-` anchors pick that print profile) or pick from
 your collection / likes, choose a print profile, and the bridge downloads the 3MF and
 uploads it to the SD card. The app then opens it on the Files tab for slicing and printing.

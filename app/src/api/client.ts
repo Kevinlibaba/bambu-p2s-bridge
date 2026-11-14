@@ -332,8 +332,18 @@ export const mwSendCode = (account: string) =>
   request<{ ok: boolean }>('/api/mw/code', { method: 'POST', data: { account } })
 export const mwDesign = (link: string) =>
   request<MwDesign>('/api/mw/design?link=' + encodeURIComponent(link))
-export const mwList = (kind: 'favorites' | 'likes', offset = 0) =>
-  request<{ items: MwCard[]; total: number }>(`/api/mw/list?kind=${kind}&offset=${offset}&limit=20`)
+export type MwListQuery =
+  | { kind: 'favorites' | 'likes'; offset?: number }
+  | { kind: 'nav'; key: string; offset?: number }
+  | { kind: 'search'; q: string; sort?: '' | 'downloadCount' | 'likeCount'; offset?: number }
+
+export const mwList = (q: MwListQuery) => {
+  const qs = Object.entries({ ...q, limit: 20 })
+    .filter(([, v]) => v !== undefined && v !== '')
+    .map(([k, v]) => `${k}=${encodeURIComponent(String(v))}`)
+    .join('&')
+  return request<{ items: MwCard[]; total: number }>(`/api/mw/list?${qs}`)
+}
 export const mwImport = (instanceId: number) =>
   request<ThreeMfInfo>('/api/mw/import', { method: 'POST', data: { instanceId }, timeout: 10 * 60 * 1000 })
 

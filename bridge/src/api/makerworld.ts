@@ -88,7 +88,18 @@ export function registerMakerWorldRoutes(
       const q = req.query as Record<string, unknown>
       const offset = Math.max(0, Number(q.offset) || 0)
       const limit = Math.min(50, Math.max(1, Number(q.limit) || 20))
-      return q.kind === 'likes' ? await mw.likes(offset, limit) : await mw.favorites(offset, limit)
+      switch (q.kind) {
+        case 'likes':
+          return await mw.likes(offset, limit)
+        case 'nav':
+          return await mw.browse(text(q.key) || 'Trending', offset, limit)
+        case 'search': {
+          const sort = text(q.sort)
+          return await mw.search(text(q.q), sort === 'downloadCount' || sort === 'likeCount' ? sort : '', offset, limit)
+        }
+        default:
+          return await mw.favorites(offset, limit)
+      }
     } catch (e) {
       return fail(reply, e)
     }

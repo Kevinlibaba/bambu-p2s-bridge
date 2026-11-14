@@ -42,6 +42,15 @@ async function loadAccount() {
   }
 }
 
+/** 登录放在弹出卡片里：浏览不用登录，导入时才要 */
+const loginOpen = ref(false)
+
+function closeLogin() {
+  if (busy.value) return
+  loginOpen.value = false
+  step.value = ''
+}
+
 type Mode = 'password' | 'code'
 const mode = ref<Mode>('password')
 /** 密码登录后服务端要求补的下一步 */
@@ -96,7 +105,8 @@ async function login() {
       account.value = r.account
       form.value = { account: '', password: '', code: '' }
       step.value = ''
-      void loadList(true)
+      loginOpen.value = false
+      toast(t('mw.welcome', { name: r.account.name || r.account.account }))
       return
     }
     // 密码对了，还要再验一步。邮箱验证码桥接已经发出去了
@@ -116,44 +126,112 @@ async function logout() {
   if (!(await confirm(t('mw.logoutTitle'), t('mw.logoutDesc')))) return
   await mwLogout().catch(() => {})
   account.value = null
-  items.value = []
+  const k = source.value.kind
+  if (k === 'favorites' || k === 'likes') pick({ kind: 'nav', key: 'Trending' })
 }
 
-// ---- 列表 ----
-type Kind = 'favorites' | 'likes'
-const kind = ref<Kind>('favorites')
+// ---- 列表：社区（热门 / 分类 / 搜索）与我的（收藏 / 点赞） ----
+/** 分类键与 MakerWorld 首页导航一致（桥接里有同一份白名单） */
+const CATS = [
+  'Trending', 'category_400', 'category_800', 'category_700', 'category_300', 'category_900',
+  'category_100', 'category_600', 'category_1000', 'category_200', 'category_2000', 'category_500',
+]
+type Sort = '' | 'downloadCount' | 'likeCount'
+type Source =
+  | { kind: 'nav'; key: string }
+  | { kind: 'search'; q: string; sort: Sort }
+  | { kind: 'favorites' }
+  | { kind: 'likes' }
+
+const source = ref<Source>({ kind: 'nav', key: 'Trending' })
 const items = ref<MwCard[]>([])
 const total = ref(0)
 const listLoading = ref(false)
 const listErr = ref('')
+/** 切换来源时作废还在路上的旧请求，免得旧结果盖掉新的 */
+let listSeq = 0
+
+const chips = computed(() => [
+  ...CATS.map((key) => ({ id: key, label: t(`mw.cat.${key}`), src: { kind: 'nav', key } as Source })),
+  ...(account.value
+    ? [
+        { id: 'favorites', label: t('mw.favorites'), src: { kind: 'favorites' } as Source },
+        { id: 'likes', label: t('mw.likes'), src: { kind: 'likes' } as Source },
+      ]
+    : []),
+])
+const chipId = computed(() => {
+  const s = source.value
+  return s.kind === 'nav' ? s.key : s.kind
+})
 
 async function loadList(reset = false) {
-  if (!account.value || listLoading.value) return
+  if (reset) { items.value = []; total.value = 0 }
+  else if (listLoading.value) return
+  const seq = ++listSeq
   listLoading.value = true
   listErr.value = ''
+  const s = source.value
+  const offset = reset ? 0 : items.value.length
   try {
-    const r = await mwList(kind.value, reset ? 0 : items.value.length)
+    const r = s.kind === 'nav'
+      ? await mwList({ kind: 'nav', key: s.key, offset })
+      : s.kind === 'search'
+        ? await mwList({ kind: 'search', q: s.q, sort: s.sort, offset })
+        : await mwList({ kind: s.kind, offset })
+    if (seq !== listSeq) return
     items.value = reset ? r.items : [...items.value, ...r.items]
     total.value = r.total
   } catch (e) {
+    if (seq !== listSeq) return
     listErr.value = errText(e)
-    if ((e as { code?: string }).code === 'auth') account.value = null
+    if ((e as { code?: string }).code === 'auth') {
+      account.value = null
+      source.value = { kind: 'nav', key: 'Trending' }
+    }
   } finally {
-    listLoading.value = false
+    if (seq === listSeq) listLoading.value = false
   }
 }
 
-function setKind(k: Kind) {
-  if (kind.value === k) return
-  kind.value = k
-  items.value = []
+function pick(src: Source) {
+  source.value = src
   void loadList(true)
 }
 
 const hasMore = computed(() => items.value.length < total.value)
 
+const emptyText = computed(() => {
+  const k = source.value.kind
+  return k === 'favorites' ? t('mw.noFavorites') : k === 'likes' ? t('mw.noLikes') : t('mw.noResults')
+})
+
+// ---- 搜索框：关键词搜社区，链接 / 编号直接打开 ----
+const query = ref('')
+const looksLikeLink = (q: string) => /makerworld\.com|^\s*\d{4,}\s*$/i.test(q)
+
+function submitQuery() {
+  const q = query.value.trim()
+  if (!q) return
+  if (looksLikeLink(q)) {
+    void openDesign(q)
+    return
+  }
+  pick({ kind: 'search', q, sort: source.value.kind === 'search' ? source.value.sort : '' })
+}
+
+function clearSearch() {
+  query.value = ''
+  pick({ kind: 'nav', key: 'Trending' })
+}
+
+function setSort(sort: Sort) {
+  const s = source.value
+  if (s.kind !== 'search' || s.sort === sort) return
+  pick({ ...s, sort })
+}
+
 // ---- 详情 ----
-const linkText = ref('')
 const detail = ref<MwDesign | null>(null)
 const detailOpen = ref(false)
 const detailLoading = ref(false)
@@ -204,6 +282,11 @@ function count(n: number): string {
 
 async function doImport() {
   if (!chosen.value || importing.value) return
+  if (!account.value) {
+    // 详情、浏览都是公开的，只有下载要账号。登录卡片叠在详情上面，登完回来再点一次导入
+    loginOpen.value = true
+    return
+  }
   importing.value = true
   try {
     const r = await mwImport(chosen.value)
@@ -217,7 +300,7 @@ async function doImport() {
     toast(errText(e))
     if ((e as { code?: string }).code === 'auth') {
       account.value = null
-      detailOpen.value = false
+      loginOpen.value = true
     }
   } finally {
     importing.value = false
@@ -228,7 +311,7 @@ onShow(async () => {
   applyChrome('mw.title')
   if (!configured.value) return
   await loadAccount()
-  if (account.value && !items.value.length) void loadList(true)
+  if (!items.value.length && !listLoading.value) void loadList(true)
 })
 onPullDownRefresh(async () => {
   await loadList(true)
@@ -241,53 +324,10 @@ onPullDownRefresh(async () => {
     <view v-if="!configured" class="empty"><text class="empty-t">{{ t('common.notConfigured') }}</text></view>
     <view v-else-if="!accountLoaded" class="busy"><Spinner :size="40" /></view>
 
-    <!-- 未登录 -->
-    <template v-else-if="!account">
-      <text class="grouphead">{{ t('mw.loginHead') }}</text>
-      <view class="segs">
-        <view class="seg" :class="{ on: mode === 'password' }" @click="setMode('password')">
-          <text class="seg-t">{{ t('mw.byPassword') }}</text>
-        </view>
-        <view class="seg" :class="{ on: mode === 'code' }" @click="setMode('code')">
-          <text class="seg-t">{{ t('mw.byCode') }}</text>
-        </view>
-      </view>
-      <view class="card sheet-card">
-        <view class="field">
-          <input class="finput" v-model="form.account" type="text" :disabled="step !== ''"
-            :placeholder="t('mw.accountPh')" placeholder-class="ph" />
-        </view>
-        <template v-if="!needCode">
-          <view class="hsep" />
-          <view class="field">
-            <input class="finput" v-model="form.password" type="safe-password" password
-              :placeholder="t('mw.passwordPh')" placeholder-class="ph" @confirm="login" />
-          </view>
-        </template>
-        <template v-else>
-          <view class="hsep" />
-          <view class="field row">
-            <input class="finput grow" v-model="form.code" type="number" maxlength="8"
-              :placeholder="step === 'tfa' ? t('mw.tfaPh') : t('mw.codePh')" placeholder-class="ph"
-              @confirm="login" />
-            <text v-if="step !== 'tfa'" class="link" :class="{ off: cooldown > 0 || !form.account.trim() }"
-              @click="sendCode">
-              {{ cooldown > 0 ? t('mw.resendIn', { s: cooldown }) : t('mw.sendCode') }}
-            </text>
-          </view>
-        </template>
-      </view>
-      <button class="cta fill" :disabled="!canLogin" @click="login">
-        {{ busy ? t('mw.loggingIn') : t('mw.login') }}
-      </button>
-      <text v-if="step" class="link center" @click="setMode(mode)">{{ t('mw.restart') }}</text>
-      <text class="hint">{{ t('mw.loginHint') }}</text>
-    </template>
-
-    <!-- 已登录 -->
     <template v-else>
+      <!-- 账号：浏览不用登录，导入才要 -->
       <view class="card who">
-        <view class="line">
+        <view v-if="account" class="line">
           <view class="row grow">
             <image v-if="account.avatar" class="avatar" :src="account.avatar" mode="aspectFill" />
             <view class="stackmeta">
@@ -297,36 +337,54 @@ onPullDownRefresh(async () => {
           </view>
           <text class="link" @click="logout">{{ t('mw.logout') }}</text>
         </view>
+        <view v-else class="line tappable" @click="loginOpen = true">
+          <view class="stackmeta">
+            <text class="k accent">{{ t('mw.loginRow') }}</text>
+            <text class="sub">{{ t('mw.loginRowSub') }}</text>
+          </view>
+          <text class="v accent">›</text>
+        </view>
       </view>
 
-      <text class="grouphead">{{ t('mw.linkHead') }}</text>
-      <view class="card">
+      <!-- 搜索框兼收链接：关键词搜社区，MakerWorld 链接或编号直接打开 -->
+      <view class="card search">
         <view class="field row">
-          <input class="finput grow" v-model="linkText" type="text" confirm-type="go"
-            :placeholder="t('mw.linkPh')" placeholder-class="ph" @confirm="openDesign(linkText)" />
-          <text class="link" :class="{ off: !linkText.trim() }" @click="openDesign(linkText)">{{ t('mw.open') }}</text>
+          <input class="finput grow" v-model="query" type="text" confirm-type="search"
+            :placeholder="t('mw.searchPh')" placeholder-class="ph" @confirm="submitQuery" />
+          <text v-if="source.kind === 'search'" class="link" @click="clearSearch">{{ t('mw.clear') }}</text>
+          <text v-else class="link" :class="{ off: !query.trim() }" @click="submitQuery">
+            {{ looksLikeLink(query) ? t('mw.open') : t('mw.search') }}
+          </text>
         </view>
       </view>
-      <text class="hint">{{ t('mw.linkHint') }}</text>
 
-      <view class="segs list-segs">
-        <view class="seg" :class="{ on: kind === 'favorites' }" @click="setKind('favorites')">
-          <text class="seg-t">{{ t('mw.favorites') }}</text>
-        </view>
-        <view class="seg" :class="{ on: kind === 'likes' }" @click="setKind('likes')">
-          <text class="seg-t">{{ t('mw.likes') }}</text>
+      <view v-if="source.kind === 'search'" class="segs list-segs">
+        <view v-for="o in ([['', 'sortRelevance'], ['downloadCount', 'sortDownloads'], ['likeCount', 'sortLikes']] as const)"
+          :key="o[0]" class="seg" :class="{ on: source.sort === o[0] }" @click="setSort(o[0])">
+          <text class="seg-t">{{ t(`mw.${o[1]}`) }}</text>
         </view>
       </view>
+      <scroll-view v-else class="chips" scroll-x :show-scrollbar="false">
+        <view class="chips-row">
+          <view v-for="c in chips" :key="c.id" class="chip" :class="{ on: chipId === c.id }" @click="pick(c.src)">
+            <text class="chip-t">{{ c.label }}</text>
+          </view>
+        </view>
+      </scroll-view>
+
+      <text v-if="source.kind === 'search' && !listLoading && !listErr" class="cap">
+        {{ t('mw.resultCount', { n: total }) }}
+      </text>
 
       <view v-if="listErr" class="card sheet-card"><view class="line"><text class="k dim">{{ listErr }}</text></view></view>
       <view v-else-if="!items.length && !listLoading" class="ph-box">
-        <text class="ph-t">{{ kind === 'favorites' ? t('mw.noFavorites') : t('mw.noLikes') }}</text>
+        <text class="ph-t">{{ emptyText }}</text>
       </view>
       <view class="grid">
         <view v-for="d in items" :key="d.id" class="tile tappable" @click="openDesign(String(d.id))">
           <image class="cover" :src="d.cover" mode="aspectFill" lazy-load />
           <text class="tt">{{ d.title }}</text>
-          <text class="sub">{{ d.creator }}</text>
+          <text class="sub">{{ d.creator }} · ↓ {{ count(d.downloadCount) }}</text>
         </view>
       </view>
       <view v-if="listLoading" class="busy"><Spinner :size="36" /></view>
@@ -369,7 +427,50 @@ onPullDownRefresh(async () => {
 
       <template #footer>
         <button class="cta fill" :disabled="!chosen || importing || detailLoading" @click="doImport">
-          {{ importing ? t('mw.importing') : t('mw.import') }}
+          {{ importing ? t('mw.importing') : account ? t('mw.import') : t('mw.loginToImport') }}
+        </button>
+      </template>
+    </Sheet>
+    <!-- 登录：叠在详情上面也行，登完回到原处 -->
+    <Sheet :visible="loginOpen" :title="t('mw.loginHead')" @close="closeLogin">
+      <view class="segs">
+        <view class="seg" :class="{ on: mode === 'password' }" @click="setMode('password')">
+          <text class="seg-t">{{ t('mw.byPassword') }}</text>
+        </view>
+        <view class="seg" :class="{ on: mode === 'code' }" @click="setMode('code')">
+          <text class="seg-t">{{ t('mw.byCode') }}</text>
+        </view>
+      </view>
+      <view class="card sheet-card inset">
+        <view class="field">
+          <input class="finput" v-model="form.account" type="text" :disabled="step !== ''"
+            :placeholder="t('mw.accountPh')" placeholder-class="ph" />
+        </view>
+        <template v-if="!needCode">
+          <view class="hsep" />
+          <view class="field">
+            <input class="finput" v-model="form.password" type="safe-password" password
+              :placeholder="t('mw.passwordPh')" placeholder-class="ph" @confirm="login" />
+          </view>
+        </template>
+        <template v-else>
+          <view class="hsep" />
+          <view class="field row">
+            <input class="finput grow" v-model="form.code" type="number" maxlength="8"
+              :placeholder="step === 'tfa' ? t('mw.tfaPh') : t('mw.codePh')" placeholder-class="ph"
+              @confirm="login" />
+            <text v-if="step !== 'tfa'" class="link" :class="{ off: cooldown > 0 || !form.account.trim() }"
+              @click="sendCode">
+              {{ cooldown > 0 ? t('mw.resendIn', { s: cooldown }) : t('mw.sendCode') }}
+            </text>
+          </view>
+        </template>
+      </view>
+      <text v-if="step" class="link center" @click="setMode(mode)">{{ t('mw.restart') }}</text>
+      <text class="hint">{{ t('mw.loginHint') }}</text>
+      <template #footer>
+        <button class="cta fill" :disabled="!canLogin" @click="login">
+          {{ busy ? t('mw.loggingIn') : t('mw.login') }}
         </button>
       </template>
     </Sheet>
@@ -406,7 +507,7 @@ onPullDownRefresh(async () => {
 .link.center { display: block; text-align: center; padding: 28rpx 0 0; }
 
 .segs { display: flex; background: var(--surface); border-radius: 24rpx; padding: 8rpx; }
-.list-segs { margin-top: 40rpx; }
+.list-segs { margin-top: 24rpx; }
 .seg { flex: 1; padding: 20rpx 0; text-align: center; border-radius: 18rpx; }
 .seg.on { background: var(--surface-2); }
 .seg-t { font-size: 28rpx; color: var(--ink); letter-spacing: -0.02em; }
@@ -434,6 +535,16 @@ onPullDownRefresh(async () => {
   font-size: 25rpx; color: var(--ink); margin: 14rpx 18rpx 0; line-height: 1.35; letter-spacing: -0.01em; }
 .tile .sub { margin: 6rpx 18rpx 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .more { margin-top: 28rpx; }
+.search { margin-top: 24rpx; }
+.k.accent, .v.accent { color: var(--accent); }
+.v { font-size: 28rpx; color: var(--ink-2); }
+.chips { margin-top: 24rpx; white-space: nowrap; }
+.chips-row { display: inline-flex; gap: 14rpx; padding-right: 32rpx; }
+.chip { display: inline-flex; padding: 14rpx 26rpx; border-radius: 999rpx; background: var(--surface); }
+.chip.on { background: var(--ink); }
+.chip-t { font-size: 25rpx; color: var(--ink); letter-spacing: -0.01em; }
+.chip.on .chip-t { color: var(--bg); font-weight: 600; }
+.inset { background: var(--surface-2); }
 
 .hero { width: 100%; height: 360rpx; border-radius: 18rpx; margin-top: 12rpx; background: var(--surface-2); }
 .inst { display: flex; align-items: flex-start; padding: 24rpx 0; }

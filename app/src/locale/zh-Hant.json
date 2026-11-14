@@ -645,10 +645,7 @@
     "logout": "登出",
     "logoutTitle": "登出 MakerWorld",
     "logoutDesc": "橋接上儲存的登入憑證會被刪除。",
-    "linkHead": "貼上模型連結",
-    "linkPh": "https://makerworld.com/…/models/…",
     "open": "開啟",
-    "linkHint": "在 MakerWorld App 或網頁裡「分享 → 複製連結」貼到這裡，也可以直接輸入模型編號。",
     "favorites": "我的收藏",
     "likes": "我的按讚",
     "noFavorites": "還沒有收藏的模型",
@@ -676,6 +673,32 @@
       "codeExpired": "驗證碼已過期，請重新取得",
       "badPassword": "帳號或密碼不正確",
       "upstream": "連不上 MakerWorld，請稍後再試"
+    },
+    "loginRow": "登入 MakerWorld",
+    "loginRowSub": "瀏覽不用登入，匯入到印表機需要登入",
+    "welcome": "已登入：{name}",
+    "searchPh": "搜尋模型，或貼上 MakerWorld 連結",
+    "search": "搜尋",
+    "clear": "清除",
+    "sortRelevance": "相關",
+    "sortDownloads": "下載最多",
+    "sortLikes": "按讚最多",
+    "resultCount": "共 {n} 個結果",
+    "noResults": "沒有找到模型",
+    "loginToImport": "登入後匯入",
+    "cat": {
+      "Trending": "熱門",
+      "category_400": "居家",
+      "category_800": "玩具遊戲",
+      "category_700": "工具",
+      "category_300": "嗜好 DIY",
+      "category_900": "3D 印表機",
+      "category_100": "藝術",
+      "category_600": "微縮模型",
+      "category_1000": "道具 Cosplay",
+      "category_200": "時尚",
+      "category_2000": "AI 生成",
+      "category_500": "教育"
     }
   }
 }

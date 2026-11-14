@@ -645,10 +645,7 @@
     "logout": "Sign out",
     "logoutTitle": "Sign out of MakerWorld",
     "logoutDesc": "The login token stored on the bridge will be deleted.",
-    "linkHead": "Paste a model link",
-    "linkPh": "https://makerworld.com/…/models/…",
     "open": "Open",
-    "linkHint": "In the MakerWorld app or website use Share → Copy link and paste it here, or type the model number.",
     "favorites": "Collection",
     "likes": "Liked",
     "noFavorites": "No models in your collection yet",
@@ -676,6 +673,32 @@
       "codeExpired": "The code expired — request a new one",
       "badPassword": "Incorrect account or password",
       "upstream": "Can't reach MakerWorld — try again later"
+    },
+    "loginRow": "Sign in to MakerWorld",
+    "loginRowSub": "Browsing is open; importing to the printer needs an account",
+    "welcome": "Signed in as {name}",
+    "searchPh": "Search models, or paste a MakerWorld link",
+    "search": "Search",
+    "clear": "Clear",
+    "sortRelevance": "Relevant",
+    "sortDownloads": "Most downloaded",
+    "sortLikes": "Most liked",
+    "resultCount": "{n} results",
+    "noResults": "No models found",
+    "loginToImport": "Sign in to import",
+    "cat": {
+      "Trending": "Trending",
+      "category_400": "Household",
+      "category_800": "Toys & Games",
+      "category_700": "Tools",
+      "category_300": "Hobby & DIY",
+      "category_900": "3D Printer",
+      "category_100": "Art",
+      "category_600": "Miniatures",
+      "category_1000": "Props & Cosplay",
+      "category_200": "Fashion",
+      "category_2000": "Generative 3D",
+      "category_500": "Education"
     }
   }
 }
