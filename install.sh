@@ -2,13 +2,17 @@
 #
 # 一键部署。在一台与打印机同局域网的 Linux 机器上跑：
 #
-#     ./install.sh
+#     ./install.sh            # 在仓库里：从源码构建
+#     ./install.sh --pull     # 在仓库里，但用预构建镜像
+#
+# 没有源码的目录（get.sh 装出来的）自动用预构建镜像，不构建。
 #
 # 它会自动发现打印机、生成密钥、构建并启动，最后把访问地址打出来。
 # 需要你提供的只有打印机屏幕上那串 8 位访问码。
 #
 # 非交互（CI / 无人值守）：
 #     BAMBU_ACCESS_CODE=xxxxxxxx ./install.sh --yes
+#   组播被路由器挡掉、自动发现找不到时，再加 BAMBU_HOST=… BAMBU_SERIAL=…
 #
 set -euo pipefail
 
@@ -27,12 +31,14 @@ die()  { printf '%s错误:%s %s\n' "$R" "$N" "$*" >&2; exit 1; }
 
 ASSUME_YES=0
 SKIP_TAILSCALE=0
+FORCE_PULL=0
 for arg in "$@"; do
   case "$arg" in
     -y|--yes) ASSUME_YES=1 ;;
     --no-tailscale) SKIP_TAILSCALE=1 ;;
+    --pull) FORCE_PULL=1 ;;
     -h|--help)
-      sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'
       exit 0 ;;
     *) die "未知参数: $arg（--help 看用法）" ;;
   esac
@@ -64,6 +70,8 @@ elif command -v docker-compose >/dev/null 2>&1; then
 else
   die "没有 docker compose 插件。参考 https://docs.docker.com/compose/install/"
 fi
+# 有 Dockerfile 才能构建；get.sh 装出来的目录里没有源码，只能拉预构建镜像
+if [ -f bridge/Dockerfile ] && [ "$FORCE_PULL" = 0 ]; then MODE=build; else MODE=pull; fi
 command -v python3 >/dev/null 2>&1 || warn "没有 python3，跳过打印机自动发现，需要手动填 IP 与序列号"
 say "  docker $(docker version --format '{{.Server.Version}}')，compose 可用"
 
@@ -73,7 +81,7 @@ KEEP_ENV=0
 if [ -f "$ENV_FILE" ]; then
   say ""
   say "已存在 $ENV_FILE。"
-  if confirm "沿用它，只重新构建并启动？"; then
+  if confirm "沿用它，只$([ "$MODE" = pull ] && echo 更新镜像 || echo 重新构建)并启动？"; then
     KEEP_ENV=1
   else
     cp "$ENV_FILE" "$ENV_FILE.bak.$(date +%s)"
@@ -84,8 +92,10 @@ fi
 if [ "$KEEP_ENV" = 0 ]; then
   # ---------- 3. 发现打印机 ----------
   step "查找打印机"
-  HOST=""; SERIAL=""
-  if command -v python3 >/dev/null 2>&1; then
+  HOST="${BAMBU_HOST:-}"; SERIAL="${BAMBU_SERIAL:-}"
+  if [ -n "$HOST" ] && [ -n "$SERIAL" ]; then
+    say "  用环境变量给的 $HOST（$SERIAL）"
+  elif command -v python3 >/dev/null 2>&1; then
     say "  监听 SSDP 广播，约 8 秒…"
     FOUND=$(python3 scripts/discover.py --json --timeout 8 2>/dev/null || echo '[]')
     COUNT=$(printf '%s' "$FOUND" | python3 -c 'import sys,json;print(len(json.load(sys.stdin)))' 2>/dev/null || echo 0)
@@ -150,10 +160,23 @@ EOF
 fi
 
 mkdir -p data && chmod 700 data
+# 切片器的挂载点。不建的话 Docker 会以 root 身份建一个空目录
+[ "$MODE" = pull ] && mkdir -p slicer
 
-# ---------- 6. 构建 ----------
-step "构建镜像（首次约几分钟）"
-$DC build
+# ---------- 6. 镜像 ----------
+if [ "$MODE" = pull ]; then
+  step "下载镜像（$(uname -m)）"
+  if ! $DC pull; then
+    # 本地已经有镜像（比如离线重跑）就接着用，否则没法继续
+    IMG=$($DC config --images | grep -v go2rtc | head -1)
+    docker image inspect "$IMG" >/dev/null 2>&1 \
+      || die "拉取镜像失败。网络不通，或镜像还没公开（GHCR 新包默认私有）"
+    warn "拉取失败，沿用本地已有的 $IMG"
+  fi
+else
+  step "构建镜像（首次约几分钟）"
+  $DC build
+fi
 
 # ---------- 7. Web Push 密钥 ----------
 # 放在构建之后：直接用镜像里的 web-push 生成，宿主机不需要装 Node
@@ -204,7 +227,10 @@ else
 fi
 
 # ---------- 10. Tailscale ----------
-URL="http://$(hostname -I 2>/dev/null | awk '{print $1}'):$PORT_N"
+# hostname -I 是 GNU 的；Alpine / BusyBox 上没有，退回去问路由表
+LAN_IP=$(hostname -I 2>/dev/null | awk '{print $1}')
+[ -n "$LAN_IP" ] || LAN_IP=$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") {print $(i+1); exit}}')
+URL="http://${LAN_IP:-<本机IP>}:$PORT_N"
 if [ "$SKIP_TAILSCALE" = 0 ] && command -v tailscale >/dev/null 2>&1; then
   step "通过 Tailscale 对外暴露"
   say "  会拿到一个带正式证书的 https 地址，且只有你的 tailnet 能访问。"
@@ -221,6 +247,7 @@ if [ "$SKIP_TAILSCALE" = 0 ] && command -v tailscale >/dev/null 2>&1; then
 fi
 
 # ---------- 完成 ----------
+if [ "$MODE" = pull ]; then UPDATE="$DC pull && $DC up -d"; else UPDATE="git pull && $DC up -d --build"; fi
 cat <<EOF
 
 $B部署完成$N
@@ -231,9 +258,10 @@ $B部署完成$N
 手机上打开这个地址，在设置页填入地址和 Token。
 iOS 想收推送的话，先「分享 → 添加到主屏幕」，再从主屏图标打开。
 
-  查看日志   $DC logs -f bridge
-  重启       $DC restart bridge
-  停止       $DC down
+  查看日志   cd $PWD && $DC logs -f bridge
+  重启       cd $PWD && $DC restart bridge
+  更新       cd $PWD && $UPDATE
+  停止       cd $PWD && $DC down
 
 Token 就在 .env 里（权限 600），别提交进版本库。
 EOF

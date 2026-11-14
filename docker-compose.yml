@@ -9,6 +9,9 @@ services:
       - ./go2rtc.yaml:/config/go2rtc.yaml:ro
 
   bridge:
+    # 有了 image 这一行，./install.sh --pull 或 docker compose pull 可以直接用预构建镜像；
+    # docker compose up -d --build 仍然从源码构建（产物也用这个名字）。
+    image: ghcr.io/kevinlibaba/bambu-p2s-bridge:${BRIDGE_TAG:-latest}
     # 上下文是仓库根目录：前端和桥接在同一次构建里完成，
     # 宿主机不需要装 Node，也不用手动把产物拷进 bridge/public
     build:

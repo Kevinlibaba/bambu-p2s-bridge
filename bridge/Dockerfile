@@ -1,4 +1,4 @@
-# 三段构建。app 与 bridge 各自编译，最终镜像只留运行期需要的东西。
+# 多段构建。app 与 bridge 各自编译，最终镜像只留运行期需要的东西。
 # 构建上下文是仓库根目录（见 docker-compose.yml），这样一条
 # `docker compose up -d --build` 就能出成品 —— 宿主机不需要装 Node。
 
@@ -10,7 +10,13 @@
 # 修法在 src/printer/ftp.ts 的 secureOptions.host，22 和 24 都实测通过，
 # 详见 PROTOCOL.md 5.1。再动 Node 版本时务必看 /api/files 而不是 /api/health ——
 # MQTT、摄像头、界面全都正常，只有文件相关接口 502，冒烟测试很容易漏掉。
-FROM node:22-slim AS app
+#
+# 多架构（amd64 / arm64）：前三个阶段的产物都是纯 JS，与目标架构无关，所以钉在
+# $BUILDPLATFORM 上原生跑 —— 否则 arm64 镜像的 npm install 和 uni-app 构建要在
+# QEMU 里模拟执行，慢十几倍。只有最后的运行期阶段按目标架构出。
+# 运行期依赖里没有原生模块（有安装脚本的 esbuild / fsevents 只在开发依赖里），
+# 新增依赖时要再确认一遍。
+FROM --platform=$BUILDPLATFORM node:22-slim AS app
 WORKDIR /src
 COPY app/package*.json ./
 RUN npm install --no-audit --no-fund
@@ -18,15 +24,22 @@ COPY app/ ./
 RUN npm run build:h5
 
 # ---- 2. 桥接服务 ----
-FROM node:22-slim AS build
+FROM --platform=$BUILDPLATFORM node:22-slim AS build
 WORKDIR /app
 COPY bridge/package*.json bridge/tsconfig.json ./
 RUN npm install --no-audit --no-fund
 COPY bridge/src ./src
 RUN npm run build
 
-# ---- 3. 运行期 ----
+# ---- 3. 运行期依赖（纯 JS，同样在构建机上装好再拷过去）----
+FROM --platform=$BUILDPLATFORM node:22-slim AS deps
+WORKDIR /app
+COPY bridge/package*.json ./
+RUN npm ci --omit=dev --no-audit --no-fund && npm cache clean --force
+
+# ---- 4. 运行期 ----
 FROM node:22-slim
+ARG TARGETARCH
 WORKDIR /app
 ENV NODE_ENV=production
 
@@ -36,14 +49,23 @@ ENV NODE_ENV=production
 #
 # 这一层放在 COPY 之前：代码改动不会让它失效，重建时走缓存。
 # 切片器本体（540MB）不进镜像，由 compose 从宿主机挂载，见 SLICER_ROOT。
-RUN apt-get update \
- && apt-get install -y --no-install-recommends \
-      libwebkit2gtk-4.1-0 libgtk-3-0 libglu1-mesa \
- && rm -rf /var/lib/apt/lists/*
+#
+# BambuStudio 只发 x86_64 的 Linux 版，arm64（树莓派等）上切片本来就用不了，
+# 这几百 MB 的库只装在 amd64 镜像里。arm64 上切片会因为找不到切片器自动关闭。
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+      apt-get update \
+      && apt-get install -y --no-install-recommends \
+           libwebkit2gtk-4.1-0 libgtk-3-0 libglu1-mesa \
+      && rm -rf /var/lib/apt/lists/*; \
+    fi
 
-COPY bridge/package*.json ./
-RUN npm install --omit=dev --no-audit --no-fund && npm cache clean --force
+COPY bridge/package.json ./
+COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=app /src/dist/build/h5 ./public
 EXPOSE 8080
 CMD ["node", "dist/index.js"]
+
+LABEL org.opencontainers.image.source="https://github.com/Kevinlibaba/bambu-p2s-bridge" \
+      org.opencontainers.image.description="Bambu Lab P2S LAN-mode bridge + web app" \
+      org.opencontainers.image.licenses="MIT"

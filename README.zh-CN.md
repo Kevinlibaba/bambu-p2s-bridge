@@ -84,31 +84,44 @@ FTPS —— 还得在手机上、在后台、靠电池跑。而且推送通知�
 ### 前提
 
 - P2S 处于**局域网模式**且已开启**开发者模式** —— 记下那串 8 位访问码
-- 一台与打印机同局域网、常年在线的 Linux 机器（LXC、树莓派、NAS 均可），装好
-  **Docker** 与 Compose 插件
+- 一台与打印机同局域网、常年在线的 Linux 机器（LXC、树莓派、NAS 均可）。
+  x86_64 和 arm64 都行；**没装 Docker 也没关系**，安装脚本会问你要不要顺手装上
 - 可选：这台机器和手机上都装 Tailscale，用于从外网访问
 
-### 一条命令
+### 一行命令
 
 ```bash
-git clone https://github.com/Kevinlibaba/bambu-p2s-bridge.git
-cd bambu-p2s-bridge
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/Kevinlibaba/bambu-p2s-bridge/main/get.sh | bash
 ```
 
-它会通过 SSDP 找到打印机、问你要访问码、生成 API Token 与 Web Push 密钥、
-构建两个镜像并启动，最后**确认真的能和打印机通上**再告诉你成功，
-并把手机上要填的地址和 Token 打出来。
+不需要 git、不需要源码，也不在本机构建：它只下载几个配置文件到 `~/bambu-p2s-bridge`
+（root 下是 `/opt/bambu-p2s-bridge`），拉取预构建好的镜像（amd64 / arm64），然后：
+通过 SSDP 找到打印机、问你要访问码、生成 API Token 与 Web Push 密钥、启动，
+最后**确认真的能和打印机通上**再告诉你成功，并把手机上要填的地址和 Token 打出来。
 
-宿主机**不需要**装 Node —— 前端在镜像里构建。
+装 Docker 需要 root。当前用户用不了 Docker 时，它会提示你改用 `| sudo bash` 重跑。
 
-重复执行是安全的：它会问你要不要沿用现有的 `.env`，只重新构建。
+**更新**：在安装目录里 `docker compose pull && docker compose up -d`，
+或者把上面那行命令再跑一次 —— 它会沿用现有的 `.env`，只更新镜像。
 
 非交互：
 
 ```bash
-BAMBU_ACCESS_CODE=xxxxxxxx ./install.sh --yes --no-tailscale
+curl -fsSL …/get.sh | BAMBU_ACCESS_CODE=xxxxxxxx bash -s -- --yes --no-tailscale
+# 路由器挡了组播、自动发现找不到打印机时，再加 BAMBU_HOST=… BAMBU_SERIAL=…
 ```
+
+> arm64（树莓派等）上没有云切片：BambuStudio 只发 x86_64 的 Linux 版。其余功能一样。
+
+### 从源码构建
+
+```bash
+git clone https://github.com/Kevinlibaba/bambu-p2s-bridge.git
+cd bambu-p2s-bridge
+./install.sh            # 从源码构建；加 --pull 则直接用预构建镜像
+```
+
+宿主机**不需要**装 Node —— 前端在镜像里构建。重复执行是安全的：它会问你要不要沿用现有的 `.env`。
 
 ### 先体检（可选）
 
@@ -151,7 +164,8 @@ docker compose up -d --build
 
 要在桥接机上切未切片的 3mf，需要额外放一份解包好的 BambuStudio。它 540MB，
 **刻意不进镜像也不进仓库** —— 它是个几乎不变的第三方产物，进镜像会让每次重建
-都多传一遍。`docker-compose.yml` 把它只读挂进容器。
+都多传一遍。`docker-compose.yml` 把它只读挂进容器：源码部署挂的是 `/opt/slicer`，
+一行命令安装挂的是安装目录下的 `slicer/`（仅 x86_64 机器）。
 
 ```sh
 # 在桥接主机上（不是容器里）

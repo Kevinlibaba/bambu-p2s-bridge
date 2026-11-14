@@ -1,0 +1,30 @@
+# 预构建镜像版。get.sh 把它下载到安装目录，用户机器上不需要源码，也不在本机构建。
+# 想从源码构建的话用仓库根目录那份 docker-compose.yml。
+#
+# 更新：docker compose pull && docker compose up -d
+# 钉版本：在 .env 里加 BRIDGE_TAG=0.2.0（默认 latest，即最新的正式版本）
+services:
+  go2rtc:
+    image: alexxit/go2rtc:latest
+    container_name: go2rtc
+    restart: unless-stopped
+    network_mode: host
+    env_file: .env
+    volumes:
+      - ./go2rtc.yaml:/config/go2rtc.yaml:ro
+
+  bridge:
+    image: ghcr.io/kevinlibaba/bambu-p2s-bridge:${BRIDGE_TAG:-latest}
+    container_name: bambu-bridge
+    restart: unless-stopped
+    # 要收打印机的 SSDP 广播、直连 go2rtc 的回环端口，所以用宿主机网络
+    network_mode: host
+    env_file: .env
+    volumes:
+      # 推送订阅、打印历史、MakerWorld 登录凭证等，容器重建后要保住
+      - ./data:/data
+      # 可选：解包后的 BambuStudio（squashfs-root/ 放在这个目录下）。不放就不提供切片，
+      # 其余功能不受影响。BambuStudio 只有 x86_64 版，arm64 机器上用不了。
+      - ./slicer:/opt/slicer:ro
+    depends_on:
+      - go2rtc

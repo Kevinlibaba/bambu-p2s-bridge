@@ -121,24 +121,21 @@ Printer (LAN only)                Bridge host                    Phone
 ### Prerequisites
 
 - P2S in **LAN Mode** with **Developer Mode** enabled — note the 8-character Access Code
-- An always-on Linux host on the same LAN (LXC container, Raspberry Pi, NAS, …) with
-  **Docker** and the Compose plugin
+- An always-on Linux host on the same LAN (LXC container, Raspberry Pi, NAS, …),
+  x86_64 or arm64. **Docker is optional up front** — the installer offers to install it
 - Optional: Tailscale on that host and on your phone, to reach it from outside
 
 ### One command
 
 ```bash
-git clone https://github.com/Kevinlibaba/bambu-p2s-bridge.git
-cd bambu-p2s-bridge
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/Kevinlibaba/bambu-p2s-bridge/main/get.sh | bash
 ```
 
-It finds the printer over SSDP, asks for the Access Code, generates the API token and
-the Web Push keys, builds both images, starts everything, and verifies it can actually
-talk to the printer before telling you it worked. Then it prints the URL and token to
-enter on your phone.
-
-Node is **not** a prerequisite — the web app is built inside the image.
+No git, no source checkout, no local build. It downloads a handful of config files to
+`~/bambu-p2s-bridge` (`/opt/bambu-p2s-bridge` as root), pulls the prebuilt multi-arch image
+(amd64 / arm64), finds the printer over SSDP, asks for the Access Code, generates the API
+token and the Web Push keys, starts everything, and verifies it can actually talk to the
+printer before telling you it worked. Then it prints the URL and token to enter on your phone.
 
 ```
 ==> 查找打印机
@@ -154,13 +151,32 @@ Node is **not** a prerequisite — the web app is built inside the image.
   Token  8f3a…（48 位十六进制）
 ```
 
-Re-running it is safe: it offers to keep the existing `.env` and just rebuild.
+Installing Docker needs root; if the current user can't use Docker, the script tells you to
+re-run it with `| sudo bash`.
+
+**Updating:** `docker compose pull && docker compose up -d` in the install directory, or
+just run the same one-liner again — it keeps the existing `.env` and only refreshes the image.
 
 Non-interactive:
 
 ```bash
-BAMBU_ACCESS_CODE=xxxxxxxx ./install.sh --yes --no-tailscale
+curl -fsSL …/get.sh | BAMBU_ACCESS_CODE=xxxxxxxx bash -s -- --yes --no-tailscale
+# if your router blocks multicast and discovery finds nothing, add BAMBU_HOST=… BAMBU_SERIAL=…
 ```
+
+> No cloud slicing on arm64 (Raspberry Pi etc.): BambuStudio ships Linux builds for x86_64
+> only. Everything else is the same.
+
+### From source
+
+```bash
+git clone https://github.com/Kevinlibaba/bambu-p2s-bridge.git
+cd bambu-p2s-bridge
+./install.sh            # builds from source; add --pull to use the prebuilt image instead
+```
+
+Node is **not** a prerequisite — the web app is built inside the image. Re-running is safe:
+it offers to keep the existing `.env`.
 
 ### Check your printer first (optional)
 
@@ -204,7 +220,9 @@ docker compose up -d --build
 To slice unsliced 3MFs on the bridge, drop an extracted BambuStudio next to it. It is
 540 MB and is deliberately **not** baked into the image or committed to the repo — it is
 a near-static third-party artifact, and putting it in the image means re-shipping it on
-every rebuild. `docker-compose.yml` mounts it read-only.
+every rebuild. `docker-compose.yml` mounts it read-only — from `/opt/slicer` for a source
+checkout, from the `slicer/` folder in the install directory for the one-command install
+(x86_64 hosts only).
 
 ```sh
 # on the bridge host, not inside the container
