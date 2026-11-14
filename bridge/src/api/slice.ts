@@ -16,6 +16,7 @@ import path from 'node:path'
 import { config } from '../config.js'
 import * as ftp from '../printer/ftp.js'
 import type { PrinterState } from '../printer/state.js'
+import { resolveSlicerRoot } from '../slice/installer.js'
 import {
   Profiles, SlicerUnavailableError, notableChanges,
   type ProfileRef, type SettingChange,
@@ -202,7 +203,8 @@ function scalarOf(v: unknown): string {
 }
 
 export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): void {
-  const profiles = new Profiles(config.slicer.root)
+  const slicerRoot = () => resolveSlicerRoot(config.slicer.root, path.join(config.slicer.downloadDir, 'squashfs-root'))
+  const profiles = new Profiles(slicerRoot)
 
   const nozzleOf = (req?: number): number => {
     if (req) return req
@@ -452,7 +454,7 @@ export function registerSliceRoutes(app: FastifyInstance, state: PrinterState): 
       const filamentJson = await Promise.all(filaments.map((f) => profiles.mergedFilament(f)))
       const job = queue.start(source, async (model, workDir) =>
         runSlice({
-          slicerRoot: config.slicer.root,
+          slicerRoot: slicerRoot(),
           model,
           workDir,
           machineJson,

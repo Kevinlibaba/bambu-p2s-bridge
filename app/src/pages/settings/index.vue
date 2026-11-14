@@ -4,7 +4,8 @@ import { useI18n } from 'vue-i18n'
 import { onShow } from '@dcloudio/uni-app'
 import {
   loadSettings, saveSettings, api, fetchNotifyStatus, testNotify,
-  fetchFileCheck, startFileCheck, deleteFile,
+  fetchFileCheck, startFileCheck, deleteFile, fetchSlicer, installSlicer, removeSlicer,
+  type SlicerStatus,
   type Settings, type NotifyStatus, type FileCheckStatus,
 } from '../../api/client'
 import {
@@ -36,6 +37,7 @@ form.value = loadSettings()
 
 onShow(() => {
   void loadCheck()
+  void loadSlicer()
   applyChrome('me.settings')
   void loadNotify()
 })
@@ -245,6 +247,57 @@ function clearAll() {
   })
 }
 
+// ---- 云切片：切片器一键安装 ----
+/*
+ * BambuStudio 解包后 540MB，不进镜像。以前要用户自己下 AppImage、解包、挂载；
+ * 现在桥接自己从 GitHub 下（钉在实测可用的版本，校验 sha256），这里只管点按钮和看进度。
+ */
+const slicer = ref<SlicerStatus | null>(null)
+let slicerPoll = 0
+const slicerBusy = computed(() => ['downloading', 'verifying', 'extracting'].includes(slicer.value?.install.state ?? ''))
+
+async function loadSlicer() {
+  try { slicer.value = await fetchSlicer() } catch { slicer.value = null }
+  clearTimeout(slicerPoll)
+  if (slicerBusy.value) slicerPoll = setTimeout(() => void loadSlicer(), 1500) as unknown as number
+}
+
+async function startSlicer() {
+  const o = slicer.value?.offer
+  const size = o?.downloadMB ? t('slicer.sizeHint', { dl: o.downloadMB, disk: o.diskMB }) : ''
+  if (!(await confirm(t('slicer.installTitle'), `${t('slicer.installDesc')}${size ? '\n\n' + size : ''}`))) return
+  try {
+    await installSlicer()
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message, icon: 'none' })
+  }
+  await loadSlicer()
+}
+
+async function dropSlicer() {
+  if (!(await confirm(t('slicer.removeTitle'), t('slicer.removeDesc'), true))) return
+  try {
+    await removeSlicer()
+  } catch (e) {
+    uni.showToast({ title: (e as Error).message, icon: 'none' })
+  }
+  await loadSlicer()
+}
+
+const slicerLine = computed(() => {
+  const s = slicer.value
+  if (!s) return ''
+  if (slicerBusy.value) {
+    return s.install.state === 'downloading'
+      ? t('slicer.downloading', { pct: s.install.pct })
+      : t(`slicer.${s.install.state}`)
+  }
+  if (s.available) {
+    return s.source === 'downloaded' && s.version ? t('slicer.onVersion', { v: s.version }) : t('slicer.on')
+  }
+  return s.supported ? t('slicer.off') : t('slicer.unsupported')
+})
+
 // ---- 在其他设备上使用：扫码配对 ----
 /** 用已保存（测试通过）的地址和 token，不用表单里可能还没保存的值 */
 const pairOpen = ref(false)
@@ -384,6 +437,37 @@ function pickLocale() {
         </view>
       </view>
       <text v-if="pushNote" class="note">{{ pushNote }}</text>
+
+      <!-- 云切片：没有切片器时一键下载 -->
+      <template v-if="slicer">
+        <text class="grouphead">{{ t('slicer.group') }}</text>
+        <view class="card">
+          <view class="line" :class="{ stack: slicerBusy }">
+            <text class="k">{{ t('slicer.entry') }}</text>
+            <text v-if="!slicerBusy" class="v" :class="{ good: slicer.available }">{{ slicerLine }}</text>
+            <template v-else>
+              <view class="bar"><view class="bar-fill" :style="{ width: (slicer.install.state === 'downloading' ? slicer.install.pct : 100) + '%' }" /></view>
+              <text class="opt-sub">{{ slicerLine }}</text>
+            </template>
+          </view>
+          <template v-if="!slicer.available && slicer.supported && !slicerBusy">
+            <view class="hsep" />
+            <view class="line tappable" @click="startSlicer">
+              <text class="k accent">{{ t('slicer.install', { v: slicer.offer.version }) }}</text>
+              <text class="v">›</text>
+            </view>
+          </template>
+          <template v-if="slicer.source === 'downloaded' && !slicerBusy">
+            <view class="hsep" />
+            <view class="line tappable" @click="dropSlicer">
+              <text class="k danger">{{ t('slicer.remove') }}</text>
+              <text class="v">›</text>
+            </view>
+          </template>
+        </view>
+        <text v-if="slicer.install.state === 'error'" class="note bad">{{ slicer.install.error }}</text>
+        <text class="note">{{ slicer.supported ? t('slicer.note') : t('slicer.unsupportedNote') }}</text>
+      </template>
 
       <text class="grouphead">{{ t('check.group') }}</text>
       <view class="card">
@@ -602,6 +686,8 @@ function pickLocale() {
 .link { font-size: 24rpx; color: var(--accent); padding: 6rpx 8rpx; }
 .link:active { opacity: 0.55; }
 .cta.danger { background: var(--danger, #ff453a); color: #fff; }
+.v.good { color: var(--good); }
+.note.bad { color: var(--critical); }
 .pair { display: flex; flex-direction: column; align-items: center; padding: 36rpx 28rpx 30rpx; }
 .pair-qr { width: 380rpx; height: 380rpx; background: #fff; border-radius: 16rpx; }
 .pair-t { text-align: center; margin-top: 20rpx; }

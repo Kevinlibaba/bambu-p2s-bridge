@@ -276,6 +276,27 @@ export function uploadFile(
 export const importUrl = (link: string, name: string) =>
   request<ThreeMfInfo>('/api/files/import', { method: 'POST', data: { url: link, name }, timeout: 10 * 60 * 1000 })
 
+// ---------- 切片器一键安装 ----------
+export interface SlicerStatus {
+  available: boolean
+  /** mounted = 宿主机手动挂载；downloaded = 一键安装 */
+  source: 'mounted' | 'downloaded' | null
+  version: string | null
+  /** 这台机器能不能装（BambuStudio 只有 x86_64 版） */
+  supported: boolean
+  offer: { version: string; downloadMB: number | null; diskMB: number }
+  install: {
+    state: 'idle' | 'downloading' | 'verifying' | 'extracting' | 'done' | 'error'
+    pct: number
+    error: string | null
+    code: string | null
+  }
+}
+
+export const fetchSlicer = () => request<SlicerStatus>('/api/slicer')
+export const installSlicer = () => request<SlicerStatus['install']>('/api/slicer/install', { method: 'POST' })
+export const removeSlicer = () => request<{ ok: boolean }>('/api/slicer', { method: 'DELETE' })
+
 // ---------- 首次设置向导 ----------
 // 设置模式下桥接还没有 token，这几个接口免鉴权（带个空的 Authorization 也无妨）
 

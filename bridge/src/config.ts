@@ -78,6 +78,8 @@ export const config = {
      * 少一个功能，好过让接口在运行时才炸。
      */
     root: process.env.SLICER_ROOT ?? '/opt/slicer/squashfs-root',
+    /** 设置页「一键下载」装到这里（数据卷里，可写）。挂载的那份优先，见 resolveSlicerRoot */
+    downloadDir: process.env.SLICER_DOWNLOAD_DIR ?? '/data/slicer',
     /** 切片工作目录。放在 /data 下，跟着数据卷走，容器重建不丢半成品 */
     workDir: process.env.SLICER_WORK_DIR ?? '/data/slice',
     /**

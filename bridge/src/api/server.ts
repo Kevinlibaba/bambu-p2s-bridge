@@ -23,6 +23,8 @@ import { registerCheckRoutes } from './check.js'
 import { registerScheduleRoutes } from './schedule.js'
 import { registerQueueRoutes } from './queue.js'
 import { registerSetupRoutes } from '../setup/routes.js'
+import { registerSlicerRoutes } from './slicer.js'
+import { SlicerInstaller } from '../slice/installer.js'
 import { registerMakerWorldRoutes } from './makerworld.js'
 import { MakerWorld } from '../makerworld/client.js'
 import type { PrintQueue } from '../queue/index.js'
@@ -159,6 +161,7 @@ export async function buildServer(
   registerSkipRoutes(app, state, mqtt)
   registerQueueRoutes(app, extra.queue)
   registerSliceRoutes(app, state)
+  registerSlicerRoutes(app, new SlicerInstaller({ dir: config.slicer.downloadDir }))
 
   // ---- 摄像头：在 go2rtc 前面做鉴权代理 ----
   // go2rtc 本身无认证，因此它只监听 127.0.0.1，外部一律经这里

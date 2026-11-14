@@ -179,7 +179,12 @@ docker compose up -d --build
 
 ### 云切片（可选）
 
-要在桥接机上切未切片的 3mf，需要额外放一份解包好的 BambuStudio。它 540MB，
+**最省事**：我的 → 设置 →「云切片」→「下载并启用」。桥接会从 BambuStudio 在 GitHub 的官方发布页
+下载 Linux 版 AppImage，校验 SHA-256，解包到 `data/slicer/`，文件详情里随即出现「切片」——
+下载约 219MB，占盘 540MB，网络好的话半分钟。版本钉在切片代码实测过的 02.08.02.61；
+想换版本，同时设置 `SLICER_URL` 和 `SLICER_SHA256`。只支持 x86_64，BambuStudio 没有 ARM 的 Linux 版。
+
+也可以手动：在桥接机上额外放一份解包好的 BambuStudio。它 540MB，
 **刻意不进镜像也不进仓库** —— 它是个几乎不变的第三方产物，进镜像会让每次重建
 都多传一遍。`docker-compose.yml` 把它只读挂进容器：源码部署挂的是 `/opt/slicer`，
 一行命令安装挂的是安装目录下的 `slicer/`（仅 x86_64 机器）。

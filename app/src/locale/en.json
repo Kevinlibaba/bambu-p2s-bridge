@@ -256,7 +256,7 @@
     "title": "Slice",
     "desc": "Slice \"{name}\" into a printable file on the bridge, keeping the model’s own print settings — layer height, infill and supports stay as the author tuned them. The original is kept; the result is saved as .gcode.3mf.",
     "hint": "This model is not sliced, so the printer cannot read it. Slice it first.",
-    "unavailable": "The bridge has no slicer installed. Slice it in Bambu Studio on a computer, then upload the result.",
+    "unavailable": "This bridge has no slicer installed yet.",
     "done": "Sliced",
     "failed": "Slicing failed",
     "phase": {
@@ -278,7 +278,8 @@
     "brim": "Brim",
     "paramsNote": "Defaults come from the model author. Changed rows get a dot; everything else is left untouched.",
     "paramsChanged": "Only the dotted rows are overridden — the rest still slice with the author’s settings.",
-    "descChanged": "Slice \"{name}\" with your changes; everything you did not touch keeps the author’s settings. The original is kept; the result is saved as .gcode.3mf."
+    "descChanged": "Slice \"{name}\" with your changes; everything you did not touch keeps the author’s settings. The original is kept; the result is saved as .gcode.3mf.",
+    "enableIt": "Install it"
   },
   "dry": {
     "title": "Filament drying",
@@ -761,5 +762,25 @@
       "done": "This server is already set up.",
       "restart": "The service took too long to restart. Wait a moment and reload; if it persists, restart the container."
     }
+  },
+  "slicer": {
+    "group": "Cloud slicing",
+    "entry": "Slicer",
+    "on": "Enabled",
+    "onVersion": "Enabled · BambuStudio {v}",
+    "off": "Not installed",
+    "unsupported": "Not supported on this machine",
+    "downloading": "Downloading {pct}%",
+    "verifying": "Verifying…",
+    "extracting": "Unpacking (about a minute)…",
+    "install": "Download and enable (BambuStudio {v})",
+    "remove": "Remove slicer",
+    "installTitle": "Download the slicer",
+    "installDesc": "The bridge downloads the Linux build from BambuStudio's official GitHub releases and verifies it. Then you can slice right from your phone.",
+    "sizeHint": "About {dl} MB to download, about {disk} MB on disk once unpacked.",
+    "removeTitle": "Remove the slicer",
+    "removeDesc": "Deletes the downloaded copy and frees about 540 MB. You can download it again any time.",
+    "note": "Unsliced models (such as MakerWorld downloads) must be sliced before printing. Once installed, files get a Slice action.",
+    "unsupportedNote": "BambuStudio ships Linux builds for x86_64 only, so ARM machines like a Raspberry Pi cannot slice. Slice on a computer and upload instead."
   }
 }

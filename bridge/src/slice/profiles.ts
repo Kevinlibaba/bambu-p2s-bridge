@@ -142,11 +142,20 @@ async function listJson(dir: string): Promise<string[]> {
 }
 
 export class Profiles {
-  private readonly vendor: string
   private readonly filamentIdCache = new Map<number, Map<string, ProfileRef>>()
+  private lastRoot = ''
 
-  constructor(root: string) {
-    this.vendor = path.join(root, VENDOR_DIR)
+  /** 根目录可以是个函数：切片器可能在运行中才被一键装上，每次用的时候再定 */
+  constructor(private readonly rootOf: string | (() => string)) {}
+
+  private get vendor(): string {
+    const root = typeof this.rootOf === 'function' ? this.rootOf() : this.rootOf
+    // 换了一份切片器，按旧目录建的缓存就不能再用
+    if (root !== this.lastRoot) {
+      this.filamentIdCache.clear()
+      this.lastRoot = root
+    }
+    return path.join(root, VENDOR_DIR)
   }
 
   private dir(kind: 'machine' | 'process' | 'filament'): string {

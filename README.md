@@ -223,7 +223,14 @@ docker compose up -d --build
 
 ### Slicer (optional)
 
-To slice unsliced 3MFs on the bridge, drop an extracted BambuStudio next to it. It is
+**Easiest:** Me → Settings → *Cloud slicing* → *Download and enable*. The bridge fetches the
+BambuStudio Linux AppImage from BambuStudio's official GitHub releases, checks its SHA-256,
+unpacks it into `data/slicer/` and starts offering the Slice action — about 219 MB to download,
+540 MB on disk, half a minute on a fast line. The version is pinned to the one the slicing code
+is tested against (02.08.02.61); set `SLICER_URL` and `SLICER_SHA256` together to use another.
+x86_64 only — BambuStudio publishes no ARM Linux build.
+
+By hand instead: drop an extracted BambuStudio next to the bridge. It is
 540 MB and is deliberately **not** baked into the image or committed to the repo — it is
 a near-static third-party artifact, and putting it in the image means re-shipping it on
 every rebuild. `docker-compose.yml` mounts it read-only — from `/opt/slicer` for a source

@@ -256,7 +256,7 @@
     "title": "切片",
     "desc": "在橋接機上把「{name}」切成可列印的檔案，沿用模型自帶的列印設定（層高、填充、支撐都按模型作者調好的來）。原檔保留，產物另存為 .gcode.3mf。",
     "hint": "這是未切片的模型，印表機認不得。切好之後才能列印。",
-    "unavailable": "這台橋接機沒有安裝切片器。請在電腦上用 Bambu Studio 切好再上傳。",
+    "unavailable": "這台橋接機還沒有安裝切片器。",
     "done": "切好了",
     "failed": "切片失敗",
     "phase": {
@@ -278,7 +278,8 @@
     "brim": "Brim",
     "paramsNote": "預設沿用模型作者調好的設定。改動的項目會帶一個圓點，沒改的一律不動。",
     "paramsChanged": "只有帶圓點的項目會被覆蓋，其餘仍按作者的設定切片。",
-    "descChanged": "按你改過的參數把「{name}」切成可列印的檔案，未改動的項目仍沿用模型作者的設定。原檔保留，產物另存為 .gcode.3mf。"
+    "descChanged": "按你改過的參數把「{name}」切成可列印的檔案，未改動的項目仍沿用模型作者的設定。原檔保留，產物另存為 .gcode.3mf。",
+    "enableIt": "一鍵下載"
   },
   "dry": {
     "title": "耗材烘乾",
@@ -761,5 +762,25 @@
       "done": "這台伺服器已經設定過了。",
       "restart": "服務重新啟動逾時。稍等片刻重新整理頁面；仍不行就重新啟動容器。"
     }
+  },
+  "slicer": {
+    "group": "雲端切片",
+    "entry": "切片器",
+    "on": "已啟用",
+    "onVersion": "已啟用 · BambuStudio {v}",
+    "off": "未安裝",
+    "unsupported": "這台機器不支援",
+    "downloading": "下載中 {pct}%",
+    "verifying": "校驗檔案…",
+    "extracting": "解壓中（約一分鐘）…",
+    "install": "下載並啟用（BambuStudio {v}）",
+    "remove": "刪除切片器",
+    "installTitle": "下載切片器",
+    "installDesc": "橋接會從 BambuStudio 的 GitHub 官方發布頁下載 Linux 版並校驗，裝好後就能在手機上直接切片。",
+    "sizeHint": "下載約 {dl} MB，解壓後佔用約 {disk} MB 磁碟。",
+    "removeTitle": "刪除切片器",
+    "removeDesc": "會刪掉一鍵下載的那份，釋放約 540 MB。之後需要切片時可以再下載。",
+    "note": "未切片的模型（例如 MakerWorld 上下載的）要先切片才能列印。裝好後在檔案詳情裡就有「切片」。",
+    "unsupportedNote": "BambuStudio 只有 x86_64 的 Linux 版，樹莓派這類 ARM 機器上無法使用。請在電腦上切好再上傳。"
   }
 }

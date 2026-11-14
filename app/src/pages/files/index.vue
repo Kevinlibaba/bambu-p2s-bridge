@@ -532,6 +532,12 @@ function pickFile() {
   })
 }
 
+/** 没有切片器时，带人去设置里一键装 */
+function goSlicerSetup() {
+  close()
+  uni.navigateTo({ url: '/pages/settings/index' })
+}
+
 function openMakerWorld() {
   closeImport()
   uni.switchTab({ url: '/pages/makerworld/index' })
@@ -1370,7 +1376,7 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
       </view>
 
       <text v-if="canSlice" class="hint">{{ t('slice.hint') }}</text>
-      <text v-else-if="sliceUnavailable" class="hint">{{ t('slice.unavailable') }}</text>
+      <text v-else-if="sliceUnavailable" class="hint tappable" @click="goSlicerSetup">{{ t('slice.unavailable') }} <text class="k accent">{{ t('slice.enableIt') }} ›</text></text>
       <text v-else-if="selKind === 'model'" class="hint">{{ t('print.risk') }}</text>
 
       <template #footer>
