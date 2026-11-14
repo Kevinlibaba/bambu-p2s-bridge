@@ -3,9 +3,9 @@
     "name": "繁體中文"
   },
   "tab": {
-    "monitor": "監控",
-    "control": "控制",
+    "device": "裝置",
     "files": "檔案",
+    "makerworld": "MakerWorld",
     "settings": "設定"
   },
   "state": {
@@ -77,12 +77,7 @@
     "low": "偏低"
   },
   "control": {
-    "tempGroup": "溫度",
-    "nozzle": "噴嘴",
-    "bed": "熱床",
-    "current": "目前 {c}℃ · 最高 {max}℃",
     "turnOff": "關閉加熱",
-    "apply": "套用",
     "confirmNozzleOff": "確定關閉噴嘴加熱？",
     "confirmBedOff": "確定關閉熱床加熱？",
     "confirmNozzle": "將噴嘴設為 {t}℃？",
@@ -95,12 +90,17 @@
       "ludicrous": "狂暴"
     },
     "confirmSpeed": "切換至「{name}」？",
-    "otherGroup": "其他",
-    "chamberLight": "機箱燈",
     "refresh": "重新整理狀態",
     "home": "回原點 G28",
     "confirmHome": "歸零會移動列印頭。列印中執行將毀掉目前的列印件。確定繼續？",
-    "gcodeNote": "原始 G-code 通道預設關閉。需要時請在伺服器端設定 ALLOW_RAW_GCODE=true。"
+    "gcodeNote": "原始 G-code 通道預設關閉。需要時請在伺服器端設定 ALLOW_RAW_GCODE=true。",
+    "group": "裝置控制",
+    "nozzleTemp": "噴嘴溫度",
+    "bedTemp": "熱床溫度",
+    "now": "目前",
+    "targetLabel": "目標溫度",
+    "setTo": "設為 {t}℃",
+    "maxHint": "最高 {max}℃。設為 0 等於關閉加熱。"
   },
   "files": {
     "models": "模型",

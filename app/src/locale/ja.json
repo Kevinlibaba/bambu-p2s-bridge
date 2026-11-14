@@ -3,9 +3,9 @@
     "name": "日本語"
   },
   "tab": {
-    "monitor": "モニター",
-    "control": "操作",
+    "device": "デバイス",
     "files": "ファイル",
+    "makerworld": "MakerWorld",
     "settings": "設定"
   },
   "state": {
@@ -77,12 +77,7 @@
     "low": "残量少"
   },
   "control": {
-    "tempGroup": "温度",
-    "nozzle": "ノズル",
-    "bed": "ベッド",
-    "current": "現在 {c}℃ · 最大 {max}℃",
     "turnOff": "加熱を停止",
-    "apply": "適用",
     "confirmNozzleOff": "ノズルの加熱を停止しますか？",
     "confirmBedOff": "ベッドの加熱を停止しますか？",
     "confirmNozzle": "ノズルを {t}℃ に設定しますか？",
@@ -95,12 +90,17 @@
       "ludicrous": "最速"
     },
     "confirmSpeed": "「{name}」に切り替えますか？",
-    "otherGroup": "その他",
-    "chamberLight": "チャンバーライト",
     "refresh": "状態を更新",
     "home": "原点復帰 (G28)",
     "confirmHome": "原点復帰はツールヘッドを動かします。印刷中に実行すると造形物が台無しになります。続行しますか？",
-    "gcodeNote": "生の G-code は既定で無効です。使用するにはサーバー側で ALLOW_RAW_GCODE=true を設定してください。"
+    "gcodeNote": "生の G-code は既定で無効です。使用するにはサーバー側で ALLOW_RAW_GCODE=true を設定してください。",
+    "group": "デバイス操作",
+    "nozzleTemp": "ノズル温度",
+    "bedTemp": "ベッド温度",
+    "now": "現在",
+    "targetLabel": "目標温度",
+    "setTo": "{t}℃ に設定",
+    "maxHint": "最高 {max}℃。0 にすると加熱を止めます。"
   },
   "files": {
     "models": "モデル",

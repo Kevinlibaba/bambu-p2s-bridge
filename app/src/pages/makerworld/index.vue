@@ -308,7 +308,7 @@ async function doImport() {
 }
 
 onShow(async () => {
-  applyChrome('mw.title')
+  applyChrome('tab.makerworld')
   if (!configured.value) return
   await loadAccount()
   if (!items.value.length && !listLoading.value) void loadList(true)

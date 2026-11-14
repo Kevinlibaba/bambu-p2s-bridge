@@ -3,9 +3,9 @@
     "name": "English"
   },
   "tab": {
-    "monitor": "Monitor",
-    "control": "Control",
+    "device": "Device",
     "files": "Files",
+    "makerworld": "MakerWorld",
     "settings": "Settings"
   },
   "state": {
@@ -77,12 +77,7 @@
     "low": "Low"
   },
   "control": {
-    "tempGroup": "Temperature",
-    "nozzle": "Nozzle",
-    "bed": "Bed",
-    "current": "Now {c}℃ · max {max}℃",
     "turnOff": "Turn off",
-    "apply": "Apply",
     "confirmNozzleOff": "Turn off nozzle heating?",
     "confirmBedOff": "Turn off bed heating?",
     "confirmNozzle": "Set the nozzle to {t}℃?",
@@ -95,12 +90,17 @@
       "ludicrous": "Ludicrous"
     },
     "confirmSpeed": "Switch to {name}?",
-    "otherGroup": "Other",
-    "chamberLight": "Chamber light",
     "refresh": "Refresh state",
     "home": "Home all (G28)",
     "confirmHome": "Homing moves the toolhead. Running it mid-print will ruin the current part. Continue?",
-    "gcodeNote": "Raw G-code is disabled by default. Set ALLOW_RAW_GCODE=true on the server to enable it."
+    "gcodeNote": "Raw G-code is disabled by default. Set ALLOW_RAW_GCODE=true on the server to enable it.",
+    "group": "Device controls",
+    "nozzleTemp": "Nozzle temperature",
+    "bedTemp": "Bed temperature",
+    "now": "Now",
+    "targetLabel": "Target",
+    "setTo": "Set to {t}℃",
+    "maxHint": "Up to {max}℃. Setting 0 turns heating off."
   },
   "files": {
     "models": "Models",

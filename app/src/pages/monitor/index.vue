@@ -338,7 +338,7 @@ async function doSkip() {
   }
 }
 
-onShow(() => { pageActive.value = true; applyChrome('tab.monitor'); startTemps() })
+onShow(() => { pageActive.value = true; applyChrome('tab.device'); startTemps() })
 onHide(() => { pageActive.value = false; stopTemps() })
 onPullDownRefresh(() => {
   restart()
@@ -548,6 +548,44 @@ async function resolveBlocker(b: DryBlocker) {
 const stepTemp = (d: number) => { dryTemp.value = clampT(dryTemp.value + d) }
 const stepHours = (d: number) => { dryHours.value = clampH(dryHours.value + d) }
 
+// ---- 设备控制（原「控制」页并进来）：设温度、打印速度、回零、刷新 ----
+type TempWhich = 'n' | 'b'
+const TEMP_MAX = { n: 300, b: 110 } as const
+const tempSheet = ref<TempWhich | null>(null)
+const tempSet = ref(0)
+
+function openTemp(which: TempWhich) {
+  const cur = which === 'n' ? s.value?.nozzle : s.value?.bed
+  // 从当前目标起步；没在加热就从 0 起，免得一打开就是个没人设过的数
+  tempSet.value = Math.round(cur?.target ?? 0)
+  tempSheet.value = which
+}
+
+const stepSet = (d: number) => {
+  const which = tempSheet.value
+  if (!which) return
+  tempSet.value = Math.max(0, Math.min(TEMP_MAX[which], tempSet.value + d))
+}
+
+async function applyTemp(off = false) {
+  const which = tempSheet.value
+  if (!which) return
+  const celsius = off ? 0 : tempSet.value
+  const type = which === 'n' ? 'nozzleTemp' : 'bedTemp'
+  const ask = off
+    ? t(which === 'n' ? 'control.confirmNozzleOff' : 'control.confirmBedOff')
+    : t(which === 'n' ? 'control.confirmNozzle' : 'control.confirmBed', { t: celsius })
+  tempSheet.value = null
+  await send({ type, celsius }, ask)
+}
+
+const SPEEDS = [
+  { level: 1 as const, key: 'silent', pct: '50%' },
+  { level: 2 as const, key: 'standard', pct: '100%' },
+  { level: 3 as const, key: 'sport', pct: '124%' },
+  { level: 4 as const, key: 'ludicrous', pct: '166%' },
+]
+
 async function send(c: Command, confirmText?: string) {
   if (confirmText) {
     const ok = await confirmAsk(t('common.confirmTitle'), confirmText)
@@ -657,15 +695,20 @@ async function send(c: Command, confirmText?: string) {
 
         <!-- 温度 -->
         <view class="card temps">
-          <StatTile
-            :label="t('monitor.nozzle')" :value="String(Math.round(s?.nozzle.cur ?? 0))" unit="℃"
-            :sub="tempSub(s?.nozzle.cur ?? 0, s?.nozzle.target ?? 0)"
-            :tone="heating(s?.nozzle.cur ?? 0, s?.nozzle.target ?? 0) ? 'warning' : 'neutral'" />
+          <!-- 点温度块直接设温度 -->
+          <view class="tile-tap tappable" @click="openTemp('n')">
+            <StatTile
+              :label="t('monitor.nozzle')" :value="String(Math.round(s?.nozzle.cur ?? 0))" unit="℃"
+              :sub="tempSub(s?.nozzle.cur ?? 0, s?.nozzle.target ?? 0)"
+              :tone="heating(s?.nozzle.cur ?? 0, s?.nozzle.target ?? 0) ? 'warning' : 'neutral'" />
+          </view>
           <view class="vsep" />
-          <StatTile
-            :label="t('monitor.bed')" :value="String(Math.round(s?.bed.cur ?? 0))" unit="℃"
-            :sub="tempSub(s?.bed.cur ?? 0, s?.bed.target ?? 0)"
-            :tone="heating(s?.bed.cur ?? 0, s?.bed.target ?? 0) ? 'warning' : 'neutral'" />
+          <view class="tile-tap tappable" @click="openTemp('b')">
+            <StatTile
+              :label="t('monitor.bed')" :value="String(Math.round(s?.bed.cur ?? 0))" unit="℃"
+              :sub="tempSub(s?.bed.cur ?? 0, s?.bed.target ?? 0)"
+              :tone="heating(s?.bed.cur ?? 0, s?.bed.target ?? 0) ? 'warning' : 'neutral'" />
+          </view>
           <view class="vsep" />
           <StatTile
             :label="t('monitor.chamber')" :value="s?.chamber != null ? String(Math.round(s.chamber)) : t('common.none')" unit="℃"
@@ -701,6 +744,40 @@ async function send(c: Command, confirmText?: string) {
             <AmsSlot :tray="t" />
           </view>
         </view>
+
+        <!-- 设备控制（原「控制」页） -->
+        <text class="grouphead">{{ t('control.speedGroup', { p: s?.speedPct ?? 100 }) }}</text>
+        <view class="speeds">
+          <view v-for="sp in SPEEDS" :key="sp.level" class="sp" :class="{ on: s?.speedLevel === sp.level }"
+            @click="send({ type: 'speed', level: sp.level }, t('control.confirmSpeed', { name: t('control.speed.' + sp.key) }))">
+            <text class="sp-n">{{ t('control.speed.' + sp.key) }}</text>
+            <text class="sp-p">{{ sp.pct }}</text>
+          </view>
+        </view>
+
+        <text class="grouphead">{{ t('control.group') }}</text>
+        <view class="card list">
+          <view class="line tappable" @click="openTemp('n')">
+            <text class="k">{{ t('control.nozzleTemp') }}</text>
+            <text class="v accent">{{ t('monitor.target', { t: Math.round(s?.nozzle.target ?? 0) }) }} ›</text>
+          </view>
+          <view class="hsep" />
+          <view class="line tappable" @click="openTemp('b')">
+            <text class="k">{{ t('control.bedTemp') }}</text>
+            <text class="v accent">{{ t('monitor.target', { t: Math.round(s?.bed.target ?? 0) }) }} ›</text>
+          </view>
+          <view class="hsep" />
+          <view class="line tappable" @click="send({ type: 'pushall' })">
+            <text class="k">{{ t('control.refresh') }}</text>
+            <text class="v">›</text>
+          </view>
+          <view class="hsep" />
+          <view class="line tappable" @click="send({ type: 'home' }, t('control.confirmHome'))">
+            <text class="k danger">{{ t('control.home') }}</text>
+            <text class="v">›</text>
+          </view>
+        </view>
+        <text class="hint">{{ t('control.gcodeNote') }}</text>
 
         <!-- 烘干控制 -->
       <!-- 错误详情：文案来自 Bambu 官方错误库，桥接侧代查 -->
@@ -955,6 +1032,37 @@ async function send(c: Command, confirmText?: string) {
         </template>
       </Sheet>
 
+      <!-- 设温度 -->
+      <Sheet :visible="!!tempSheet" :title="tempSheet === 'b' ? t('control.bedTemp') : t('control.nozzleTemp')"
+        @close="tempSheet = null">
+        <view class="card list sheet-card">
+          <view class="line">
+            <text class="k">{{ t('control.now') }}</text>
+            <text class="v">{{ Math.round((tempSheet === 'b' ? s?.bed.cur : s?.nozzle.cur) ?? 0) }}℃</text>
+          </view>
+          <view class="hsep" />
+          <view class="line">
+            <text class="k">{{ t('control.targetLabel') }}</text>
+            <view class="trail">
+              <text class="v num">{{ tempSet }}℃</text>
+              <view class="stepper">
+                <text class="sbtn" :class="{ off: tempSet <= 0 }" @click="stepSet(-5)">−</text>
+                <view class="svsep" />
+                <text class="sbtn" :class="{ off: tempSheet && tempSet >= TEMP_MAX[tempSheet] }" @click="stepSet(5)">＋</text>
+              </view>
+            </view>
+          </view>
+          <view class="hsep" />
+          <view class="line tappable" @click="applyTemp(true)">
+            <text class="k danger">{{ t('control.turnOff') }}</text>
+          </view>
+        </view>
+        <text class="hint">{{ t('control.maxHint', { max: tempSheet ? TEMP_MAX[tempSheet] : 0 }) }}</text>
+        <template #footer>
+          <button class="cta fill" @click="applyTemp()">{{ t('control.setTo', { t: tempSet }) }}</button>
+        </template>
+      </Sheet>
+
       <text class="foot">{{ s?.wifi }} · {{ t('monitor.updatedAt', { time: printer.lastAt ? new Date(printer.lastAt).toLocaleTimeString() : t('common.none') }) }}</text>
       </view>
     </template>
@@ -1188,6 +1296,17 @@ async function send(c: Command, confirmText?: string) {
   margin: 52rpx 0 16rpx 8rpx; letter-spacing: 0.01em; }
 .list { padding: 0 34rpx; }
 .hsep { height: 1rpx; background: var(--separator); }
+
+/* —— 设备控制 —— */
+.tile-tap { flex: 1; display: flex; min-width: 0; }
+.tile-tap > * { flex: 1; }
+.k.danger { color: var(--critical); }
+.speeds { display: flex; background: var(--surface); border-radius: 24rpx; padding: 8rpx; }
+.sp { flex: 1; padding: 20rpx 0; text-align: center; border-radius: 18rpx; transition: background 0.25s ease; }
+.sp.on { background: var(--surface-2); }
+.sp-n { display: block; font-size: 28rpx; color: var(--ink); letter-spacing: -0.02em; }
+.sp.on .sp-n { font-weight: 600; }
+.sp-p { display: block; font-size: 22rpx; color: var(--ink-2); margin-top: 4rpx; }
 
 .foot { display: block; text-align: center; font-size: 22rpx;
   color: var(--ink-3); margin-top: 52rpx; letter-spacing: -0.01em; }

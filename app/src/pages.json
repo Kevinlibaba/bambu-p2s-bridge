@@ -3,13 +3,7 @@
     {
       "path": "pages/monitor/index",
       "style": {
-        "navigationBarTitleText": "%tab.monitor%"
-      }
-    },
-    {
-      "path": "pages/control/index",
-      "style": {
-        "navigationBarTitleText": "%tab.control%"
+        "navigationBarTitleText": "%tab.device%"
       }
     },
     {
@@ -19,15 +13,15 @@
       }
     },
     {
-      "path": "pages/settings/index",
-      "style": {
-        "navigationBarTitleText": "%tab.settings%"
-      }
-    },
-    {
       "path": "pages/makerworld/index",
       "style": {
         "navigationBarTitleText": "%mw.title%"
+      }
+    },
+    {
+      "path": "pages/settings/index",
+      "style": {
+        "navigationBarTitleText": "%tab.settings%"
       }
     },
     {
@@ -52,15 +46,15 @@
     "list": [
       {
         "pagePath": "pages/monitor/index",
-        "text": "%tab.monitor%"
-      },
-      {
-        "pagePath": "pages/control/index",
-        "text": "%tab.control%"
+        "text": "%tab.device%"
       },
       {
         "pagePath": "pages/files/index",
         "text": "%tab.files%"
+      },
+      {
+        "pagePath": "pages/makerworld/index",
+        "text": "%tab.makerworld%"
       },
       {
         "pagePath": "pages/settings/index",

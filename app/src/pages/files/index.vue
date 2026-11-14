@@ -535,7 +535,7 @@ function pickFile() {
 
 function openMakerWorld() {
   closeImport()
-  uni.navigateTo({ url: '/pages/makerworld/index' })
+  uni.switchTab({ url: '/pages/makerworld/index' })
 }
 
 function doImportLink() {
