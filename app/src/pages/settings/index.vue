@@ -35,7 +35,7 @@ form.value = loadSettings()
 
 onShow(() => {
   void loadCheck()
-  applyChrome('tab.settings')
+  applyChrome('me.settings')
   void loadNotify()
 })
 
@@ -93,10 +93,6 @@ async function togglePush() {
   } finally {
     pushBusy.value = false
   }
-}
-
-function goHistory() {
-  uni.navigateTo({ url: '/pages/history/index' })
 }
 
 // ---- 存储卡体检 ----
@@ -449,14 +445,6 @@ function pickLocale() {
         </template>
       </Sheet>
 
-      <text class="grouphead">{{ t('history.title') }}</text>
-      <view class="card">
-        <view class="line tappable" @click="goHistory">
-          <text class="k accent">{{ t('settings.openHistory') }}</text>
-          <text class="v">›</text>
-        </view>
-      </view>
-
       <text class="grouphead">{{ t('settings.statusGroup') }}</text>
       <view class="card">
         <view class="line"><text class="k">{{ t('settings.channel') }}</text>
@@ -483,7 +471,6 @@ function pickLocale() {
         </view>
       </view>
 
-      <text class="foot">{{ t('settings.footer') }}</text>
     </view>
   </view>
 </template>

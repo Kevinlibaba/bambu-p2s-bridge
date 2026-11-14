@@ -108,7 +108,7 @@ export function applyChrome(titleKey?: string) {
     borderStyle: state.effectiveTheme === 'dark' ? 'black' : 'white',
     fail: ignore,
   })
-  const tabs = ['tab.device', 'tab.makerworld', 'tab.settings']
+  const tabs = ['tab.device', 'tab.makerworld', 'tab.me']
   tabs.forEach((k, index) => uni.setTabBarItem({ index, text: tt(k), fail: ignore }))
 }
 

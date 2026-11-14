@@ -5,7 +5,7 @@
   "tab": {
     "device": "Device",
     "makerworld": "MW",
-    "settings": "Settings"
+    "me": "Me"
   },
   "state": {
     "IDLE": "Idle",
@@ -205,7 +205,6 @@
     "pushNoVapid": "The bridge has no VAPID keys, so web push is unavailable",
     "pushDenied": "Notification permission denied — allow it in system settings",
     "pushFailed": "Subscription failed",
-    "openHistory": "Open print history",
     "paste": "Paste"
   },
   "action": {
@@ -623,7 +622,11 @@
       "manual": "The next job will not start after the current one finishes. Resume to continue automatically.",
       "foreign": "Someone started a print outside the queue. Wait for it to finish and clear the bed before resuming.",
       "blocked": "For example the bed did not cool down in time. Make sure the printer is ready before resuming."
-    }
+    },
+    "count": "{n} items",
+    "items": "Queue",
+    "howToAdd": "Open a sliced file and tap \"Add to queue\" to line it up here.",
+    "goFiles": "Choose a file"
   },
   "mw": {
     "title": "MakerWorld",
@@ -702,5 +705,11 @@
     },
     "end": "You've reached the end",
     "filesShort": "Files"
+  },
+  "me": {
+    "settings": "Settings",
+    "files": "Files on the printer",
+    "mwSignedOut": "Not signed in",
+    "notConfigured": "Not connected"
   }
 }

@@ -13,9 +13,15 @@
       }
     },
     {
+      "path": "pages/me/index",
+      "style": {
+        "navigationBarTitleText": "%tab.me%"
+      }
+    },
+    {
       "path": "pages/settings/index",
       "style": {
-        "navigationBarTitleText": "%tab.settings%"
+        "navigationBarTitleText": "%me.settings%"
       }
     },
     {
@@ -28,6 +34,12 @@
       "path": "pages/history/index",
       "style": {
         "navigationBarTitleText": "%history.title%"
+      }
+    },
+    {
+      "path": "pages/queue/index",
+      "style": {
+        "navigationBarTitleText": "%queue.title%"
       }
     }
   ],
@@ -53,8 +65,8 @@
         "text": "%tab.makerworld%"
       },
       {
-        "pagePath": "pages/settings/index",
-        "text": "%tab.settings%"
+        "pagePath": "pages/me/index",
+        "text": "%tab.me%"
       }
     ],
     "fontSize": "15px",

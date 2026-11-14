@@ -5,7 +5,7 @@
   "tab": {
     "device": "设备",
     "makerworld": "MW",
-    "settings": "设置"
+    "me": "我的"
   },
   "state": {
     "IDLE": "空闲",
@@ -205,7 +205,6 @@
     "pushNoVapid": "桥接未配置 VAPID 密钥，网页推送不可用",
     "pushDenied": "通知权限被拒绝，请在系统设置里放开",
     "pushFailed": "订阅失败",
-    "openHistory": "查看打印历史",
     "paste": "粘贴"
   },
   "action": {
@@ -623,7 +622,11 @@
       "manual": "当前这件打完后不会再起下一件。点继续恢复自动执行。",
       "foreign": "有人在队列之外开了一单打印。等它结束、清空热床后再继续。",
       "blocked": "比如等热床冷却超时。确认机器已经就绪再继续。"
-    }
+    },
+    "count": "{n} 项",
+    "items": "队列",
+    "howToAdd": "在文件详情里点「加入队列」，把切好的文件排进来。",
+    "goFiles": "去选文件"
   },
   "mw": {
     "title": "MakerWorld",
@@ -702,5 +705,11 @@
     },
     "end": "已经到底了",
     "filesShort": "文件"
+  },
+  "me": {
+    "settings": "设置",
+    "files": "打印机上的文件",
+    "mwSignedOut": "未登录",
+    "notConfigured": "未连接"
   }
 }

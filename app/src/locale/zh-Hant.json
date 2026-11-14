@@ -5,7 +5,7 @@
   "tab": {
     "device": "裝置",
     "makerworld": "MW",
-    "settings": "設定"
+    "me": "我的"
   },
   "state": {
     "IDLE": "閒置",
@@ -205,7 +205,6 @@
     "pushNoVapid": "橋接未設定 VAPID 金鑰，網頁推播無法使用",
     "pushDenied": "通知權限被拒絕，請至系統設定開啟",
     "pushFailed": "訂閱失敗",
-    "openHistory": "查看列印歷史",
     "paste": "貼上"
   },
   "action": {
@@ -623,7 +622,11 @@
       "manual": "目前這件印完後不會再開始下一件。點繼續恢復自動執行。",
       "foreign": "有人在佇列之外開了一筆列印。等它結束、清空熱床後再繼續。",
       "blocked": "例如等熱床冷卻逾時。確認機器已經就緒再繼續。"
-    }
+    },
+    "count": "{n} 項",
+    "items": "佇列",
+    "howToAdd": "在檔案詳情裡點「加入佇列」，把切好的檔案排進來。",
+    "goFiles": "去選檔案"
   },
   "mw": {
     "title": "MakerWorld",
@@ -702,5 +705,11 @@
     },
     "end": "已經到底了",
     "filesShort": "檔案"
+  },
+  "me": {
+    "settings": "設定",
+    "files": "印表機上的檔案",
+    "mwSignedOut": "未登入",
+    "notConfigured": "未連線"
   }
 }

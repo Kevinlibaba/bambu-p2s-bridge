@@ -128,7 +128,7 @@ function onCamFallback() {
 }
 
 function goSettings() {
-  uni.switchTab({ url: '/pages/settings/index' })
+  uni.navigateTo({ url: '/pages/settings/index' })
 }
 
 /*

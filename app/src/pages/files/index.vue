@@ -6,8 +6,7 @@ import {
   api, configured, uploadFile, importUrl, deleteFile, startPrint, fetchPrintPlan,
   startSlice, fetchSliceJob, fetchSliceOptions,
   fetchSchedule, setSchedule, cancelSchedule, type ScheduleStatus,
-  fetchQueue, enqueue, dequeue, reorderQueue, startQueue, pauseQueue, resumeQueue, clearQueue,
-  queuePhotoUrl, type QueueStatus, type QueueItem,
+  fetchQueue, enqueue, type QueueStatus, type QueueItem,
   planHarvestFile, makeHarvestFile,
   type RemoteFile, type ThreeMfInfo, type PrintPlan, type PlanTray, type PreflightCheck,
   type SliceJob, type SliceOptions, type SliceParams,
@@ -905,17 +904,13 @@ async function cancelSched() {
 // ---- 打印队列 ----
 /*
  * 队列的执行在桥接侧：打完一件 → 收菜 → 起下一件。界面只负责排队和看状态。
- * 状态没有推送，Sheet 开着时 3 秒轮询一次；关掉就停，别让后台白跑。
+ * 这里只挂横幅；详情、调顺序在队列页。
  */
 const queue = ref<QueueStatus | null>(null)
 const queueErr = ref('')
-const queueOpen = ref(false)
-const queueBusy = ref(false)
 
 const queueItems = computed(() => queue.value?.items ?? [])
 const queueWaiting = computed(() => queueItems.value.filter((i) => i.status === 'waiting'))
-const queueHasFinished = computed(() =>
-  queueItems.value.some((i) => i.status === 'done' || i.status === 'failed' || i.status === 'skipped'))
 const queueCurrent = computed<QueueItem | null>(() =>
   queueItems.value.find((i) => i.id === queue.value?.current) ?? null)
 
@@ -929,17 +924,10 @@ async function loadQueue() {
   }
 }
 
-let queueTimer: ReturnType<typeof setInterval> | null = null
-function startQueuePoll() {
-  stopQueuePoll()
-  queueTimer = setInterval(() => void loadQueue(), 3000)
+/** 队列详情是单独一页（从「我的」也能进）；回来时 onShow 会重新拉一次横幅 */
+function openQueue() {
+  uni.navigateTo({ url: '/pages/queue/index' })
 }
-function stopQueuePoll() {
-  if (queueTimer) { clearInterval(queueTimer); queueTimer = null }
-}
-watch(queueOpen, (on) => {
-  if (on) { void loadQueue(); startQueuePoll() } else stopQueuePoll()
-})
 
 /** 横幅第二行：暂停就说为什么停，在跑就说到哪一步了 */
 const queueBannerSub = computed(() => {
@@ -950,24 +938,6 @@ const queueBannerSub = computed(() => {
   if (cur) return `${cur.name} · ${t('queue.phase.' + q.phase)}`
   return t('queue.waitingCount', { n: queueWaiting.value.length })
 })
-
-/**
- * 队列的每个操作都是「发请求 → 用返回的状态整个替换」。
- * 服务端 4xx 时 error 已经是给人看的话（打印机忙、没有待打项……），原样 toast。
- */
-async function queueAction(work: () => Promise<QueueStatus>, okMsg?: string) {
-  if (queueBusy.value) return
-  queueBusy.value = true
-  try {
-    queue.value = await work()
-    queueErr.value = ''
-    if (okMsg) toast(okMsg)
-  } catch (e) {
-    toast((e as Error).message)
-  } finally {
-    queueBusy.value = false
-  }
-}
 
 async function enqueueSelected() {
   const f = sel.value
@@ -985,24 +955,6 @@ async function enqueueSelected() {
     toast((e as Error).message)
   }
 }
-
-/** 上移/下移：只动 waiting 项之间的相对顺序，把整份新顺序发过去 */
-function moveQueueItem(id: string, delta: -1 | 1) {
-  const ids = queueWaiting.value.map((i) => i.id)
-  const i = ids.indexOf(id)
-  const j = i + delta
-  if (i < 0 || j < 0 || j >= ids.length) return
-  ;[ids[i], ids[j]] = [ids[j], ids[i]]
-  void queueAction(() => reorderQueue(ids))
-}
-
-async function removeQueueItem(it: QueueItem) {
-  if (!(await confirm(t('queue.removeTitle'), t('queue.removeDesc', { name: it.name }), true))) return
-  void queueAction(() => dequeue(it.id), t('queue.removed'))
-}
-
-function isFirstWaiting(id: string) { return queueWaiting.value[0]?.id === id }
-function isLastWaiting(id: string) { return queueWaiting.value[queueWaiting.value.length - 1]?.id === id }
 
 /*
  * 历史页的「再打一次」。只负责带路：进到那个目录、打开详情、预选上次那一盘。
@@ -1065,10 +1017,7 @@ onShow(() => {
   else load()
   void loadSchedule()
   void loadQueue()
-  // 切走时轮询停了；Sheet 还开着就接着轮
-  if (queueOpen.value) startQueuePoll()
 })
-onHide(stopQueuePoll)
 onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 </script>
 
@@ -1094,7 +1043,7 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
             <text class="k">{{ t('queue.banner', { n: queueItems.length, state: t('queue.state.' + (queue?.state ?? 'idle')) }) }}</text>
             <text class="sub">{{ queueBannerSub }}</text>
           </view>
-          <text class="v accent tappable" @click="queueOpen = true">{{ t('queue.view') }} ›</text>
+          <text class="v accent tappable" @click="openQueue">{{ t('queue.view') }} ›</text>
         </view>
       </view>
       <view class="segs">
@@ -1457,79 +1406,6 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
       </template>
     </Sheet>
 
-    <!-- 打印队列：排队、看进度、暂停后的安全确认 -->
-    <Sheet :visible="queueOpen" :title="t('queue.title')" @close="queueOpen = false">
-      <!-- 警告放最前面：队列会在无人值守时自动开打下一件，先知道风险再看内容 -->
-      <view class="hwarn">
-        <text class="hwarn-t">{{ t('queue.expTitle') }}</text>
-      </view>
-
-      <view v-if="!queue && !queueErr" class="ph-box"><Spinner :size="40" /></view>
-      <view v-else-if="!queue && queueErr" class="card sheet-card">
-        <view class="line"><text class="k dim">{{ queueErr }}</text></view>
-      </view>
-
-      <template v-else-if="queue">
-        <!--
-          停下等人的那张卡。safety 是安全门：收菜之后桥接不敢自己认定床已经空了，
-          把照片给人看，人点了「床已清空」才起下一件。别的原因也走同一张卡，只换文案。
-        -->
-        <view v-if="queue.pause" class="qpause">
-          <text class="qpause-t">{{ t('queue.reason.' + queue.pause.reason) }}</text>
-          <text class="qpause-d">{{ t('queue.reasonHint.' + queue.pause.reason) }}</text>
-          <text v-if="queue.pause.message" class="qpause-m">{{ queue.pause.message }}</text>
-          <image v-if="queue.pause.photo" class="qphoto" :src="queuePhotoUrl(queue.pause.photo)"
-            mode="aspectFill" />
-          <button class="cta fill qresume" :disabled="queueBusy" @click="queueAction(resumeQueue)">
-            {{ queue.pause.reason === 'safety' ? t('queue.resumeSafety') : t('queue.resume') }}
-          </button>
-        </view>
-
-        <view v-if="!queueItems.length" class="ph-box"><text class="ph-t">{{ t('queue.empty') }}</text></view>
-        <view v-else class="card sheet-card">
-          <view v-for="(it, i) in queueItems" :key="it.id">
-            <view v-if="i > 0" class="hsep" />
-            <view class="qrow">
-              <view class="qmain">
-                <view class="qhead">
-                  <text class="qpill" :class="it.status">{{ t('queue.status.' + it.status) }}</text>
-                  <text class="qname">{{ it.name }}</text>
-                </view>
-                <text class="qsub">
-                  {{ t('queue.plateN', { n: it.plate }) }}
-                  <!-- 收菜规划有告警的项打完不会自动衔接，先说清楚，免得半夜发现队列停了 -->
-                  <text v-if="!it.harvestAuto"> · {{ t('queue.manualAfter') }}</text>
-                </text>
-                <text v-if="it.error" class="qsub err">{{ it.error }}</text>
-              </view>
-              <view v-if="it.status === 'waiting'" class="qacts">
-                <text class="qbtn" :class="{ off: isFirstWaiting(it.id) }"
-                  :aria-label="t('queue.up')" @click="moveQueueItem(it.id, -1)">↑</text>
-                <text class="qbtn" :class="{ off: isLastWaiting(it.id) }"
-                  :aria-label="t('queue.down')" @click="moveQueueItem(it.id, 1)">↓</text>
-                <text class="qbtn danger" :aria-label="t('queue.remove')"
-                  @click="removeQueueItem(it)">×</text>
-              </view>
-            </view>
-          </view>
-        </view>
-        <text class="hint">{{ t('queue.note') }}</text>
-      </template>
-
-      <template #footer>
-        <text v-if="queue && queueHasFinished" class="qclear" @click="queueAction(clearQueue)">
-          {{ t('queue.clear') }}
-        </text>
-        <button v-if="queue?.state === 'running'" class="cta" :disabled="queueBusy"
-          @click="queueAction(pauseQueue)">{{ t('queue.pauseAction') }}</button>
-        <button v-else-if="queue?.state === 'paused'" class="cta fill" :disabled="queueBusy"
-          @click="queueAction(resumeQueue)">{{ t('queue.resume') }}</button>
-        <button v-else-if="queue && queueWaiting.length" class="cta fill" :disabled="queueBusy"
-          @click="queueAction(startQueue)">{{ t('queue.start') }}</button>
-        <button v-else class="cta" @click="queueOpen = false">{{ t('files.close') }}</button>
-      </template>
-    </Sheet>
-
     <!-- 导入：三个步骤共用一张卡片 -->
     <Sheet :visible="importStep !== ''" :title="importTitle" @close="closeImport">
       <template v-if="importStep === 'choose'">
@@ -1689,49 +1565,6 @@ onPullDownRefresh(async () => { await load(); uni.stopPullDownRefresh() })
 .k.dim { color: var(--ink-3); }
 
 /* ---- 打印队列 ---- */
-/* 实验功能警示块，和监控页收菜 Sheet 的同一套写法：浅色底而不是描边，深色模式下不刺眼 */
-.hwarn { margin-top: 24rpx; padding: 26rpx 28rpx; border-radius: 20rpx;
-  background: var(--warning-bg); }
-.hwarn-t { display: block; font-size: 27rpx; color: var(--warning); letter-spacing: -0.02em; }
-
-.qpause { margin-top: 24rpx; padding: 30rpx 34rpx; border-radius: 28rpx;
-  background: var(--warning-bg); }
-.qpause-t { display: block; font-size: 30rpx; font-weight: 600; color: var(--warning);
-  letter-spacing: -0.02em; line-height: 1.35; }
-.qpause-d { display: block; font-size: 25rpx; color: var(--ink); margin-top: 10rpx;
-  line-height: 1.5; letter-spacing: -0.01em; }
-.qpause-m { display: block; font-size: 23rpx; color: var(--ink-2); margin-top: 8rpx;
-  line-height: 1.5; letter-spacing: -0.01em; word-break: break-all; }
-.qphoto { display: block; width: 100%; height: 360rpx; border-radius: 20rpx; margin-top: 20rpx;
-  background: var(--surface); }
-.qresume { margin-top: 24rpx; }
-
-.qrow { display: flex; align-items: center; padding: 22rpx 0; }
-.qmain { flex: 1; min-width: 0; }
-.qhead { display: flex; align-items: center; min-width: 0; }
-.qname { flex: 1; min-width: 0; font-size: 28rpx; color: var(--ink); letter-spacing: -0.02em;
-  overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-.qsub { display: block; font-size: 22rpx; color: var(--ink-3); margin-top: 6rpx;
-  letter-spacing: -0.01em; }
-.qsub.err { color: var(--critical); word-break: break-all; }
-/* 状态胶囊。按状态上色，语义和别处一致：accent 在进行、warning 要注意、critical 出错、good 完成 */
-.qpill { flex-shrink: 0; font-size: 20rpx; padding: 4rpx 14rpx; border-radius: 999rpx;
-  margin-right: 14rpx; letter-spacing: -0.01em; color: var(--ink-2); background: var(--surface-2); }
-.qpill.printing { color: var(--accent); background: var(--accent-dim); }
-.qpill.harvesting { color: var(--warning); background: var(--warning-bg); }
-.qpill.done { color: var(--good); background: var(--surface-2); }
-.qpill.failed { color: var(--critical); background: var(--surface-2); }
-.qpill.skipped { color: var(--ink-3); background: var(--surface-2); }
-/* 上移/下移/移除：三个小方块，不引图标库，字符够用 */
-.qacts { display: flex; align-items: center; margin-left: 16rpx; flex-shrink: 0; }
-.qbtn { width: 60rpx; height: 60rpx; line-height: 60rpx; text-align: center; border-radius: 14rpx;
-  background: var(--surface-2); color: var(--ink); font-size: 30rpx; margin-left: 10rpx; }
-.qbtn:active { opacity: 0.55; }
-.qbtn.off { color: var(--ink-3); opacity: 0.45; pointer-events: none; }
-.qbtn.danger { color: var(--critical); }
-.qclear { display: block; text-align: center; font-size: 26rpx; color: var(--accent);
-  padding: 8rpx 0 20rpx; letter-spacing: -0.01em; }
-.qclear:active { opacity: 0.55; }
 .beta { font-size: 18rpx; color: var(--ink-3); margin-left: 6rpx; vertical-align: super; }
 .segs.mini { margin: 0; flex: 0 0 auto; }
 .segs.mini .seg { padding: 12rpx 22rpx; }
