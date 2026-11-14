@@ -157,7 +157,7 @@ PY
   step "访问码"
   CODE="${BAMBU_ACCESS_CODE:-}"
   if [ -z "$CODE" ]; then
-    say "  在打印机上：设置 → 通用 → 局域网模式，8 位字母数字。"
+    say "  在打印机上：设置 → 网络 → 局域网模式，8 位字母数字。"
     CODE=$(ask "  访问码")
   fi
   [[ "$CODE" =~ ^[A-Za-z0-9]{8}$ ]] || die "访问码应当是 8 位字母数字，收到的是「$CODE」"
